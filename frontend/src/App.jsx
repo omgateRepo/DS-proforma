@@ -9,6 +9,7 @@ import {
   fetchPhiladelphiaWeather,
   fetchProjectDetail,
   fetchProjects,
+  searchAddresses,
   stageLabels,
   updateProjectGeneral,
   updateProjectStage,
@@ -24,6 +25,7 @@ const TABS = [
 ]
 
 const defaultGeneralForm = {
+  name: '',
   addressLine1: '',
   addressLine2: '',
   city: '',
@@ -65,8 +67,19 @@ function App() {
   const [revenueForm, setRevenueForm] = useState(defaultRevenueForm)
   const [revenueStatus, setRevenueStatus] = useState('idle')
   const [stageUpdatingFor, setStageUpdatingFor] = useState(null)
+  const [addressQuery, setAddressQuery] = useState('')
+  const [addressSuggestions, setAddressSuggestions] = useState([])
+  const [addressSearchStatus, setAddressSearchStatus] = useState('idle')
+  const [addressSearchError, setAddressSearchError] = useState('')
+  const [addressInputTouched, setAddressInputTouched] = useState(false)
+  const [selectedCoords, setSelectedCoords] = useState(null)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState(null)
+  const [deleteStatus, setDeleteStatus] = useState('idle')
+  const [pendingRevenueDeleteId, setPendingRevenueDeleteId] = useState(null)
 
   const stageOptions = stageLabels()
+  const apiOrigin = (API_BASE || '').replace(/\/$/, '')
 
   const projectsByStage = useMemo(() => {
     return stageOptions.reduce((acc, stage) => {
@@ -74,6 +87,7 @@ function App() {
       return acc
     }, {})
   }, [projects, stageOptions])
+  const isKanbanView = !selectedProjectId
 
   const loadProjects = async () => {
     setProjectsStatus('loading')
@@ -100,11 +114,16 @@ function App() {
       setSelectedProject(detail)
       setGeneralForm({
         ...defaultGeneralForm,
+        name: detail.name,
         ...detail.general,
         purchasePriceUsd: detail.general.purchasePriceUsd || '',
         targetUnits: detail.general.targetUnits || '',
         targetSqft: detail.general.targetSqft || '',
       })
+      setAddressQuery(detail.general.addressLine1 || '')
+      setAddressInputTouched(false)
+      setAddressSuggestions([])
+      setSelectedCoords(null)
       setDetailStatus('loaded')
     } catch (err) {
       setDetailError(err.message)
@@ -131,6 +150,28 @@ function App() {
     }
   }, [selectedProjectId])
 
+  useEffect(() => {
+    if (!addressInputTouched) return
+    if (!addressQuery || addressQuery.length < 3) {
+      setAddressSuggestions([])
+      return
+    }
+    setAddressSearchStatus('loading')
+    setAddressSearchError('')
+    const timeout = setTimeout(async () => {
+      try {
+        const results = await searchAddresses(addressQuery)
+        setAddressSuggestions(results)
+        setAddressSearchStatus('loaded')
+      } catch (err) {
+        setAddressSearchStatus('error')
+        setAddressSearchError(err.message)
+        setAddressSuggestions([])
+      }
+    }, 400)
+    return () => clearTimeout(timeout)
+  }, [addressQuery, addressInputTouched])
+
   async function handleCreateProject(event) {
     event.preventDefault()
     setCreateError('')
@@ -145,6 +186,7 @@ function App() {
       setNewProjectName('')
       await loadProjects()
       setSelectedProjectId(created.id)
+      setIsCreateModalOpen(false)
       setCreateStatus('idle')
     } catch (err) {
       setCreateError(err.message)
@@ -152,18 +194,48 @@ function App() {
     }
   }
 
-  async function handleDeleteProject(id) {
+  function openCreateModal() {
+    setCreateError('')
+    setNewProjectName('')
+    setIsCreateModalOpen(true)
+  }
+
+  function closeCreateModal() {
+    if (createStatus === 'saving') return
+    setIsCreateModalOpen(false)
+  }
+
+  function requestDeleteProject(id) {
     setDeleteError('')
+    setPendingDeleteProjectId(id)
+  }
+
+  async function confirmDeleteProject() {
+    if (!pendingDeleteProjectId) return
+    setDeleteStatus('saving')
     try {
-      await deleteProject(id)
-      if (id === selectedProjectId) {
-        setSelectedProjectId(null)
-        setSelectedProject(null)
+      await deleteProject(pendingDeleteProjectId)
+      if (pendingDeleteProjectId === selectedProjectId) {
+        handleBackToKanban()
       }
       await loadProjects()
+      setPendingDeleteProjectId(null)
     } catch (err) {
       setDeleteError(err.message)
+    } finally {
+      setDeleteStatus('idle')
     }
+  }
+
+  function handleBackToKanban() {
+    setSelectedProjectId(null)
+    setSelectedProject(null)
+  }
+
+  function cancelDeleteProject() {
+    if (deleteStatus === 'saving') return
+    setPendingDeleteProjectId(null)
+    setDeleteError('')
   }
 
   async function handleStageChange(projectId, stage) {
@@ -193,7 +265,8 @@ function App() {
         targetSqft: generalForm.targetSqft ? Number(generalForm.targetSqft) : null,
       }
       const updated = await updateProjectGeneral(selectedProjectId, payload)
-      setSelectedProject((prev) => (prev ? { ...prev, general: updated.general } : prev))
+      setSelectedProject((prev) => (prev ? { ...prev, name: updated.name, general: updated.general } : prev))
+      setAddressQuery(updated.general.addressLine1 || '')
       setGeneralStatus('idle')
       await loadProjects()
     } catch (err) {
@@ -224,9 +297,15 @@ function App() {
 
   async function handleDeleteRevenue(revenueId) {
     if (!selectedProjectId) return
+    setPendingRevenueDeleteId(revenueId)
+  }
+
+  async function confirmDeleteRevenue() {
+    if (!selectedProjectId || !pendingRevenueDeleteId) return
     setRevenueStatus('saving')
     try {
-      await deleteRevenueItem(selectedProjectId, revenueId)
+      await deleteRevenueItem(selectedProjectId, pendingRevenueDeleteId)
+      setPendingRevenueDeleteId(null)
       setRevenueStatus('idle')
       await loadProjectDetail(selectedProjectId)
     } catch (err) {
@@ -235,104 +314,118 @@ function App() {
     }
   }
 
+  function cancelDeleteRevenue() {
+    if (revenueStatus === 'saving') return
+    setPendingRevenueDeleteId(null)
+    if (revenueStatus === 'error') {
+      setRevenueStatus('idle')
+    }
+  }
+
+  function handleAddressSelect(suggestion) {
+    setGeneralForm((prev) => ({
+      ...prev,
+      addressLine1: suggestion.addressLine1 || '',
+      city: suggestion.city || '',
+      state: suggestion.state || '',
+      zip: suggestion.zip || '',
+    }))
+    setAddressQuery(suggestion.label || suggestion.addressLine1 || '')
+    setAddressSuggestions([])
+    setAddressInputTouched(false)
+    if (suggestion.latitude && suggestion.longitude) {
+      setSelectedCoords({ lat: suggestion.latitude, lon: suggestion.longitude })
+    }
+  }
+
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">Real Estate Control Center</p>
-          <h1>DS Proforma</h1>
-          <p className="muted">API: {API_BASE || 'local'} </p>
-        </div>
-        <div className="weather-card">
-          <h3>Philadelphia Weather</h3>
-          {weatherStatus === 'loading' && <p>Sampling temperature…</p>}
-          {weatherStatus === 'error' && <p className="error">{weatherError}</p>}
-          {weatherStatus === 'loaded' && weather && (
-            <>
-              <p className="weather-temp">{weather.temperature_c}°C</p>
-              <p className="muted">Sampled at {new Date(weather.sampled_at).toLocaleTimeString('en-US')}</p>
-            </>
-          )}
-        </div>
-      </header>
-
-      <section className="create-project-card">
-        <h2>Create Project</h2>
-        <form onSubmit={handleCreateProject} className="project-form">
-          <input
-            type="text"
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-            placeholder="Project name"
-            required
-            disabled={createStatus === 'saving'}
-          />
-          <button type="submit" disabled={createStatus === 'saving'}>
-            {createStatus === 'saving' ? 'Creating…' : 'Add project'}
-          </button>
-        </form>
-        {createError && <p className="error">{createError}</p>}
-      </section>
-
-      <div className="board-and-detail">
-        <section className="kanban-section">
-          <div className="section-header">
-            <h2>Pipeline</h2>
-            {projectsStatus === 'loading' && <span className="muted">Loading…</span>}
-            {projectsStatus === 'error' && <span className="error">{projectsError}</span>}
+      {isKanbanView && (
+        <header className="app-header">
+          <div>
+            <p className="eyebrow">Real Estate Control Center</p>
+            <h1>DS Proforma</h1>
+            <p className="muted">API: {API_BASE || 'local'} </p>
           </div>
-          <div className="kanban">
-            {stageOptions.map((stage) => (
-              <div className="kanban-column" key={stage.id}>
-                <div className="column-header">
-                  <h3>{stage.label}</h3>
-                  <span className="pill">{projectsByStage[stage.id]?.length ?? 0}</span>
-                </div>
-                <div className="column-body">
-                  {projectsByStage[stage.id] && projectsByStage[stage.id].length > 0 ? (
-                    projectsByStage[stage.id].map((project) => (
-                      <article
-                        key={project.id}
-                        className={`project-card ${project.id === selectedProjectId ? 'active' : ''}`}
-                        onClick={() => setSelectedProjectId(project.id)}
-                      >
-                        <div>
-                          <h4>{project.name}</h4>
-                          <p className="muted">
-                            {project.city || 'City'}, {project.state || 'State'}
-                          </p>
-                          <p className="muted">
-                            Units: {project.targetUnits ?? '—'} • Budget:{' '}
-                            {project.purchasePriceUsd ? `$${(project.purchasePriceUsd / 1_000_000).toFixed(2)}M` : '—'}
-                          </p>
-                        </div>
-                        <select
-                          value={project.stage}
-                          onChange={(e) => {
-                            e.stopPropagation()
-                            handleStageChange(project.id, e.target.value)
-                          }}
-                          disabled={stageUpdatingFor === project.id}
+          <div className="header-actions">
+            <div className="weather-card">
+              <h3>Philadelphia Weather</h3>
+              {weatherStatus === 'loading' && <p>Sampling temperature…</p>}
+              {weatherStatus === 'error' && <p className="error">{weatherError}</p>}
+              {weatherStatus === 'loaded' && weather && (
+                <>
+                  <p className="weather-temp">{weather.temperature_c}°C</p>
+                  <p className="muted">Sampled at {new Date(weather.sampled_at).toLocaleTimeString('en-US')}</p>
+                </>
+              )}
+            </div>
+            <button className="primary" type="button" onClick={openCreateModal}>
+              + Add Project
+            </button>
+          </div>
+        </header>
+      )}
+
+      {isKanbanView ? (
+        <>
+          <section className="kanban-section">
+            <div className="kanban">
+              {stageOptions.map((stage) => (
+                <div className="kanban-column" key={stage.id}>
+                  <div className="column-header">
+                    <h3>{stage.label}</h3>
+                    <span className="pill">{projectsByStage[stage.id]?.length ?? 0}</span>
+                  </div>
+                  <div className="column-body">
+                    {projectsByStage[stage.id] && projectsByStage[stage.id].length > 0 ? (
+                      projectsByStage[stage.id].map((project) => (
+                        <article
+                          key={project.id}
+                          className="project-card"
+                          onClick={() => setSelectedProjectId(project.id)}
                         >
-                          {stageOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="muted empty">No deals</p>
-                  )}
+                          <div>
+                            <h4>{project.name}</h4>
+                            <p className="muted">
+                              {project.city || 'City'}, {project.state || 'State'}
+                            </p>
+                            <p className="muted">
+                              Units: {project.targetUnits ?? '—'} • Budget:{' '}
+                              {project.purchasePriceUsd ? `$${(project.purchasePriceUsd / 1_000_000).toFixed(2)}M` : '—'}
+                            </p>
+                          </div>
+                          <select
+                            value={project.stage}
+                            onChange={(e) => {
+                              e.stopPropagation()
+                              handleStageChange(project.id, e.target.value)
+                            }}
+                            disabled={stageUpdatingFor === project.id}
+                          >
+                            {stageOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="muted empty">No deals</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <section className="detail-section detail-full">
+          <div className="detail-nav">
+            <button type="button" className="ghost" onClick={handleBackToKanban}>
+              ← Back to pipeline
+            </button>
           </div>
-        </section>
-
-        <section className="detail-section">
-          {!selectedProjectId && <p>Select a project card to see details.</p>}
           {detailStatus === 'loading' && <p>Loading project…</p>}
           {detailStatus === 'error' && <p className="error">{detailError}</p>}
           {selectedProject && detailStatus === 'loaded' && (
@@ -342,7 +435,7 @@ function App() {
                   <p className="eyebrow">Project</p>
                   <h2>{selectedProject.name}</h2>
                 </div>
-                <button className="danger" onClick={() => handleDeleteProject(selectedProject.id)}>
+                <button className="danger" type="button" onClick={() => requestDeleteProject(selectedProject.id)}>
                   Delete Project
                 </button>
               </div>
@@ -363,12 +456,40 @@ function App() {
                 <form className="general-form" onSubmit={handleGeneralSave}>
                   <div className="form-grid">
                     <label>
+                      Project Name
+                      <input
+                        type="text"
+                        value={generalForm.name}
+                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, name: e.target.value }))}
+                        required
+                      />
+                    </label>
+                    <label className="address-autocomplete">
                       Address Line 1
                       <input
                         type="text"
-                        value={generalForm.addressLine1}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, addressLine1: e.target.value }))}
+                        value={addressQuery}
+                        placeholder="Start typing address"
+                        onFocus={() => setAddressInputTouched(true)}
+                        onChange={(e) => {
+                          setAddressQuery(e.target.value)
+                          setGeneralForm((prev) => ({ ...prev, addressLine1: e.target.value }))
+                        }}
                       />
+                      {addressSearchStatus === 'loading' && <span className="muted tiny">Searching…</span>}
+                      {addressSuggestions.length > 0 && (
+                        <ul className="address-suggestions">
+                          {addressSuggestions.map((suggestion) => (
+                            <li key={suggestion.id} onMouseDown={() => handleAddressSelect(suggestion)}>
+                              <strong>{suggestion.addressLine1}</strong>
+                              <span>{suggestion.label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {addressSearchStatus === 'error' && addressSearchError && (
+                        <span className="error tiny">{addressSearchError}</span>
+                      )}
                     </label>
                     <label>
                       Address Line 2
@@ -427,6 +548,14 @@ function App() {
                       />
                     </label>
                   </div>
+                  {selectedCoords && (
+                    <div className="satellite-preview">
+                      <img
+                        src={`${apiOrigin || ''}/api/geocode/satellite?lat=${selectedCoords.lat}&lon=${selectedCoords.lon}&zoom=16`}
+                        alt="Satellite preview"
+                      />
+                    </div>
+                  )}
                   <label>
                     Description / Notes
                     <textarea
@@ -527,11 +656,72 @@ function App() {
                   </p>
                 </div>
               )}
-              {deleteError && <p className="error">{deleteError}</p>}
             </>
           )}
         </section>
-      </div>
+      )}
+
+      {isCreateModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Add Project</h3>
+            <form onSubmit={handleCreateProject} className="modal-form">
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="Project name"
+                required
+                disabled={createStatus === 'saving'}
+              />
+              {createError && <p className="error">{createError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="ghost" onClick={closeCreateModal} disabled={createStatus === 'saving'}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary" disabled={createStatus === 'saving'}>
+                  {createStatus === 'saving' ? 'Creating…' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteProjectId && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Delete project?</h3>
+            <p>This will permanently remove the project and all related data.</p>
+            {deleteError && <p className="error">{deleteError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="ghost" onClick={cancelDeleteProject} disabled={deleteStatus === 'saving'}>
+                Cancel
+              </button>
+              <button type="button" className="danger" onClick={confirmDeleteProject} disabled={deleteStatus === 'saving'}>
+                {deleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingRevenueDeleteId && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Delete revenue row?</h3>
+            <p>Are you sure you want to remove this unit type?</p>
+            <div className="modal-actions">
+              <button type="button" className="ghost" onClick={cancelDeleteRevenue} disabled={revenueStatus === 'saving'}>
+                Cancel
+              </button>
+              <button type="button" className="danger" onClick={confirmDeleteRevenue} disabled={revenueStatus === 'saving'}>
+                {revenueStatus === 'saving' ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

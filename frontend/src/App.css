@@ -25,6 +25,12 @@
   gap: 1.5rem;
 }
 
+.header-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -36,6 +42,10 @@
 .muted {
   color: var(--muted);
   margin: 0;
+}
+
+.tiny {
+  font-size: 0.75rem;
 }
 
 .weather-card {
@@ -57,43 +67,32 @@
   margin: 0;
 }
 
-.create-project-card {
+.kanban-toolbar {
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 1.5rem;
-}
-
-.create-project-card h2 {
-  margin-top: 0;
-}
-
-.project-form {
+  padding: 1rem 1.5rem;
   display: flex;
-  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
 }
 
-.project-form input {
-  flex: 1;
-  padding: 0.65rem 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-.project-form button {
-  padding: 0.7rem 1.2rem;
+.primary {
   background: var(--primary);
-  border: none;
   color: #fff;
+  border: none;
   border-radius: 10px;
+  padding: 0.6rem 1.2rem;
   cursor: pointer;
 }
 
-.board-and-detail {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 1.5rem;
-  align-items: flex-start;
+.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.45rem 1rem;
+  cursor: pointer;
 }
 
 .kanban-section {
@@ -182,6 +181,14 @@
   min-height: 520px;
 }
 
+.detail-full {
+  width: 100%;
+}
+
+.detail-nav {
+  margin-bottom: 1rem;
+}
+
 .detail-header {
   display: flex;
   justify-content: space-between;
@@ -233,6 +240,59 @@
   gap: 0.75rem;
 }
 
+.address-autocomplete {
+  position: relative;
+}
+
+.address-autocomplete .tiny {
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.address-suggestions {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  max-height: 180px;
+  overflow-y: auto;
+  position: absolute;
+  width: 100%;
+  z-index: 5;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+}
+
+.address-suggestions li {
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.address-suggestions li:hover {
+  background: #f8fafc;
+}
+
+.address-suggestions li span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.satellite-preview {
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.satellite-preview img {
+  width: 100%;
+  display: block;
+}
+
 label {
   font-size: 0.85rem;
   display: flex;
@@ -266,6 +326,43 @@ textarea {
   padding: 0.65rem 1.2rem;
   border-radius: 10px;
   cursor: pointer;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 1rem;
+}
+
+.modal-panel {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: min(420px, 100%);
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.25);
+}
+
+.modal-panel h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modal-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
 .revenue-form {

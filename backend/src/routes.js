@@ -8,6 +8,7 @@ const WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast?latitude=39.9526&longitude=-75.1652&current_weather=true&timezone=America%2FNew_York'
 
 const STAGES = ['new', 'offer_submitted', 'in_progress', 'stabilized']
+const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN
 
 const stubProject = {
   id: 'stub-1',
@@ -111,6 +112,9 @@ const mapCashflowRow = (row) => ({
   actualOutflows: toNumber(row.actual_outflows),
   notes: row.notes,
 })
+
+const getContextValue = (feature, prefix) =>
+  feature?.context?.find((entry) => entry.id?.startsWith(prefix))?.text || null
 
 router.get('/health', async (_req, res) => {
   if (SKIP_DB) return res.json({ ok: true, mode: 'stub' })
@@ -219,7 +223,8 @@ router.patch('/projects/:id', async (req, res) => {
     return res.json({ ...stubProject, general: { ...stubProject.general, ...req.body } })
   }
 
-  const fieldMap = {
+const fieldMap = {
+  name: 'name',
     addressLine1: 'address_line1',
     addressLine2: 'address_line2',
     city: 'city',
@@ -360,6 +365,66 @@ router.delete('/projects/:id', async (req, res) => {
     res.json({ id: req.params.id, deleted: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete project', details: err.message })
+  }
+})
+
+router.get('/geocode/search', async (req, res) => {
+  if (!MAPBOX_TOKEN) return res.status(503).json({ error: 'Geocoding is not configured' })
+  const query = (req.query.q || '').trim()
+  if (!query) return res.json([])
+  try {
+    const requestUrl = new URL(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`,
+    )
+    requestUrl.searchParams.set('access_token', MAPBOX_TOKEN)
+    requestUrl.searchParams.set('autocomplete', 'true')
+    requestUrl.searchParams.set('limit', '5')
+    requestUrl.searchParams.set('country', 'us')
+    requestUrl.searchParams.set('types', 'address,place')
+
+    const response = await fetch(requestUrl.href, {
+      headers: { 'User-Agent': 'DS-Proforma/1.0 (+https://ds-proforma)' },
+    })
+    if (!response.ok) throw new Error(`Geocoder responded with ${response.status}`)
+    const data = await response.json()
+    const suggestions = (data.features || []).map((feature) => ({
+      id: feature.id,
+      label: feature.place_name,
+      addressLine1: feature.text,
+      city: getContextValue(feature, 'place') || getContextValue(feature, 'locality'),
+      state: getContextValue(feature, 'region'),
+      zip: getContextValue(feature, 'postcode'),
+      latitude: feature.center?.[1],
+      longitude: feature.center?.[0],
+    }))
+    res.json(suggestions)
+  } catch (err) {
+    console.error('Geocode search failed', err)
+    res.status(500).json({ error: 'Failed to search addresses', details: err.message })
+  }
+})
+
+router.get('/geocode/satellite', async (req, res) => {
+  if (!MAPBOX_TOKEN) return res.status(503).json({ error: 'Satellite imagery not configured' })
+  const { lat, lon, zoom = '16' } = req.query
+  if (!lat || !lon) return res.status(400).json({ error: 'lat and lon are required' })
+  try {
+    const imageUrl = new URL(
+      `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${lon},${lat},${zoom}/600x400`,
+    )
+    imageUrl.searchParams.set('access_token', MAPBOX_TOKEN)
+    imageUrl.searchParams.set('attribution', 'false')
+    imageUrl.searchParams.set('logo', 'false')
+
+    const response = await fetch(imageUrl.href)
+    if (!response.ok) throw new Error(`Satellite request failed ${response.status}`)
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'image/png')
+    res.setHeader('Cache-Control', 'public, max-age=300')
+    const buffer = await response.arrayBuffer()
+    res.send(Buffer.from(buffer))
+  } catch (err) {
+    console.error('Satellite fetch failed', err)
+    res.status(500).json({ error: 'Failed to load satellite image', details: err.message })
   }
 })
 

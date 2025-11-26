@@ -23,16 +23,20 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 1. **Create project**  
    - Required field: `name` (unique per active project).  
    - Default stage: `New`.  
+   - Triggered from a global “Add Project” button that opens a modal asking only for the name (keeps the Kanban board uncluttered).  
    - Optional metadata (future): address, target units, notes.
 2. **Kanban board**  
    - Columns: New, Offer Submitted, In Progress, Stabilized.  
    - Cards show name + key stats (units, current rent, total cost).  
-   - Drag-and-drop (or dropdown) to change stage; record timestamp in history table.
+   - Drag-and-drop (or dropdown) to change stage; record timestamp in history table.  
+   - The Kanban view is dedicated: it shows only the board plus the global “Add Project” button (full-width layout with generous spacing). Selecting a card navigates to the project detail view (no split-pane).
 3. **Delete project**  
    - Allowed from any stage; must cascade delete all child records (apartments, costs, cashflow lines).  
-   - Soft delete for compliance (mark `deleted_at`) is acceptable if we keep data for reporting.
+   - Soft delete for compliance (mark `deleted_at`) is acceptable if we keep data for reporting.  
+   - Every destructive action (delete project, delete revenue line, etc.) must prompt a confirmation modal: “Are you sure?” with explicit “Cancel” / “Delete” buttons.
 4. **Project Detail View / Edit**  
-   Tabs:
+   - Separate route that takes the full page for the selected project (no Kanban visible simultaneously).  
+   - Tabs:
    - **General** – address, acquisition details, target metrics.  
    - **Revenue** – manage rent roll assumptions by apartment type.  
    - **Hard Costs** – construction/renovation capital expenditures with payment schedule.  

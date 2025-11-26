@@ -87,3 +87,9 @@ export async function deleteRevenueItem(projectId, revenueId) {
   })
   return handleJsonResponse(res, 'Failed to delete revenue item')
 }
+
+export async function searchAddresses(query) {
+  if (!query.trim()) return []
+  const res = await fetch(`${baseUrl}/api/geocode/search?q=${encodeURIComponent(query)}`)
+  return handleJsonResponse(res, 'Failed to search addresses')
+}

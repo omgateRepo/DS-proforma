@@ -20,6 +20,7 @@ See `.env.example`. Required at minimum:
 - `DATABASE_URL` – Postgres connection string (unused when `SKIP_DB=true`)
 - `FRONTEND_ORIGIN` – e.g., http://localhost:5173
 - `SKIP_DB` – set to `true` for a “Hello World” stub mode (no database required)
+- `MAPBOX_TOKEN` – required for address autocomplete + satellite preview (Mapbox access token)
 
 ## Database
 
