@@ -6,3 +6,10 @@ export async function fetchProjects() {
   if (!res.ok) throw new Error('Failed to load projects')
   return res.json()
 }
+
+export async function fetchPhiladelphiaWeather() {
+  const base = (API_BASE || '').replace(/\/$/, '')
+  const res = await fetch(`${base}/api/weather`)
+  if (!res.ok) throw new Error('Failed to load Philadelphia weather')
+  return res.json()
+}

@@ -1,8 +1,11 @@
 import { Router } from 'express'
+import fetch from 'node-fetch'
 import pool from './db.js'
 
 const router = Router()
 const SKIP_DB = process.env.SKIP_DB === 'true'
+const WEATHER_URL =
+  'https://api.open-meteo.com/v1/forecast?latitude=39.9526&longitude=-75.1652&current_weather=true&timezone=America%2FNew_York'
 
 router.get('/health', async (_req, res) => {
   if (SKIP_DB) return res.json({ ok: true, mode: 'stub' })
@@ -42,6 +45,26 @@ router.post('/projects', async (req, res) => {
     res.status(201).json(result.rows[0])
   } catch (err) {
     res.status(500).json({ error: 'Failed to create project', details: err.message })
+  }
+})
+
+router.get('/weather', async (_req, res) => {
+  try {
+    const response = await fetch(WEATHER_URL)
+    if (!response.ok) throw new Error(`Weather request failed (${response.status})`)
+    const payload = await response.json()
+    const current = payload?.current_weather
+    if (!current) throw new Error('Weather payload missing current_weather')
+    res.json({
+      city: 'Philadelphia',
+      temperature_c: current.temperature,
+      windspeed_kmh: current.windspeed,
+      sampled_at: current.time,
+      source: 'open-meteo',
+    })
+  } catch (err) {
+    console.error('Weather fetch failed', err)
+    res.status(500).json({ error: 'Failed to fetch Philadelphia temperature', details: err.message })
   }
 })
 

@@ -21,3 +21,7 @@ See `docs/README.md` for authoring flow and `backend/README.md`, `frontend/READM
 - Backend: watch `main`, build with `npm install`, start via `npm run start`.
 - Frontend: watch `main`, build with `npm install && npm run build`, publish `dist/`.
 - Set both services to Auto Deploy so every push to `main` refreshes the dev stack.
+
+## Philadelphia Weather Sample
+- Backend exposes `/api/weather`, which proxies Open-Meteo to sample the current temperature in Philadelphia.
+- Frontend shows the reading at the top of the page on load, proving the API call path end-to-end.
