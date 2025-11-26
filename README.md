@@ -16,3 +16,8 @@ Docs-driven starter for a project management app with:
 
 ## Getting Started
 See `docs/README.md` for authoring flow and `backend/README.md`, `frontend/README.md` for setup details.
+
+## Render Auto Deploy
+- Backend: watch `main`, build with `npm install`, start via `npm run start`.
+- Frontend: watch `main`, build with `npm install && npm run build`, publish `dist/`.
+- Set both services to Auto Deploy so every push to `main` refreshes the dev stack.

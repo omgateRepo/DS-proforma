@@ -31,7 +31,7 @@ function App() {
 
       {status === 'loaded' && (
         <section>
-          <h2>Projects</h2>
+          <h2>DS Projects</h2>
           {projects.length === 0 ? (
             <p>No projects yet. POST to /api/projects to create one.</p>
           ) : (
