@@ -171,6 +171,13 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.project-card button,
+.project-card select,
+.project-card input {
+  cursor: pointer;
 }
 
 .detail-section {

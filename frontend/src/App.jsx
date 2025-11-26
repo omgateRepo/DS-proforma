@@ -34,6 +34,8 @@ const defaultGeneralForm = {
   propertyType: '',
   purchasePriceUsd: '',
   closingDate: '',
+  latitude: '',
+  longitude: '',
   targetUnits: '',
   targetSqft: '',
   description: '',
@@ -82,6 +84,19 @@ function App() {
   const stageOptions = stageLabels()
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
 
+  const formatDateForInput = (value) => {
+    if (!value) return ''
+    return value.split('T')[0]
+  }
+
+  const formatNumberForInput = (value) => (value === null || value === undefined ? '' : String(value))
+
+  const parseFloatOrNull = (value) => {
+    if (value === '' || value === null || value === undefined) return null
+    const parsed = Number(value)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+
   const projectsByStage = useMemo(() => {
     return stageOptions.reduce((acc, stage) => {
       acc[stage.id] = projects.filter((project) => project.stage === stage.id)
@@ -107,11 +122,6 @@ function App() {
     }
   }
 
-  const formatDateForInput = (value) => {
-    if (!value) return ''
-    return value.split('T')[0]
-  }
-
   const loadProjectDetail = async (projectId) => {
     if (!projectId) return
     setDetailStatus('loading')
@@ -125,13 +135,23 @@ function App() {
         ...detail.general,
         purchasePriceUsd: detail.general.purchasePriceUsd || '',
         closingDate: formatDateForInput(detail.general.closingDate),
+        latitude: formatNumberForInput(detail.general.latitude),
+        longitude: formatNumberForInput(detail.general.longitude),
         targetUnits: detail.general.targetUnits || '',
         targetSqft: detail.general.targetSqft || '',
       })
       setAddressQuery(detail.general.addressLine1 || '')
       setAddressInputTouched(false)
       setAddressSuggestions([])
-      setSelectedCoords(projectCoords[projectId] || null)
+      const coordsFromDetail =
+        detail.general.latitude !== null && detail.general.longitude !== null
+          ? { lat: detail.general.latitude, lon: detail.general.longitude }
+          : null
+      const savedCoords = coordsFromDetail || projectCoords[projectId] || null
+      setSelectedCoords(savedCoords || null)
+      if (coordsFromDetail) {
+        setProjectCoords((prev) => ({ ...prev, [projectId]: coordsFromDetail }))
+      }
       setDetailStatus('loaded')
     } catch (err) {
       setDetailError(err.message)
@@ -276,6 +296,8 @@ function App() {
         ...generalForm,
         purchasePriceUsd: generalForm.purchasePriceUsd ? Number(generalForm.purchasePriceUsd) : null,
         closingDate: generalForm.closingDate || null,
+        latitude: parseFloatOrNull(generalForm.latitude),
+        longitude: parseFloatOrNull(generalForm.longitude),
         targetUnits: generalForm.targetUnits ? Number(generalForm.targetUnits) : null,
         targetSqft: generalForm.targetSqft ? Number(generalForm.targetSqft) : null,
       }
@@ -285,7 +307,22 @@ function App() {
       setGeneralForm((prev) => ({
         ...prev,
         closingDate: formatDateForInput(updated.general.closingDate),
+        latitude: formatNumberForInput(updated.general.latitude),
+        longitude: formatNumberForInput(updated.general.longitude),
       }))
+      if (updated.general.latitude !== null && updated.general.longitude !== null) {
+        const coords = { lat: updated.general.latitude, lon: updated.general.longitude }
+        setSelectedCoords(coords)
+        setProjectCoords((prev) => ({ ...prev, [selectedProjectId]: coords }))
+      } else {
+        setProjectCoords((prev) => {
+          if (!prev[selectedProjectId]) return prev
+          const next = { ...prev }
+          delete next[selectedProjectId]
+          return next
+        })
+        setSelectedCoords(null)
+      }
       setGeneralStatus('idle')
       await loadProjects()
     } catch (err) {
@@ -348,6 +385,8 @@ function App() {
       city: suggestion.city || '',
       state: suggestion.state || '',
       zip: suggestion.zip || '',
+      latitude: suggestion.latitude ? String(suggestion.latitude) : '',
+      longitude: suggestion.longitude ? String(suggestion.longitude) : '',
     }))
     setAddressQuery(suggestion.label || suggestion.addressLine1 || '')
     setAddressSuggestions([])
@@ -551,6 +590,24 @@ function App() {
                         type="date"
                         value={generalForm.closingDate}
                         onChange={(e) => setGeneralForm((prev) => ({ ...prev, closingDate: e.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Latitude
+                      <input
+                        type="number"
+                        step="any"
+                        value={generalForm.latitude}
+                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, latitude: e.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      Longitude
+                      <input
+                        type="number"
+                        step="any"
+                        value={generalForm.longitude}
+                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, longitude: e.target.value }))}
                       />
                     </label>
                     <label>
