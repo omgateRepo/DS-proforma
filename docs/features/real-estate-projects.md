@@ -1,0 +1,153 @@
+# Real Estate Project Manager
+status: Draft  
+owner: Product  
+last_updated: 2025-11-26
+
+## 1. Overview
+Operate a single web application that tracks multifamily real-estate deals from sourcing through stabilization. Users can add/delete projects, manage their position on a Kanban board, and capture detailed revenue/cost data for each project.
+
+## 2. Objectives
+- Centralize every deal with an auditable lifecycle (New → Offer Submitted → In Progress → Stabilized).
+- Provide a canonical place to model rent roll assumptions, construction budgets, and carrying costs for each project.
+- Produce a cashflow rollup (budget vs actual) without exporting to spreadsheets.
+
+## 3. Non-Goals
+- Debt/equity capital stack modeling (future enhancement).
+- Investor portal, document storage, or e-signatures.
+- Automated market comps or rent forecasting.
+
+## 4. Users
+Two co-founders (you and your partner) share the same workspace. No role-based access or permissions are required at this stage; everyone can perform every action (create/delete projects, edit data, move cards).
+
+## 5. Core Flows
+1. **Create project**  
+   - Required field: `name` (unique per active project).  
+   - Default stage: `New`.  
+   - Optional metadata (future): address, target units, notes.
+2. **Kanban board**  
+   - Columns: New, Offer Submitted, In Progress, Stabilized.  
+   - Cards show name + key stats (units, current rent, total cost).  
+   - Drag-and-drop (or dropdown) to change stage; record timestamp in history table.
+3. **Delete project**  
+   - Allowed from any stage; must cascade delete all child records (apartments, costs, cashflow lines).  
+   - Soft delete for compliance (mark `deleted_at`) is acceptable if we keep data for reporting.
+4. **Project Detail View / Edit**  
+   Tabs:
+   - **General** – address, acquisition details, target metrics.  
+   - **Revenue** – manage rent roll assumptions by apartment type.  
+   - **Hard Costs** – construction/renovation capital expenditures with payment schedule.  
+   - **Soft Costs** – professional services, permits, etc.  
+   - **Carrying Costs** – debt service, insurance, taxes while project is underway.  
+   - **Cashflow** – aggregates all inflows/outflows, supports budget vs actual tracking.
+
+## 6. Tab-Level Requirements
+
+### 6.1 General Tab
+- Fields:
+  - `address_line1`, `address_line2`, `city`, `state`, `zip`.
+  - `property_type` (land, existing building).
+  - `description` / notes.
+  - `purchase_price_usd`, `closing_date`.
+  - `target_units`, `target_sqft`.
+  - `sponsor` (future, for LP/GP tracking).
+- Actions: edit inline, save/cancel, upload hero photo (future).
+
+### 6.2 Revenue Tab
+- Each entry represents a unit type:
+  - `type_label` (e.g., "1bd/1bth").
+  - `unit_sqft`.
+  - `unit_count`.
+  - `monthly_rent_usd` (budget).
+  - Optional: `actual_monthly_rent_usd`, `vacancy_rate`.
+- Derived metrics: total monthly rent per type, total annualized revenue per project.
+- Bulk actions: duplicate row, delete row, apply % increase.
+
+### 6.3 Hard Costs Tab
+- Free-form line items with:
+  - `cost_name`.
+  - `amount_usd`.
+  - `payment_month` (integer offset from project start, e.g., month 0-36).  
+- Support grouping (Foundation, Framing, MEP).  
+- Show running total and highlight over-budget items once actuals recorded.
+
+### 6.4 Soft Costs Tab
+- Same structure as Hard Costs but flagged with category (Architect, Legal, Permits).  
+- Payment month may span pre-closing through stabilization.
+
+### 6.5 Carrying Costs Tab
+- Each item requires a `type` selected from:
+  - `construction_loan`
+  - `stabilized_loan`
+  - `real_estate_tax`
+  - `insurance`
+  - `other`
+- For loan types (construction/stabilized):
+  - Fields: `principal_amount_usd`, `interest_rate_pct`, `term_years`, `start_date`.
+  - Derived: monthly debt service (simple amortization placeholder until we integrate a proper loan model).
+- For non-loan types (tax, insurance, other):
+  - Fields: `amount_usd`, `start_date`, `interval` (monthly, quarterly, annual).
+  - Derived: normalized monthly amount (amount / interval frequency).
+
+### 6.6 Cashflow Tab
+- Timeline view per month (Month 0–60).  
+- Columns: `month_index`, `budget_inflows`, `budget_outflows`, `actual_inflows`, `actual_outflows`, `variance`.  
+- Pull inflows from Revenue tab, outflows from cost tabs.  
+- Allow manual adjustments (e.g., equity injection).  
+- Export to CSV later.
+
+## 7. Data Model
+
+### 7.1 Entities
+
+| Table | Key Fields | Notes |
+| --- | --- | --- |
+| `projects` | `id (uuid)`, `name`, `stage`, `address_line1`, `city`, `state`, `zip`, `property_type`, `purchase_price_usd`, `target_units`, `target_sqft`, `created_at`, `updated_at`, `deleted_at` | Stage enum: `new`, `offer_submitted`, `in_progress`, `stabilized`. |
+| `project_stage_history` | `id`, `project_id`, `from_stage`, `to_stage`, `changed_by`, `changed_at` | Append-only log for analytics. |
+| `apartment_types` | `id`, `project_id`, `type_label`, `unit_sqft`, `unit_count`, `rent_budget`, `rent_actual` | Revenue tab rows. |
+| `cost_items` | `id`, `project_id`, `category` (`hard`, `soft`, `carrying`), `cost_name`, `amount_usd`, `payment_month`, `start_month`, `end_month`, `carrying_type`, `principal_amount_usd`, `interest_rate_pct`, `term_years`, `interval`, `start_date` | For carrying costs, certain columns apply depending on `carrying_type`. |
+| `cashflow_entries` | `id`, `project_id`, `month_index`, `budget_inflows`, `budget_outflows`, `actual_inflows`, `actual_outflows`, `notes` | Derived but persisted for overrides. |
+
+### 7.2 Relationships
+- `projects 1..n apartment_types`.
+- `projects 1..n cost_items`.
+- `projects 1..n cashflow_entries`.
+- `projects 1..n stage_history`.
+
+### 7.3 Example JSON (Project Detail)
+```json
+{
+  "id": "proj_123",
+  "name": "Maple Apartments",
+  "stage": "in_progress",
+  "revenue": [
+    {
+      "type_label": "1bd/1bth",
+      "unit_sqft": 650,
+      "unit_count": 40,
+      "monthly_rent_usd": 2150,
+      "monthly_rent_actual_usd": 2050
+    }
+  ],
+  "hard_costs": [
+    { "cost_name": "Foundation", "amount_usd": 250000, "payment_month": 1 }
+  ],
+  "soft_costs": [
+    { "cost_name": "Architect", "amount_usd": 45000, "payment_month": 0 }
+  ],
+  "carrying_costs": [
+    { "cost_name": "Loan Interest", "monthly_amount_usd": 30000, "start_month": 2, "end_month": 18 }
+  ],
+  "cashflow": [
+    { "month_index": 0, "budget_inflows": 0, "budget_outflows": 100000, "actual_outflows": 95000 }
+  ]
+}
+```
+
+## 8. Open Questions
+1. Do we need multi-tenant support (per investor group)?  
+2. Should stage transitions enforce required data (e.g., must have rent roll before entering In Progress)?  
+3. Cashflow time horizon defaults (36 vs 60 months)?
+
+## 9. Changelog
+- `2025-11-26` – Drafted initial specification covering Kanban workflow, detailed tabs, and schema outline.
+

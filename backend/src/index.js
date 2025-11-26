@@ -2,7 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import routes from './routes.js'
-import { ensureProjectsTable } from './setupDb.js'
+import { ensureSchema } from './setupDb.js'
 
 const app = express()
 const port = process.env.PORT || 8080
@@ -17,8 +17,8 @@ app.use('/api', routes)
 async function startServer() {
   if (mode === 'db') {
     try {
-      await ensureProjectsTable()
-      console.log('Database is ready (projects table ensured)')
+      await ensureSchema()
+      console.log('Database is ready (schema ensured)')
     } catch (err) {
       console.error('Failed to prepare database schema', err)
       process.exit(1)
