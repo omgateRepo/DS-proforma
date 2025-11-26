@@ -350,6 +350,64 @@ router.post('/projects/:id/revenue', async (req, res) => {
   }
 })
 
+router.patch('/projects/:id/revenue/:revenueId', async (req, res) => {
+  const { typeLabel, unitSqft, unitCount, rentBudget, vacancyPct } = req.body
+  if (SKIP_DB) {
+    return res.json({
+      id: req.params.revenueId,
+      typeLabel: typeLabel || 'stub',
+      unitSqft: unitSqft || 0,
+      unitCount: unitCount || 0,
+      rentBudget: rentBudget || 0,
+      vacancyPct: vacancyPct ?? 5,
+    })
+  }
+
+  const fields = []
+  const values = []
+
+  const map = {
+    typeLabel: 'type_label',
+    unitSqft: 'unit_sqft',
+    unitCount: 'unit_count',
+    rentBudget: 'rent_budget',
+    vacancyPct: 'vacancy_pct',
+  }
+
+  Object.entries(map).forEach(([key, column]) => {
+    if (req.body[key] !== undefined) {
+      fields.push(`${column} = $${fields.length + 1}`)
+      if (key === 'vacancyPct') {
+        values.push(Number(req.body[key]))
+      } else if (key === 'unitSqft' || key === 'unitCount') {
+        values.push(req.body[key] === null ? null : Number(req.body[key]))
+      } else if (key === 'rentBudget') {
+        values.push(req.body[key] === null ? null : Number(req.body[key]))
+      } else {
+        values.push(req.body[key])
+      }
+    }
+  })
+
+  if (fields.length === 0) return res.status(400).json({ error: 'No valid fields to update' })
+
+  try {
+    const { rows } = await pool.query(
+      `
+      UPDATE apartment_types
+      SET ${fields.join(', ')}, created_at = created_at
+      WHERE id = $${fields.length + 1} AND project_id = $${fields.length + 2}
+      RETURNING *
+    `,
+      [...values, req.params.revenueId, req.params.id],
+    )
+    if (rows.length === 0) return res.status(404).json({ error: 'Revenue item not found' })
+    res.json(mapRevenueRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update revenue item', details: err.message })
+  }
+})
+
 router.delete('/projects/:id/revenue/:revenueId', async (req, res) => {
   if (SKIP_DB) {
     return res.json({ id: req.params.revenueId, deleted: true })

@@ -247,6 +247,30 @@
   cursor: not-allowed;
 }
 
+.row-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.icon-button {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 3px 8px rgba(3, 105, 161, 0.2)
+}
+
+.icon-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .tabs button {
   border: 1px solid var(--border);
   background: transparent;
@@ -468,6 +492,19 @@ td {
 
 .revenue-summary span {
   color: var(--muted);
+}
+
+.revenue-total-label {
+  text-align: right;
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+
+.revenue-total-value {
+  font-weight: 700;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
 }
 
 @media (max-width: 1100px) {

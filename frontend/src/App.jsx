@@ -13,6 +13,7 @@ import {
   stageLabels,
   updateProjectGeneral,
   updateProjectStage,
+  updateRevenueItem,
 } from './api.js'
 
 const TABS = [
@@ -83,9 +84,11 @@ function App() {
   const [pendingRevenueDeleteId, setPendingRevenueDeleteId] = useState(null)
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
   const [revenueModalError, setRevenueModalError] = useState('')
+  const [editingRevenueId, setEditingRevenueId] = useState(null)
 
   const stageOptions = stageLabels()
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
+  const isEditingRevenue = Boolean(editingRevenueId)
 
   const formatDateForInput = (value) => {
     if (!value) return ''
@@ -247,12 +250,27 @@ function App() {
     setRevenueModalError('')
     setRevenueForm(defaultRevenueForm)
     setIsRevenueModalOpen(true)
+    setEditingRevenueId(null)
   }
 
   function closeRevenueModal() {
     if (revenueStatus === 'saving') return
     setIsRevenueModalOpen(false)
     setRevenueModalError('')
+    setEditingRevenueId(null)
+  }
+
+  function startEditRevenue(row) {
+    setRevenueModalError('')
+    setRevenueForm({
+      typeLabel: row.typeLabel || '',
+      unitSqft: row.unitSqft !== null && row.unitSqft !== undefined ? String(row.unitSqft) : '',
+      unitCount: row.unitCount !== null && row.unitCount !== undefined ? String(row.unitCount) : '',
+      rentBudget: row.rentBudget !== null && row.rentBudget !== undefined ? String(row.rentBudget) : '',
+      vacancyPct: row.vacancyPct !== null && row.vacancyPct !== undefined ? String(row.vacancyPct) : '5',
+    })
+    setEditingRevenueId(row.id)
+    setIsRevenueModalOpen(true)
   }
 
   function closeCreateModal() {
@@ -363,17 +381,23 @@ function App() {
     if (!selectedProjectId) return
     setRevenueStatus('saving')
     setRevenueModalError('')
+    const payload = {
+      typeLabel: revenueForm.typeLabel,
+      unitSqft: revenueForm.unitSqft ? Number(revenueForm.unitSqft) : null,
+      unitCount: revenueForm.unitCount ? Number(revenueForm.unitCount) : null,
+      rentBudget: revenueForm.rentBudget ? Number(revenueForm.rentBudget) : null,
+      vacancyPct: revenueForm.vacancyPct ? Number(revenueForm.vacancyPct) : 5,
+    }
     try {
-      await createRevenueItem(selectedProjectId, {
-        typeLabel: revenueForm.typeLabel,
-        unitSqft: revenueForm.unitSqft ? Number(revenueForm.unitSqft) : null,
-        unitCount: revenueForm.unitCount ? Number(revenueForm.unitCount) : null,
-        rentBudget: revenueForm.rentBudget ? Number(revenueForm.rentBudget) : null,
-        vacancyPct: revenueForm.vacancyPct ? Number(revenueForm.vacancyPct) : 5,
-      })
+      if (editingRevenueId) {
+        await updateRevenueItem(selectedProjectId, editingRevenueId, payload)
+      } else {
+        await createRevenueItem(selectedProjectId, payload)
+      }
       setRevenueForm(defaultRevenueForm)
       setRevenueStatus('idle')
       setIsRevenueModalOpen(false)
+      setEditingRevenueId(null)
       await loadProjectDetail(selectedProjectId)
     } catch (err) {
       setRevenueStatus('error')
@@ -714,9 +738,14 @@ function App() {
                               <td>{row.vacancyPct ?? 5}%</td>
                               <td>{netMonthly ? `$${netMonthly.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}</td>
                               <td>
-                                <button type="button" className="icon-delete" onClick={() => handleDeleteRevenue(row.id)} disabled={revenueStatus === 'saving'}>
-                                  🗑
-                                </button>
+                                <div className="row-actions">
+                                  <button type="button" className="icon-button" onClick={() => startEditRevenue(row)} disabled={revenueStatus === 'saving'}>
+                                    ✏️
+                                  </button>
+                                  <button type="button" className="icon-delete" onClick={() => handleDeleteRevenue(row.id)} disabled={revenueStatus === 'saving'}>
+                                    🗑
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           )
@@ -727,11 +756,19 @@ function App() {
                           </tr>
                         )}
                       </tbody>
+                      {selectedProject.revenue?.length ? (
+                        <tfoot>
+                          <tr>
+                            <td colSpan={5} className="revenue-total-label">
+                              Total monthly revenue
+                            </td>
+                            <td colSpan={2} className="revenue-total-value">
+                              ${totalMonthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      ) : null}
                     </table>
-                  </div>
-                  <div className="revenue-summary">
-                    <span>Total Monthly Revenue</span>
-                    <strong>${totalMonthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
                   </div>
                 </div>
               )}
@@ -787,7 +824,7 @@ function App() {
       {isRevenueModalOpen && (
         <div className="modal-backdrop">
           <div className="modal-panel">
-            <h3>Add Unit Type</h3>
+            <h3>{isEditingRevenue ? 'Edit Unit Type' : 'Add Unit Type'}</h3>
             <form className="modal-form" onSubmit={handleAddRevenue}>
               <label>
                 Type label
@@ -841,7 +878,7 @@ function App() {
                   Cancel
                 </button>
                 <button type="submit" className="primary" disabled={revenueStatus === 'saving'}>
-                  {revenueStatus === 'saving' ? 'Adding…' : 'Save Unit Type'}
+                  {revenueStatus === 'saving' ? (isEditingRevenue ? 'Saving…' : 'Adding…') : isEditingRevenue ? 'Save Changes' : 'Save Unit Type'}
                 </button>
               </div>
             </form>

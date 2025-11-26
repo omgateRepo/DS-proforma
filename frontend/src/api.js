@@ -81,6 +81,15 @@ export async function createRevenueItem(projectId, payload) {
   return handleJsonResponse(res, 'Failed to add revenue item')
 }
 
+export async function updateRevenueItem(projectId, revenueId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/revenue/${revenueId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update revenue item')
+}
+
 export async function deleteRevenueItem(projectId, revenueId) {
   const res = await fetch(`${baseUrl}/api/projects/${projectId}/revenue/${revenueId}`, {
     method: 'DELETE',

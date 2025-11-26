@@ -71,6 +71,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - Base rent, vacancy %, net monthly revenue per line, and per-line total (net monthly * unit_count).
   - Summary footer with overall monthly revenue total (sum of net line revenues).
 - Bulk actions: duplicate row, delete row, apply % increase.
+- Each revenue row can be edited via the same modal (pre-populate existing values, allow vacancy override). Save writes back to the API.
 
 ### 6.3 Hard Costs Tab
 - Free-form line items with:
