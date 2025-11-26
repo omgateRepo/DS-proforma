@@ -13,3 +13,28 @@ export async function fetchPhiladelphiaWeather() {
   if (!res.ok) throw new Error('Failed to load Philadelphia weather')
   return res.json()
 }
+
+export async function createProject(name) {
+  if (!name) throw new Error('Project name is required')
+  const base = (API_BASE || '').replace(/\/$/, '')
+  const res = await fetch(`${base}/api/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) {
+    const details = await res.json().catch(() => ({}))
+    throw new Error(details.error || 'Failed to create project')
+  }
+  return res.json()
+}
+
+export async function deleteProject(id) {
+  const base = (API_BASE || '').replace(/\/$/, '')
+  const res = await fetch(`${base}/api/projects/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const details = await res.json().catch(() => ({}))
+    throw new Error(details.error || 'Failed to delete project')
+  }
+  return res.json()
+}

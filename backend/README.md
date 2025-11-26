@@ -37,21 +37,25 @@ See `.env.example`. Required at minimum:
 
 ### Render
 1. In Render, create a **PostgreSQL** instance (Free tier works for testing).
-2. Once provisioned, copy the internal/external connection string.
-3. Update backend service env vars:
-   - `DATABASE_URL`
-   - `FRONTEND_ORIGIN` (set to your frontend URL)
-4. Deploy backend service (Node). Render handles `npm install` and `npm run start`.
+2. Copy the internal connection string (format: `postgres://USER:PASSWORD@HOST:PORT/DB`).
+3. In the backend service settings set:
+   - `SKIP_DB=false`
+   - `DATABASE_URL=<the connection string>`
+   - `FRONTEND_ORIGIN=<your frontend Render URL>`
+4. Redeploy. On boot the app will automatically ensure the `projects` table exists (see below).
+5. The frontend will now receive live data from the database.
 
 ## Migrations / Schema
-Use your preferred tool (e.g., Prisma, Knex, SQL files). For now, manual SQL example:
-```sql
-CREATE TABLE projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'planned',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-Remember to enable the `pgcrypto` extension for `gen_random_uuid()` (or use `uuid-ossp`).
+The server now runs a lightweight bootstrap on startup (when `SKIP_DB=false`) that:
+1. Enables the `uuid-ossp` extension (if the role has permission).
+2. Creates the `projects` table if it doesn’t exist:
+   ```sql
+   CREATE TABLE IF NOT EXISTS projects (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     name TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'planned',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   );
+   ```
+If you prefer to manage schema yourself, simply disable the bootstrap by running your own migrations before starting the server.

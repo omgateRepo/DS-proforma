@@ -68,4 +68,18 @@ router.get('/weather', async (_req, res) => {
   }
 })
 
+router.delete('/projects/:id', async (req, res) => {
+  const { id } = req.params
+  if (SKIP_DB) {
+    return res.status(200).json({ id, deleted: true })
+  }
+  try {
+    const result = await pool.query('DELETE FROM projects WHERE id = $1 RETURNING id', [id])
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Project not found' })
+    res.json({ id, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete project', details: err.message })
+  }
+})
+
 export default router
