@@ -242,6 +242,7 @@
 
 .address-autocomplete {
   position: relative;
+  padding-top: 1.5rem;
 }
 
 .address-autocomplete .tiny {
@@ -259,9 +260,11 @@
   max-height: 180px;
   overflow-y: auto;
   position: absolute;
-  width: 100%;
+  width: calc(100% - 2px);
+  left: 1px;
   z-index: 5;
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+  transform: translateY(0.35rem);
 }
 
 .address-suggestions li {

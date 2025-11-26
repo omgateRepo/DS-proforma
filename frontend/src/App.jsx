@@ -345,7 +345,6 @@ function App() {
           <div>
             <p className="eyebrow">Real Estate Control Center</p>
             <h1>DS Proforma</h1>
-            <p className="muted">API: {API_BASE || 'local'} </p>
           </div>
           <div className="header-actions">
             <div className="weather-card">
