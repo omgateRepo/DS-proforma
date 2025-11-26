@@ -401,12 +401,8 @@ function App() {
                   <div className="column-body">
                     {projectsByStage[stage.id] && projectsByStage[stage.id].length > 0 ? (
                       projectsByStage[stage.id].map((project) => (
-                        <article
-                          key={project.id}
-                          className="project-card"
-                          onClick={() => setSelectedProjectId(project.id)}
-                        >
-                          <div>
+                        <article key={project.id} className="project-card">
+                          <div onClick={() => setSelectedProjectId(project.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setSelectedProjectId(project.id)}>
                             <h4>{project.name}</h4>
                             <p className="muted">
                               {project.city || 'City'}, {project.state || 'State'}
@@ -419,7 +415,6 @@ function App() {
                           <select
                             value={project.stage}
                             onChange={(e) => {
-                              e.stopPropagation()
                               handleStageChange(project.id, e.target.value)
                             }}
                             disabled={stageUpdatingFor === project.id}
@@ -502,7 +497,7 @@ function App() {
                             <li key={suggestion.id} onMouseDown={() => handleAddressSelect(suggestion)}>
                               <strong>{suggestion.addressLine1}</strong>
                               <span>{suggestion.label}</span>
-                            </li>
+                </li>
               ))}
             </ul>
                       )}
