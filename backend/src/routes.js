@@ -1,0 +1,48 @@
+import { Router } from 'express'
+import pool from './db.js'
+
+const router = Router()
+const SKIP_DB = process.env.SKIP_DB === 'true'
+
+router.get('/health', async (_req, res) => {
+  if (SKIP_DB) return res.json({ ok: true, mode: 'stub' })
+  try {
+    const result = await pool.query('SELECT NOW() AS now')
+    res.json({ ok: true, time: result.rows[0].now })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+router.get('/projects', async (_req, res) => {
+  if (SKIP_DB) {
+    return res.json([
+      { id: 'stub-1', name: 'Hello World Project', status: 'sample' },
+    ])
+  }
+  try {
+    const result = await pool.query('SELECT id, name, status FROM projects ORDER BY updated_at DESC LIMIT 20')
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load projects', details: err.message })
+  }
+})
+
+router.post('/projects', async (req, res) => {
+  const { name, status } = req.body
+  if (!name) return res.status(400).json({ error: 'name is required' })
+  if (SKIP_DB) {
+    return res.status(201).json({ id: `stub-${Date.now()}`, name, status: status || 'planned' })
+  }
+  try {
+    const result = await pool.query(
+      'INSERT INTO projects (name, status) VALUES ($1, $2) RETURNING *',
+      [name, status || 'planned'],
+    )
+    res.status(201).json(result.rows[0])
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create project', details: err.message })
+  }
+})
+
+export default router
