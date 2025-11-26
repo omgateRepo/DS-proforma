@@ -83,7 +83,11 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 
 ### 6.4 Soft Costs Tab
 - Same structure as Hard Costs but flagged with category (Architect, Legal, Permits).  
-- Payment month may span pre-closing through stabilization.
+- Payment scheduling options (modal-driven):
+  - **Single month:** enter one integer offset (month index).
+  - **Range:** specify start and end month (inclusive). The amount is spread evenly unless custom percentages are provided.
+  - **Multiple months:** comma-separated month indexes (e.g., `0,1,2`). When multiple months are chosen, optionally specify the percentage of the total allocated per month (must add up to 100%).
+- These options let finance teams stage retainers, progress draws, or recurring soft costs without juggling separate entries.
 
 ### 6.5 Carrying Costs Tab
 - Each item requires a `type` selected from:

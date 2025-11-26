@@ -286,10 +286,29 @@
 }
 
 .general-form,
-.revenue-tab {
+.revenue-tab,
+.soft-tab {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.soft-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.helper-text {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.25rem 0 0;
+}
+
+.dual-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
 }
 
 .form-grid {

@@ -97,6 +97,31 @@ export async function deleteRevenueItem(projectId, revenueId) {
   return handleJsonResponse(res, 'Failed to delete revenue item')
 }
 
+export async function createSoftCost(projectId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/soft-costs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add soft cost')
+}
+
+export async function updateSoftCost(projectId, costId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/soft-costs/${costId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update soft cost')
+}
+
+export async function deleteSoftCost(projectId, costId) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/soft-costs/${costId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete soft cost')
+}
+
 export async function searchAddresses(query) {
   if (!query.trim()) return []
   const res = await fetch(`${baseUrl}/api/geocode/search?q=${encodeURIComponent(query)}`)

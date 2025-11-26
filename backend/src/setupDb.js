@@ -112,6 +112,26 @@ async function ensureCostItemsTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS cost_group TEXT;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS payment_mode TEXT NOT NULL DEFAULT 'single';
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS month_list JSONB;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS month_percentages JSONB;
+  `)
 }
 
 async function ensureCashflowEntriesTable() {

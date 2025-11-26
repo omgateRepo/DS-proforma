@@ -4,8 +4,10 @@ import {
   API_BASE,
   createProject,
   createRevenueItem,
+  createSoftCost,
   deleteProject,
   deleteRevenueItem,
+  deleteSoftCost,
   fetchPhiladelphiaWeather,
   fetchProjectDetail,
   fetchProjects,
@@ -14,6 +16,7 @@ import {
   updateProjectGeneral,
   updateProjectStage,
   updateRevenueItem,
+  updateSoftCost,
 } from './api.js'
 
 const TABS = [
@@ -48,6 +51,27 @@ const defaultRevenueForm = {
   unitCount: '',
   rentBudget: '',
   vacancyPct: '5',
+}
+
+const softCostCategories = [
+  { id: 'architect', label: 'Architect / Design' },
+  { id: 'legal', label: 'Legal' },
+  { id: 'permits', label: 'Permits' },
+  { id: 'consulting', label: 'Consulting' },
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'other', label: 'Other' },
+]
+
+const defaultSoftCostForm = {
+  softCategory: 'architect',
+  costName: '',
+  amountUsd: '',
+  paymentMode: 'single',
+  paymentMonth: '',
+  rangeStartMonth: '',
+  rangeEndMonth: '',
+  monthsInput: '',
+  monthPercentagesInput: '',
 }
 
 function App() {
@@ -85,10 +109,19 @@ function App() {
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
   const [revenueModalError, setRevenueModalError] = useState('')
   const [editingRevenueId, setEditingRevenueId] = useState(null)
+  const [softCostForm, setSoftCostForm] = useState(defaultSoftCostForm)
+  const [softCostStatus, setSoftCostStatus] = useState('idle')
+  const [softCostModalError, setSoftCostModalError] = useState('')
+  const [isSoftCostModalOpen, setIsSoftCostModalOpen] = useState(false)
+  const [editingSoftCostId, setEditingSoftCostId] = useState(null)
+  const [pendingSoftCostDeleteId, setPendingSoftCostDeleteId] = useState(null)
+  const [softCostDeleteStatus, setSoftCostDeleteStatus] = useState('idle')
+  const [softCostDeleteError, setSoftCostDeleteError] = useState('')
 
   const stageOptions = stageLabels()
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
   const isEditingRevenue = Boolean(editingRevenueId)
+  const isEditingSoftCost = Boolean(editingSoftCostId)
 
   const formatDateForInput = (value) => {
     if (!value) return ''
@@ -103,6 +136,64 @@ function App() {
     return Number.isNaN(parsed) ? null : parsed
   }
 
+  const parseCommaSeparatedNumbers = (value) => {
+    if (!value) return []
+    return value
+      .split(',')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .map((segment) => Number(segment))
+      .filter((num) => !Number.isNaN(num))
+  }
+
+  const buildSoftCostPayload = (form) => {
+    const payload = {
+      costName: form.costName.trim(),
+      amountUsd: form.amountUsd === '' ? null : Number(form.amountUsd),
+      softCategory: form.softCategory,
+      paymentMode: form.paymentMode,
+    }
+
+    if (payload.paymentMode === 'single') {
+      payload.paymentMonth = form.paymentMonth === '' ? null : Number(form.paymentMonth)
+    } else if (payload.paymentMode === 'range') {
+      payload.rangeStartMonth = form.rangeStartMonth === '' ? null : Number(form.rangeStartMonth)
+      payload.rangeEndMonth = form.rangeEndMonth === '' ? null : Number(form.rangeEndMonth)
+    } else if (payload.paymentMode === 'multi') {
+      payload.monthList = parseCommaSeparatedNumbers(form.monthsInput)
+      if (form.monthPercentagesInput && form.monthPercentagesInput.trim()) {
+        payload.monthPercentages = parseCommaSeparatedNumbers(form.monthPercentagesInput)
+      }
+    }
+
+    return payload
+  }
+
+  const softCategoryLabel = (value) => softCostCategories.find((option) => option.id === value)?.label || 'Other'
+
+  const formatSoftCostSchedule = (row) => {
+    if (!row) return '—'
+    if (row.paymentMode === 'range' && row.startMonth !== null && row.endMonth !== null) {
+      return `Months ${row.startMonth}–${row.endMonth}`
+    }
+    if (row.paymentMode === 'multi' && row.monthList?.length) {
+      if (row.monthPercentages?.length) {
+        return row.monthList
+          .map((month, index) => {
+            const percentage = row.monthPercentages[index]
+            if (percentage === undefined) return `Month ${month}`
+            return `Month ${month} (${percentage}%)`
+          })
+          .join(', ')
+      }
+      return row.monthList.map((month) => `Month ${month}`).join(', ')
+    }
+    if (row.paymentMonth !== null && row.paymentMonth !== undefined) {
+      return `Month ${row.paymentMonth}`
+    }
+    return '—'
+  }
+
   const calculateNetRevenue = (row) => {
     const rent = row.rentBudget || 0
     const units = row.unitCount || 0
@@ -113,6 +204,11 @@ function App() {
   const totalMonthlyRevenue = useMemo(() => {
     if (!selectedProject?.revenue) return 0
     return selectedProject.revenue.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
+  }, [selectedProject])
+
+  const totalSoftCosts = useMemo(() => {
+    if (!selectedProject?.softCosts) return 0
+    return selectedProject.softCosts.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
   }, [selectedProject])
 
   const projectsByStage = useMemo(() => {
@@ -273,6 +369,49 @@ function App() {
     setIsRevenueModalOpen(true)
   }
 
+  function openSoftCostModal() {
+    setSoftCostModalError('')
+    setSoftCostForm(defaultSoftCostForm)
+    setEditingSoftCostId(null)
+    setSoftCostStatus('idle')
+    setIsSoftCostModalOpen(true)
+  }
+
+  function closeSoftCostModal() {
+    if (softCostStatus === 'saving') return
+    setIsSoftCostModalOpen(false)
+    setSoftCostModalError('')
+    setEditingSoftCostId(null)
+    setSoftCostStatus('idle')
+  }
+
+  function startEditSoftCost(row) {
+    setSoftCostModalError('')
+    setSoftCostForm({
+      softCategory: row.costGroup || 'other',
+      costName: row.costName || '',
+      amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
+      paymentMode: row.paymentMode || 'single',
+      paymentMonth:
+        row.paymentMode === 'single' && row.paymentMonth !== null && row.paymentMonth !== undefined
+          ? String(row.paymentMonth)
+          : '',
+      rangeStartMonth:
+        row.paymentMode === 'range' && row.startMonth !== null && row.startMonth !== undefined
+          ? String(row.startMonth)
+          : '',
+      rangeEndMonth:
+        row.paymentMode === 'range' && row.endMonth !== null && row.endMonth !== undefined
+          ? String(row.endMonth)
+          : '',
+      monthsInput: row.monthList && row.monthList.length ? row.monthList.join(',') : '',
+      monthPercentagesInput:
+        row.monthPercentages && row.monthPercentages.length ? row.monthPercentages.join(',') : '',
+    })
+    setEditingSoftCostId(row.id)
+    setIsSoftCostModalOpen(true)
+  }
+
   function closeCreateModal() {
     if (createStatus === 'saving') return
     setIsCreateModalOpen(false)
@@ -405,6 +544,30 @@ function App() {
     }
   }
 
+  async function handleSoftCostSubmit(event) {
+    event.preventDefault()
+    if (!selectedProjectId) return
+    setSoftCostStatus('saving')
+    setSoftCostModalError('')
+    const payload = buildSoftCostPayload(softCostForm)
+
+    try {
+      if (editingSoftCostId) {
+        await updateSoftCost(selectedProjectId, editingSoftCostId, payload)
+      } else {
+        await createSoftCost(selectedProjectId, payload)
+      }
+      setSoftCostStatus('idle')
+      setSoftCostForm(defaultSoftCostForm)
+      setEditingSoftCostId(null)
+      setIsSoftCostModalOpen(false)
+      await loadProjectDetail(selectedProjectId)
+    } catch (err) {
+      setSoftCostStatus('error')
+      setSoftCostModalError(err.message)
+    }
+  }
+
   async function handleDeleteRevenue(revenueId) {
     if (!selectedProjectId) return
     setPendingRevenueDeleteId(revenueId)
@@ -430,6 +593,34 @@ function App() {
     if (revenueStatus === 'error') {
       setRevenueStatus('idle')
     }
+  }
+
+  function handleDeleteSoftCost(costId) {
+    if (!selectedProjectId) return
+    setSoftCostDeleteError('')
+    setPendingSoftCostDeleteId(costId)
+  }
+
+  async function confirmDeleteSoftCost() {
+    if (!selectedProjectId || !pendingSoftCostDeleteId) return
+    setSoftCostDeleteStatus('saving')
+    setSoftCostDeleteError('')
+    try {
+      await deleteSoftCost(selectedProjectId, pendingSoftCostDeleteId)
+      setSoftCostDeleteStatus('idle')
+      setPendingSoftCostDeleteId(null)
+      await loadProjectDetail(selectedProjectId)
+    } catch (err) {
+      setSoftCostDeleteStatus('error')
+      setSoftCostDeleteError(err.message)
+    }
+  }
+
+  function cancelDeleteSoftCost() {
+    if (softCostDeleteStatus === 'saving') return
+    setPendingSoftCostDeleteId(null)
+    setSoftCostDeleteError('')
+    setSoftCostDeleteStatus('idle')
   }
 
   function handleAddressSelect(suggestion) {
@@ -773,11 +964,84 @@ function App() {
                 </div>
               )}
 
-              {activeTab !== 'general' && activeTab !== 'revenue' && (
+              {activeTab === 'soft' && (
+                <div className="soft-tab">
+                  <div className="soft-header">
+                    <div>
+                      <h3>Soft Costs</h3>
+                      <p className="muted tiny">Architects, legal, permits, consultants, marketing.</p>
+                    </div>
+                    <button type="button" className="primary" onClick={openSoftCostModal}>
+                      + Add Soft Cost
+                    </button>
+                  </div>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th>Cost Name</th>
+                          <th>Amount (USD)</th>
+                          <th>Schedule</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedProject.softCosts?.map((row) => (
+                          <tr key={row.id}>
+                            <td>{softCategoryLabel(row.costGroup)}</td>
+                            <td>{row.costName}</td>
+                            <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
+                            <td>{formatSoftCostSchedule(row)}</td>
+                            <td>
+                              <div className="row-actions">
+                                <button
+                                  type="button"
+                                  className="icon-button"
+                                  onClick={() => startEditSoftCost(row)}
+                                  disabled={softCostStatus === 'saving' || softCostDeleteStatus === 'saving'}
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-delete"
+                                  onClick={() => handleDeleteSoftCost(row.id)}
+                                  disabled={softCostStatus === 'saving' || softCostDeleteStatus === 'saving'}
+                                >
+                                  🗑
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {selectedProject.softCosts?.length === 0 && (
+                          <tr>
+                            <td colSpan={5}>No soft costs yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {selectedProject.softCosts?.length ? (
+                        <tfoot>
+                          <tr>
+                            <td colSpan={3} className="revenue-total-label">
+                              Total soft costs
+                            </td>
+                            <td colSpan={2} className="revenue-total-value">
+                              ${totalSoftCosts.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      ) : null}
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {['hard', 'carrying', 'cashflow'].includes(activeTab) && (
                 <div className="placeholder">
                   <p>
                     {activeTab === 'hard' && 'Hard costs'}
-                    {activeTab === 'soft' && 'Soft costs'}
                     {activeTab === 'carrying' && 'Carrying costs'}
                     {activeTab === 'cashflow' && 'Cashflow'} will be implemented next.
                   </p>
@@ -886,6 +1150,147 @@ function App() {
         </div>
       )}
 
+      {isSoftCostModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>{isEditingSoftCost ? 'Edit Soft Cost' : 'Add Soft Cost'}</h3>
+            <form className="modal-form" onSubmit={handleSoftCostSubmit}>
+              <label>
+                Category
+                <select
+                  value={softCostForm.softCategory}
+                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, softCategory: e.target.value }))}
+                  disabled={softCostStatus === 'saving'}
+                >
+                  {softCostCategories.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Cost name
+                <input
+                  type="text"
+                  value={softCostForm.costName}
+                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, costName: e.target.value }))}
+                  required
+                  disabled={softCostStatus === 'saving'}
+                />
+              </label>
+              <label>
+                Amount (USD)
+                <input
+                  type="number"
+                  value={softCostForm.amountUsd}
+                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, amountUsd: e.target.value }))}
+                  required
+                  disabled={softCostStatus === 'saving'}
+                />
+              </label>
+              <label>
+                Payment mode
+                <select
+                  value={softCostForm.paymentMode}
+                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, paymentMode: e.target.value }))}
+                  disabled={softCostStatus === 'saving'}
+                >
+                  <option value="single">Single month</option>
+                  <option value="range">Range</option>
+                  <option value="multi">Multiple months</option>
+                </select>
+              </label>
+
+              {softCostForm.paymentMode === 'single' && (
+                <label>
+                  Payment month (offset)
+                  <input
+                    type="number"
+                    value={softCostForm.paymentMonth}
+                    onChange={(e) => setSoftCostForm((prev) => ({ ...prev, paymentMonth: e.target.value }))}
+                    placeholder="e.g., 0"
+                    disabled={softCostStatus === 'saving'}
+                  />
+                </label>
+              )}
+
+              {softCostForm.paymentMode === 'range' && (
+                <div className="dual-fields">
+                  <label>
+                    Start month
+                    <input
+                      type="number"
+                      value={softCostForm.rangeStartMonth}
+                      onChange={(e) => setSoftCostForm((prev) => ({ ...prev, rangeStartMonth: e.target.value }))}
+                      placeholder="e.g., 0"
+                      disabled={softCostStatus === 'saving'}
+                    />
+                  </label>
+                  <label>
+                    End month
+                    <input
+                      type="number"
+                      value={softCostForm.rangeEndMonth}
+                      onChange={(e) => setSoftCostForm((prev) => ({ ...prev, rangeEndMonth: e.target.value }))}
+                      placeholder="e.g., 5"
+                      disabled={softCostStatus === 'saving'}
+                    />
+                  </label>
+                  <p className="helper-text">Amount will be spread evenly across the range.</p>
+                </div>
+              )}
+
+              {softCostForm.paymentMode === 'multi' && (
+                <>
+                  <label>
+                    Months (comma separated)
+                    <input
+                      type="text"
+                      value={softCostForm.monthsInput}
+                      onChange={(e) => setSoftCostForm((prev) => ({ ...prev, monthsInput: e.target.value }))}
+                      placeholder="e.g., 0,1,2"
+                      disabled={softCostStatus === 'saving'}
+                    />
+                  </label>
+                  <label>
+                    Percent per month (comma separated, optional)
+                    <input
+                      type="text"
+                      value={softCostForm.monthPercentagesInput}
+                      onChange={(e) =>
+                        setSoftCostForm((prev) => ({ ...prev, monthPercentagesInput: e.target.value }))
+                      }
+                      placeholder="e.g., 40,30,30"
+                      disabled={softCostStatus === 'saving'}
+                    />
+                  </label>
+                  <p className="helper-text">
+                    If omitted, the amount will be split evenly. Percentages must total 100%.
+                  </p>
+                </>
+              )}
+
+              {softCostModalError && <p className="error">{softCostModalError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="ghost" onClick={closeSoftCostModal} disabled={softCostStatus === 'saving'}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary" disabled={softCostStatus === 'saving'}>
+                  {softCostStatus === 'saving'
+                    ? isEditingSoftCost
+                      ? 'Saving…'
+                      : 'Adding…'
+                    : isEditingSoftCost
+                      ? 'Save Changes'
+                      : 'Save Soft Cost'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {pendingDeleteProjectId && (
         <div className="modal-backdrop">
           <div className="modal-panel">
@@ -915,6 +1320,29 @@ function App() {
               </button>
               <button type="button" className="danger" onClick={confirmDeleteRevenue} disabled={revenueStatus === 'saving'}>
                 {revenueStatus === 'saving' ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingSoftCostDeleteId && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Delete soft cost?</h3>
+            <p>This action cannot be undone.</p>
+            {softCostDeleteError && <p className="error">{softCostDeleteError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="ghost" onClick={cancelDeleteSoftCost} disabled={softCostDeleteStatus === 'saving'}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={confirmDeleteSoftCost}
+                disabled={softCostDeleteStatus === 'saving'}
+              >
+                {softCostDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

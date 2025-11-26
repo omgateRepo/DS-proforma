@@ -9,6 +9,8 @@ const WEATHER_URL =
 
 const STAGES = ['new', 'offer_submitted', 'in_progress', 'stabilized']
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN
+const SOFT_COST_CATEGORIES = ['architect', 'legal', 'permits', 'consulting', 'marketing', 'other']
+const PAYMENT_MODES = ['single', 'range', 'multi']
 
 const stubProject = {
   id: 'stub-1',
@@ -49,6 +51,102 @@ const stubProject = {
 const toNumber = (value) => (value === null || value === undefined ? null : Number(value))
 
 const toInt = (value) => (value === null || value === undefined ? null : Number(value))
+
+const parseJsonField = (value) => {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+const coerceInt = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const asNumber = Number(value)
+  return Number.isNaN(asNumber) ? null : Math.trunc(asNumber)
+}
+
+const coerceNumberStrict = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const asNumber = Number(value)
+  return Number.isNaN(asNumber) ? null : asNumber
+}
+
+const coerceNumberArray = (value) => {
+  if (!value) return []
+  const raw = Array.isArray(value) ? value : String(value).split(',')
+  return raw
+    .map((entry) => entry?.toString().trim())
+    .filter(Boolean)
+    .map((entry) => Number(entry))
+    .filter((num) => !Number.isNaN(num))
+}
+
+function normalizeSoftCostPayload(body) {
+  const costName = (body.costName || '').trim()
+  if (!costName) return { error: 'costName is required' }
+
+  const amountUsd = coerceNumberStrict(body.amountUsd)
+  if (amountUsd === null) return { error: 'amountUsd is required' }
+
+  const softCategory = (body.softCategory || '').toLowerCase()
+  if (!SOFT_COST_CATEGORIES.includes(softCategory)) {
+    return { error: 'softCategory is invalid' }
+  }
+
+  const paymentMode = PAYMENT_MODES.includes(body.paymentMode) ? body.paymentMode : 'single'
+
+  let paymentMonth = null
+  let rangeStartMonth = null
+  let rangeEndMonth = null
+  let monthList = null
+  let monthPercentages = null
+
+  if (paymentMode === 'single') {
+    paymentMonth = coerceInt(body.paymentMonth)
+    if (paymentMonth === null) return { error: 'paymentMonth is required for single payment mode' }
+  } else if (paymentMode === 'range') {
+    rangeStartMonth = coerceInt(body.rangeStartMonth)
+    rangeEndMonth = coerceInt(body.rangeEndMonth)
+    if (rangeStartMonth === null || rangeEndMonth === null) {
+      return { error: 'rangeStartMonth and rangeEndMonth are required for range mode' }
+    }
+    if (rangeEndMonth < rangeStartMonth) return { error: 'rangeEndMonth cannot be before rangeStartMonth' }
+  } else if (paymentMode === 'multi') {
+    const months = coerceNumberArray(body.monthList).map((value) => Math.trunc(value))
+    if (months.length === 0) return { error: 'monthList must include at least one month for multi mode' }
+    monthList = months
+
+    const hasPercentages =
+      (Array.isArray(body.monthPercentages) && body.monthPercentages.length > 0) ||
+      (!!body.monthPercentages && !Array.isArray(body.monthPercentages))
+
+    if (hasPercentages) {
+      monthPercentages = coerceNumberArray(body.monthPercentages)
+      if (monthPercentages.length !== monthList.length) {
+        return { error: 'monthPercentages length must match monthList length' }
+      }
+      const total = monthPercentages.reduce((sum, value) => sum + value, 0)
+      if (Math.abs(total - 100) > 0.25) {
+        return { error: 'monthPercentages must add up to 100%' }
+      }
+    }
+  }
+
+  return {
+    costName,
+    amountUsd,
+    softCategory,
+    paymentMode,
+    paymentMonth,
+    rangeStartMonth,
+    rangeEndMonth,
+    monthList,
+    monthPercentages,
+  }
+}
 
 const mapProjectRow = (row) => ({
   id: row.id,
@@ -95,10 +193,14 @@ const mapCostRow = (row) => ({
   id: row.id,
   category: row.category,
   costName: row.cost_name,
+  costGroup: row.cost_group,
   amountUsd: toNumber(row.amount_usd),
   paymentMonth: row.payment_month,
   startMonth: row.start_month,
   endMonth: row.end_month,
+  paymentMode: row.payment_mode || 'single',
+  monthList: parseJsonField(row.month_list) || [],
+  monthPercentages: parseJsonField(row.month_percentages) || [],
   carryingType: row.carrying_type,
   principalAmountUsd: toNumber(row.principal_amount_usd),
   interestRatePct: toNumber(row.interest_rate_pct),
@@ -405,6 +507,139 @@ router.patch('/projects/:id/revenue/:revenueId', async (req, res) => {
     res.json(mapRevenueRow(rows[0]))
   } catch (err) {
     res.status(500).json({ error: 'Failed to update revenue item', details: err.message })
+  }
+})
+
+router.post('/projects/:id/soft-costs', async (req, res) => {
+  const normalized = normalizeSoftCostPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `soft-${Date.now()}`,
+      category: 'soft',
+      costName: normalized.costName,
+      costGroup: normalized.softCategory,
+      amountUsd: normalized.amountUsd,
+      paymentMonth: normalized.paymentMonth,
+      startMonth: normalized.rangeStartMonth,
+      endMonth: normalized.rangeEndMonth,
+      paymentMode: normalized.paymentMode,
+      monthList: normalized.monthList || [],
+      monthPercentages: normalized.monthPercentages || [],
+    })
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+      INSERT INTO cost_items (
+        project_id,
+        category,
+        cost_name,
+        cost_group,
+        amount_usd,
+        payment_month,
+        start_month,
+        end_month,
+        payment_mode,
+        month_list,
+        month_percentages
+      )
+      VALUES ($1, 'soft', $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `,
+      [
+        req.params.id,
+        normalized.costName,
+        normalized.softCategory,
+        normalized.amountUsd,
+        normalized.paymentMonth,
+        normalized.rangeStartMonth,
+        normalized.rangeEndMonth,
+        normalized.paymentMode,
+        normalized.monthList ? JSON.stringify(normalized.monthList) : null,
+        normalized.monthPercentages ? JSON.stringify(normalized.monthPercentages) : null,
+      ],
+    )
+    res.status(201).json(mapCostRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add soft cost', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/soft-costs/:costId', async (req, res) => {
+  const normalized = normalizeSoftCostPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.json({
+      id: req.params.costId,
+      category: 'soft',
+      costName: normalized.costName,
+      costGroup: normalized.softCategory,
+      amountUsd: normalized.amountUsd,
+      paymentMonth: normalized.paymentMonth,
+      startMonth: normalized.rangeStartMonth,
+      endMonth: normalized.rangeEndMonth,
+      paymentMode: normalized.paymentMode,
+      monthList: normalized.monthList || [],
+      monthPercentages: normalized.monthPercentages || [],
+    })
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+      UPDATE cost_items
+      SET
+        cost_name = $3,
+        cost_group = $4,
+        amount_usd = $5,
+        payment_month = $6,
+        start_month = $7,
+        end_month = $8,
+        payment_mode = $9,
+        month_list = $10,
+        month_percentages = $11
+      WHERE id = $2 AND project_id = $1 AND category = 'soft'
+      RETURNING *
+    `,
+      [
+        req.params.id,
+        req.params.costId,
+        normalized.costName,
+        normalized.softCategory,
+        normalized.amountUsd,
+        normalized.paymentMonth,
+        normalized.rangeStartMonth,
+        normalized.rangeEndMonth,
+        normalized.paymentMode,
+        normalized.monthList ? JSON.stringify(normalized.monthList) : null,
+        normalized.monthPercentages ? JSON.stringify(normalized.monthPercentages) : null,
+      ],
+    )
+    if (rows.length === 0) return res.status(404).json({ error: 'Soft cost not found' })
+    res.json(mapCostRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update soft cost', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/soft-costs/:costId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.costId, deleted: true })
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM cost_items WHERE id = $1 AND project_id = $2 AND category = \'soft\' RETURNING id',
+      [req.params.costId, req.params.id],
+    )
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Soft cost not found' })
+    res.json({ id: req.params.costId, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete soft cost', details: err.message })
   }
 })
 
