@@ -59,13 +59,17 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 - Actions: edit inline, save/cancel, upload hero photo (future).
 
 ### 6.2 Revenue Tab
-- Each entry represents a unit type:
+- Each entry represents a unit type. Creating/editing rows happens inside a modal so the tab stays clean.
+- Fields captured:
   - `type_label` (e.g., "1bd/1bth").
   - `unit_sqft`.
   - `unit_count`.
   - `monthly_rent_usd` (budget).
-  - Optional: `actual_monthly_rent_usd`, `vacancy_rate`.
-- Derived metrics: total monthly rent per type, total annualized revenue per project.
+  - `vacancy_pct` (default 5%). Revenue for the line is `monthly_rent_usd * unit_count * (1 - vacancy_pct/100)`.
+  - Optional future: `actual_monthly_rent_usd`.
+- Listing UI shows:
+  - Base rent, vacancy %, net monthly revenue per line, and per-line total (net monthly * unit_count).
+  - Summary footer with overall monthly revenue total (sum of net line revenues).
 - Bulk actions: duplicate row, delete row, apply % increase.
 
 ### 6.3 Hard Costs Tab

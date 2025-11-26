@@ -85,6 +85,7 @@ async function ensureApartmentTypesTable() {
       unit_sqft INTEGER,
       unit_count INTEGER NOT NULL DEFAULT 0,
       rent_budget NUMERIC,
+      vacancy_pct NUMERIC NOT NULL DEFAULT 5,
       rent_actual NUMERIC,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );

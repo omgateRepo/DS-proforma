@@ -36,6 +36,7 @@ const stubProject = {
       unitSqft: 650,
       unitCount: 20,
       rentBudget: 2100,
+      vacancyPct: 5,
       rentActual: 0,
     },
   ],
@@ -86,6 +87,7 @@ const mapRevenueRow = (row) => ({
   unitSqft: row.unit_sqft,
   unitCount: row.unit_count,
   rentBudget: toNumber(row.rent_budget),
+  vacancyPct: toNumber(row.vacancy_pct),
   rentActual: toNumber(row.rent_actual),
 })
 
@@ -325,19 +327,22 @@ router.patch('/projects/:id/stage', async (req, res) => {
 })
 
 router.post('/projects/:id/revenue', async (req, res) => {
-  const { typeLabel, unitSqft, unitCount, rentBudget } = req.body
+  const { typeLabel, unitSqft, unitCount, rentBudget, vacancyPct } = req.body
   if (!typeLabel) return res.status(400).json({ error: 'typeLabel is required' })
+  const vacancy = vacancyPct !== undefined && vacancyPct !== null ? Number(vacancyPct) : 5
   if (SKIP_DB) {
-    return res.status(201).json({ id: `rev-${Date.now()}`, typeLabel, unitSqft, unitCount, rentBudget })
+    return res
+      .status(201)
+      .json({ id: `rev-${Date.now()}`, typeLabel, unitSqft, unitCount, rentBudget, vacancyPct: vacancy })
   }
   try {
     const { rows } = await pool.query(
       `
-      INSERT INTO apartment_types (project_id, type_label, unit_sqft, unit_count, rent_budget)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO apartment_types (project_id, type_label, unit_sqft, unit_count, rent_budget, vacancy_pct)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `,
-      [req.params.id, typeLabel, unitSqft || null, unitCount || 0, rentBudget || null],
+      [req.params.id, typeLabel, unitSqft || null, unitCount || 0, rentBudget || null, vacancy],
     )
     res.status(201).json(mapRevenueRow(rows[0]))
   } catch (err) {

@@ -46,6 +46,7 @@ const defaultRevenueForm = {
   unitSqft: '',
   unitCount: '',
   rentBudget: '',
+  vacancyPct: '5',
 }
 
 function App() {
@@ -80,6 +81,8 @@ function App() {
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState(null)
   const [deleteStatus, setDeleteStatus] = useState('idle')
   const [pendingRevenueDeleteId, setPendingRevenueDeleteId] = useState(null)
+  const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
+  const [revenueModalError, setRevenueModalError] = useState('')
 
   const stageOptions = stageLabels()
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
@@ -96,6 +99,18 @@ function App() {
     const parsed = Number(value)
     return Number.isNaN(parsed) ? null : parsed
   }
+
+  const calculateNetRevenue = (row) => {
+    const rent = row.rentBudget || 0
+    const units = row.unitCount || 0
+    const vacancy = row.vacancyPct === undefined || row.vacancyPct === null ? 5 : row.vacancyPct
+    return rent * units * (1 - vacancy / 100)
+  }
+
+  const totalMonthlyRevenue = useMemo(() => {
+    if (!selectedProject?.revenue) return 0
+    return selectedProject.revenue.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
+  }, [selectedProject])
 
   const projectsByStage = useMemo(() => {
     return stageOptions.reduce((acc, stage) => {
@@ -228,6 +243,18 @@ function App() {
     setIsCreateModalOpen(true)
   }
 
+  function openRevenueModal() {
+    setRevenueModalError('')
+    setRevenueForm(defaultRevenueForm)
+    setIsRevenueModalOpen(true)
+  }
+
+  function closeRevenueModal() {
+    if (revenueStatus === 'saving') return
+    setIsRevenueModalOpen(false)
+    setRevenueModalError('')
+  }
+
   function closeCreateModal() {
     if (createStatus === 'saving') return
     setIsCreateModalOpen(false)
@@ -335,19 +362,22 @@ function App() {
     event.preventDefault()
     if (!selectedProjectId) return
     setRevenueStatus('saving')
+    setRevenueModalError('')
     try {
       await createRevenueItem(selectedProjectId, {
         typeLabel: revenueForm.typeLabel,
         unitSqft: revenueForm.unitSqft ? Number(revenueForm.unitSqft) : null,
         unitCount: revenueForm.unitCount ? Number(revenueForm.unitCount) : null,
         rentBudget: revenueForm.rentBudget ? Number(revenueForm.rentBudget) : null,
+        vacancyPct: revenueForm.vacancyPct ? Number(revenueForm.vacancyPct) : 5,
       })
       setRevenueForm(defaultRevenueForm)
       setRevenueStatus('idle')
+      setIsRevenueModalOpen(false)
       await loadProjectDetail(selectedProjectId)
     } catch (err) {
       setRevenueStatus('error')
-      alert(err.message)
+      setRevenueModalError(err.message)
     }
   }
 
@@ -653,37 +683,12 @@ function App() {
 
               {activeTab === 'revenue' && (
                 <div className="revenue-tab">
-                  <form className="revenue-form" onSubmit={handleAddRevenue}>
-                    <input
-                      type="text"
-                      placeholder="Type label (e.g., 1bd/1bth)"
-                      value={revenueForm.typeLabel}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, typeLabel: e.target.value }))}
-                      required
-                    />
-                    <input
-                      type="number"
-                      placeholder="Unit SqFt"
-                      value={revenueForm.unitSqft}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, unitSqft: e.target.value }))}
-                    />
-                    <input
-                      type="number"
-                      placeholder="# Units"
-                      value={revenueForm.unitCount}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, unitCount: e.target.value }))}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Monthly rent"
-                      value={revenueForm.rentBudget}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, rentBudget: e.target.value }))}
-                    />
-                    <button type="submit" disabled={revenueStatus === 'saving'}>
-                      {revenueStatus === 'saving' ? 'Adding…' : 'Add Type'}
+                  <div className="revenue-header">
+                    <h3>Unit Types</h3>
+                    <button type="button" className="primary" onClick={openRevenueModal}>
+                      + Add Unit Type
                     </button>
-                  </form>
-
+                  </div>
                   <div className="table-scroll">
                     <table>
                       <thead>
@@ -692,30 +697,41 @@ function App() {
                           <th>SqFt</th>
                           <th>Units</th>
                           <th>Rent (USD)</th>
+                          <th>Vacancy %</th>
+                          <th>Net Monthly</th>
                           <th></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedProject.revenue?.map((row) => (
-                          <tr key={row.id}>
-                            <td>{row.typeLabel}</td>
-                            <td>{row.unitSqft || '—'}</td>
-                            <td>{row.unitCount || '—'}</td>
-                            <td>{row.rentBudget ? `$${row.rentBudget.toLocaleString()}` : '—'}</td>
-                            <td>
-                              <button type="button" className="icon-delete" onClick={() => handleDeleteRevenue(row.id)} disabled={revenueStatus === 'saving'}>
-                                🗑
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {selectedProject.revenue?.map((row) => {
+                          const netMonthly = calculateNetRevenue(row)
+                          return (
+                            <tr key={row.id}>
+                              <td>{row.typeLabel}</td>
+                              <td>{row.unitSqft || '—'}</td>
+                              <td>{row.unitCount || '—'}</td>
+                              <td>{row.rentBudget ? `$${row.rentBudget.toLocaleString()}` : '—'}</td>
+                              <td>{row.vacancyPct ?? 5}%</td>
+                              <td>{netMonthly ? `$${netMonthly.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}</td>
+                              <td>
+                                <button type="button" className="icon-delete" onClick={() => handleDeleteRevenue(row.id)} disabled={revenueStatus === 'saving'}>
+                                  🗑
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
                         {selectedProject.revenue?.length === 0 && (
                           <tr>
-                            <td colSpan={5}>No revenue rows yet.</td>
+                            <td colSpan={7}>No revenue rows yet.</td>
                           </tr>
                         )}
                       </tbody>
                     </table>
+                  </div>
+                  <div className="revenue-summary">
+                    <span>Total Monthly Revenue</span>
+                    <strong>${totalMonthlyRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
                   </div>
                 </div>
               )}
@@ -761,6 +777,71 @@ function App() {
                 </button>
                 <button type="submit" className="primary" disabled={createStatus === 'saving'}>
                   {createStatus === 'saving' ? 'Creating…' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isRevenueModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Add Unit Type</h3>
+            <form className="modal-form" onSubmit={handleAddRevenue}>
+              <label>
+                Type label
+                <input
+                  type="text"
+                  value={revenueForm.typeLabel}
+                  onChange={(e) => setRevenueForm((prev) => ({ ...prev, typeLabel: e.target.value }))}
+                  required
+                  disabled={revenueStatus === 'saving'}
+                />
+              </label>
+              <label>
+                Unit SqFt
+                <input
+                  type="number"
+                  value={revenueForm.unitSqft}
+                  onChange={(e) => setRevenueForm((prev) => ({ ...prev, unitSqft: e.target.value }))}
+                  disabled={revenueStatus === 'saving'}
+                />
+              </label>
+              <label>
+                Number of units
+                <input
+                  type="number"
+                  value={revenueForm.unitCount}
+                  onChange={(e) => setRevenueForm((prev) => ({ ...prev, unitCount: e.target.value }))}
+                  disabled={revenueStatus === 'saving'}
+                />
+              </label>
+              <label>
+                Monthly rent (USD)
+                <input
+                  type="number"
+                  value={revenueForm.rentBudget}
+                  onChange={(e) => setRevenueForm((prev) => ({ ...prev, rentBudget: e.target.value }))}
+                  disabled={revenueStatus === 'saving'}
+                />
+              </label>
+              <label>
+                Vacancy %
+                <input
+                  type="number"
+                  value={revenueForm.vacancyPct}
+                  onChange={(e) => setRevenueForm((prev) => ({ ...prev, vacancyPct: e.target.value }))}
+                  disabled={revenueStatus === 'saving'}
+                />
+              </label>
+              {revenueModalError && <p className="error">{revenueModalError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="ghost" onClick={closeRevenueModal} disabled={revenueStatus === 'saving'}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary" disabled={revenueStatus === 'saving'}>
+                  {revenueStatus === 'saving' ? 'Adding…' : 'Save Unit Type'}
                 </button>
               </div>
             </form>
