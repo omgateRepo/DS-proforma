@@ -52,6 +52,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `property_type` (land, existing building).
   - `description` / notes.
   - `purchase_price_usd`, `closing_date`.
+    - Closing date uses a date picker (month/day/year) so timelines align with cashflow modeling.
   - `target_units`, `target_sqft`.
   - `sponsor` (future, for LP/GP tracking).
 - Actions: edit inline, save/cancel, upload hero photo (future).

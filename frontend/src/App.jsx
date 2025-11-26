@@ -73,6 +73,7 @@ function App() {
   const [addressSearchError, setAddressSearchError] = useState('')
   const [addressInputTouched, setAddressInputTouched] = useState(false)
   const [selectedCoords, setSelectedCoords] = useState(null)
+  const [projectCoords, setProjectCoords] = useState({})
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState(null)
   const [deleteStatus, setDeleteStatus] = useState('idle')
@@ -95,14 +96,20 @@ function App() {
     try {
       const rows = await fetchProjects()
       setProjects(rows)
-      if (!selectedProjectId && rows.length > 0) {
-        setSelectedProjectId(rows[0].id)
+      if (selectedProjectId && !rows.some((row) => row.id === selectedProjectId)) {
+        setSelectedProjectId(null)
+        setSelectedProject(null)
       }
       setProjectsStatus('loaded')
     } catch (err) {
       setProjectsError(err.message)
       setProjectsStatus('error')
     }
+  }
+
+  const formatDateForInput = (value) => {
+    if (!value) return ''
+    return value.split('T')[0]
   }
 
   const loadProjectDetail = async (projectId) => {
@@ -117,13 +124,14 @@ function App() {
         name: detail.name,
         ...detail.general,
         purchasePriceUsd: detail.general.purchasePriceUsd || '',
+        closingDate: formatDateForInput(detail.general.closingDate),
         targetUnits: detail.general.targetUnits || '',
         targetSqft: detail.general.targetSqft || '',
       })
       setAddressQuery(detail.general.addressLine1 || '')
       setAddressInputTouched(false)
       setAddressSuggestions([])
-      setSelectedCoords(null)
+      setSelectedCoords(projectCoords[projectId] || null)
       setDetailStatus('loaded')
     } catch (err) {
       setDetailError(err.message)
@@ -218,6 +226,12 @@ function App() {
       if (pendingDeleteProjectId === selectedProjectId) {
         handleBackToKanban()
       }
+      setProjectCoords((prev) => {
+        if (!prev[pendingDeleteProjectId]) return prev
+        const next = { ...prev }
+        delete next[pendingDeleteProjectId]
+        return next
+      })
       await loadProjects()
       setPendingDeleteProjectId(null)
     } catch (err) {
@@ -261,12 +275,17 @@ function App() {
       const payload = {
         ...generalForm,
         purchasePriceUsd: generalForm.purchasePriceUsd ? Number(generalForm.purchasePriceUsd) : null,
+        closingDate: generalForm.closingDate || null,
         targetUnits: generalForm.targetUnits ? Number(generalForm.targetUnits) : null,
         targetSqft: generalForm.targetSqft ? Number(generalForm.targetSqft) : null,
       }
       const updated = await updateProjectGeneral(selectedProjectId, payload)
       setSelectedProject((prev) => (prev ? { ...prev, name: updated.name, general: updated.general } : prev))
       setAddressQuery(updated.general.addressLine1 || '')
+      setGeneralForm((prev) => ({
+        ...prev,
+        closingDate: formatDateForInput(updated.general.closingDate),
+      }))
       setGeneralStatus('idle')
       await loadProjects()
     } catch (err) {
@@ -334,7 +353,11 @@ function App() {
     setAddressSuggestions([])
     setAddressInputTouched(false)
     if (suggestion.latitude && suggestion.longitude) {
-      setSelectedCoords({ lat: suggestion.latitude, lon: suggestion.longitude })
+      const coords = { lat: suggestion.latitude, lon: suggestion.longitude }
+      setSelectedCoords(coords)
+      if (selectedProjectId) {
+        setProjectCoords((prev) => ({ ...prev, [selectedProjectId]: coords }))
+      }
     }
   }
 
@@ -434,9 +457,6 @@ function App() {
                   <p className="eyebrow">Project</p>
                   <h2>{selectedProject.name}</h2>
                 </div>
-                <button className="danger" type="button" onClick={() => requestDeleteProject(selectedProject.id)}>
-                  Delete Project
-                </button>
               </div>
 
               <div className="tabs">
@@ -531,6 +551,14 @@ function App() {
                       />
                     </label>
                     <label>
+                      Closing Date
+                      <input
+                        type="date"
+                        value={generalForm.closingDate}
+                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, closingDate: e.target.value }))}
+                      />
+                    </label>
+                    <label>
                       Target Units
                       <input
                         type="number"
@@ -548,9 +576,9 @@ function App() {
                     </label>
                   </div>
                   {selectedCoords && (
-                    <div className="satellite-preview">
+                    <div className="satellite-preview small">
                       <img
-                        src={`${apiOrigin || ''}/api/geocode/satellite?lat=${selectedCoords.lat}&lon=${selectedCoords.lon}&zoom=16`}
+                        src={`${apiOrigin || ''}/api/geocode/satellite?lat=${selectedCoords.lat}&lon=${selectedCoords.lon}&zoom=18`}
                         alt="Satellite preview"
                       />
                     </div>
@@ -623,13 +651,8 @@ function App() {
                             <td>{row.unitCount || '—'}</td>
                             <td>{row.rentBudget ? `$${row.rentBudget.toLocaleString()}` : '—'}</td>
                             <td>
-                              <button
-                                type="button"
-                                className="text danger"
-                                onClick={() => handleDeleteRevenue(row.id)}
-                                disabled={revenueStatus === 'saving'}
-                              >
-                                Delete
+                              <button type="button" className="icon-delete" onClick={() => handleDeleteRevenue(row.id)} disabled={revenueStatus === 'saving'}>
+                                🗑
                               </button>
                             </td>
                           </tr>
@@ -655,6 +678,12 @@ function App() {
                   </p>
                 </div>
               )}
+
+              <div className="floating-delete">
+                <button className="icon-delete" type="button" onClick={() => requestDeleteProject(selectedProject.id)}>
+                  🗑
+                </button>
+              </div>
             </>
           )}
         </section>
