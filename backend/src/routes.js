@@ -211,7 +211,7 @@ router.post('/projects', async (req, res) => {
       .json({ id: `stub-${Date.now()}`, name, stage: 'new', city: 'Philadelphia', state: 'PA', targetUnits: 0 })
   }
   try {
-    const result = await pool.query('INSERT INTO projects (name) VALUES ($1) RETURNING *', [name])
+    const result = await pool.query('INSERT INTO projects (name, stage) VALUES ($1, $2) RETURNING *', [name, 'new'])
     res.status(201).json(mapProjectRow(result.rows[0]))
   } catch (err) {
     res.status(500).json({ error: 'Failed to create project', details: err.message })

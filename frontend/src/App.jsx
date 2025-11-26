@@ -191,9 +191,9 @@ function App() {
     try {
       setCreateStatus('saving')
       const created = await createProject(newProjectName.trim())
+      setProjects((prev) => [created, ...prev])
       setNewProjectName('')
       await loadProjects()
-      setSelectedProjectId(created.id)
       setIsCreateModalOpen(false)
       setCreateStatus('idle')
     } catch (err) {
@@ -367,7 +367,7 @@ function App() {
         <header className="app-header">
           <div>
             <p className="eyebrow">Real Estate Control Center</p>
-            <h1>DS Proforma</h1>
+        <h1>DS Proforma</h1>
           </div>
           <div className="header-actions">
             <div className="weather-card">
@@ -385,7 +385,7 @@ function App() {
               + Add Project
             </button>
           </div>
-        </header>
+      </header>
       )}
 
       {isKanbanView ? (
@@ -503,8 +503,8 @@ function App() {
                               <strong>{suggestion.addressLine1}</strong>
                               <span>{suggestion.label}</span>
                             </li>
-                          ))}
-                        </ul>
+              ))}
+            </ul>
                       )}
                       {addressSearchStatus === 'error' && addressSearchError && (
                         <span className="error tiny">{addressSearchError}</span>

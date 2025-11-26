@@ -54,7 +54,7 @@ The server now runs a lightweight bootstrap on startup (when `SKIP_DB=false`) th
    CREATE TABLE IF NOT EXISTS projects (
      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
      name TEXT NOT NULL,
-     status TEXT NOT NULL DEFAULT 'planned',
+     stage TEXT NOT NULL DEFAULT 'new',
      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
    );
