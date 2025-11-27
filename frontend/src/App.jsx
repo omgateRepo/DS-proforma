@@ -860,19 +860,37 @@ const calculateNetParking = (row) => {
         (carryingCostSeries.baseValues[index] || 0)
       )
     })
-    return [
+    const rows = [
       buildRow('revenues', revenueSeries),
       buildRow('soft', softCostSeries),
       buildRow('hard', hardCostSeries),
       buildRow('carrying', carryingCostSeries),
-      {
+    ]
+
+    rows.push({
         id: 'total',
         label: 'Total',
         type: 'total',
         values: totalRowValues,
         subRows: [],
-      },
-    ]
+    })
+
+    const balanceValues = []
+    let runningBalance = 0
+    totalRowValues.forEach((value, idx) => {
+      runningBalance += value || 0
+      balanceValues[idx] = runningBalance
+    })
+
+    rows.push({
+      id: 'balance',
+      label: 'Balance',
+      type: 'total',
+      values: balanceValues,
+      subRows: [],
+    })
+
+    return rows
   }, [cashflowMonths, revenueSeries, softCostSeries, hardCostSeries, carryingCostSeries])
 
   const closingMonthLabel = useMemo(() => {
