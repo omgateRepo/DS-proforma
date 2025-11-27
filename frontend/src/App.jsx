@@ -136,6 +136,16 @@ function App() {
     return Number.isNaN(parsed) ? null : parsed
   }
 
+  const formatCurrencyCell = (value) => {
+    if (!value) return '—'
+    const amount = Number(value)
+    if (!Number.isFinite(amount) || Math.abs(amount) < 0.005) return '—'
+    return `${amount < 0 ? '-' : ''}$${Math.abs(amount).toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })}`
+  }
+
   const parseCommaSeparatedNumbers = (value) => {
     if (!value) return []
     return value
@@ -209,6 +219,132 @@ function App() {
   const totalSoftCosts = useMemo(() => {
     if (!selectedProject?.softCosts) return 0
     return selectedProject.softCosts.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
+  }, [selectedProject])
+
+  const softCostAllocations = useMemo(() => {
+    if (!selectedProject) return Array(60).fill(0)
+    const allocations = Array(60).fill(0)
+
+    const clampMonthIndex = (value) => {
+      if (value === null || value === undefined) return null
+      const parsed = Number(value)
+      if (Number.isNaN(parsed)) return null
+      return Math.min(59, Math.max(0, Math.trunc(parsed)))
+    }
+
+    const addAllocation = (monthIndex, amount) => {
+      if (monthIndex === null || Number.isNaN(monthIndex) || !Number.isFinite(amount)) return
+      allocations[monthIndex] += amount
+    }
+
+    selectedProject.softCosts?.forEach((row) => {
+      const amount = row.amountUsd || 0
+      if (!amount) return
+      const mode = row.paymentMode || 'single'
+
+      if (mode === 'range') {
+        let start = clampMonthIndex(row.startMonth ?? row.paymentMonth ?? 0)
+        let end = clampMonthIndex(row.endMonth ?? row.startMonth ?? start)
+        if (start === null) start = 0
+        if (end === null) end = start
+        if (end < start) {
+          const temp = start
+          start = end
+          end = temp
+        }
+        const span = end - start + 1
+        const share = amount / span
+        for (let month = start; month <= end; month += 1) {
+          addAllocation(month, share)
+        }
+        return
+      }
+
+      if (mode === 'multi') {
+        let months = Array.isArray(row.monthList) ? row.monthList : []
+        if (!months.length && row.paymentMonth !== null && row.paymentMonth !== undefined) {
+          months = [row.paymentMonth]
+        }
+        const normalizedMonths = months
+          .map((entry) => clampMonthIndex(entry))
+          .filter((entry) => entry !== null)
+        if (!normalizedMonths.length) {
+          addAllocation(0, amount)
+          return
+        }
+        const pctArray =
+          Array.isArray(row.monthPercentages) && row.monthPercentages.length === normalizedMonths.length
+            ? row.monthPercentages
+            : null
+        if (pctArray) {
+          pctArray.forEach((pct, index) => {
+            const share = (amount * Number(pct || 0)) / 100
+            addAllocation(normalizedMonths[index], share)
+          })
+        } else {
+          const evenShare = amount / normalizedMonths.length
+          normalizedMonths.forEach((month) => addAllocation(month, evenShare))
+        }
+        return
+      }
+
+      const month = clampMonthIndex(row.paymentMonth ?? 0)
+      addAllocation(month ?? 0, amount)
+    })
+
+    return allocations
+  }, [selectedProject])
+
+  const cashflowMonths = useMemo(() => {
+    let baseDate = selectedProject?.general?.closingDate ? new Date(selectedProject.general.closingDate) : new Date()
+    if (Number.isNaN(baseDate.getTime())) {
+      baseDate = new Date()
+    }
+    return Array.from({ length: 60 }, (_, index) => {
+      const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + index, 1)
+      return {
+        index,
+        label: `M${index}`,
+        calendarLabel: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+      }
+    })
+  }, [selectedProject])
+
+  const revenueSeries = useMemo(() => {
+    const monthly = totalMonthlyRevenue || 0
+    return Array(60).fill(monthly)
+  }, [totalMonthlyRevenue])
+
+  const softCostSeries = useMemo(() => softCostAllocations.map((value) => value * -1), [softCostAllocations])
+
+  const hardCostSeries = useMemo(() => Array(60).fill(0), [])
+
+  const carryingCostSeries = useMemo(() => Array(60).fill(0), [])
+
+  const cashflowRows = useMemo(() => {
+    const buildRow = (id, label, values, type) => ({ id, label, values, type })
+    const totalRowValues = cashflowMonths.map((_, index) => {
+      return (
+        (revenueSeries[index] || 0) +
+        (softCostSeries[index] || 0) +
+        (hardCostSeries[index] || 0) +
+        (carryingCostSeries[index] || 0)
+      )
+    })
+    return [
+      buildRow('revenues', 'Revenues', revenueSeries, 'revenue'),
+      buildRow('soft', 'Soft Costs', softCostSeries, 'expense'),
+      buildRow('hard', 'Hard Costs', hardCostSeries, 'expense'),
+      buildRow('carrying', 'Carrying Costs', carryingCostSeries, 'expense'),
+      buildRow('total', 'Total', totalRowValues, 'total'),
+    ]
+  }, [cashflowMonths, revenueSeries, softCostSeries, hardCostSeries, carryingCostSeries])
+
+  const closingMonthLabel = useMemo(() => {
+    if (!selectedProject?.general?.closingDate) return null
+    const parsed = new Date(selectedProject.general.closingDate)
+    if (Number.isNaN(parsed.getTime())) return null
+    return parsed.toLocaleString('default', { month: 'long', year: 'numeric' })
   }, [selectedProject])
 
   const projectsByStage = useMemo(() => {
@@ -1038,12 +1174,50 @@ function App() {
                 </div>
               )}
 
-              {['hard', 'carrying', 'cashflow'].includes(activeTab) && (
+              {activeTab === 'cashflow' && (
+                <div className="cashflow-tab">
+                  <div className="cashflow-header">
+                    <div>
+                      <h3>Cashflow (60 months)</h3>
+                      <p className="muted tiny">
+                        Starting {closingMonthLabel || 'from the current month'} · revenues+soft costs shown (hard/carrying
+                        coming next)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="table-scroll">
+                    <table className="cashflow-grid">
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          {cashflowMonths.map((month) => (
+                            <th key={month.index} title={month.calendarLabel}>
+                              {month.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cashflowRows.map((row) => (
+                          <tr key={row.id} className={`cashflow-row ${row.type}`}>
+                            <td>{row.label}</td>
+                            {cashflowMonths.map((month) => (
+                              <td key={`${row.id}-${month.index}`}>{formatCurrencyCell(row.values[month.index])}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {['hard', 'carrying'].includes(activeTab) && (
                 <div className="placeholder">
                   <p>
                     {activeTab === 'hard' && 'Hard costs'}
                     {activeTab === 'carrying' && 'Carrying costs'}
-                    {activeTab === 'cashflow' && 'Cashflow'} will be implemented next.
+                    will be implemented next.
                   </p>
                 </div>
               )}

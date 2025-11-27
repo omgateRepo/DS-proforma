@@ -287,7 +287,8 @@
 
 .general-form,
 .revenue-tab,
-.soft-tab {
+.soft-tab,
+.cashflow-tab {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -297,6 +298,47 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.cashflow-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.cashflow-grid {
+  min-width: 900px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.cashflow-grid th,
+.cashflow-grid td {
+  text-align: right;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.cashflow-grid th:first-child,
+.cashflow-grid td:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  box-shadow: 10px 0 12px -12px rgba(15, 23, 42, 0.3);
+}
+
+.cashflow-row.revenue td:not(:first-child) {
+  color: #047857;
+}
+
+.cashflow-row.expense td:not(:first-child) {
+  color: #b42318;
+}
+
+.cashflow-row.total td {
+  font-weight: 600;
+  border-top: 2px solid var(--border);
 }
 
 .helper-text {

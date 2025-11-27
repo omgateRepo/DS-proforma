@@ -104,9 +104,16 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - Derived: normalized monthly amount (amount / interval frequency).
 
 ### 6.6 Cashflow Tab
-- Timeline view per month (Month 0–60).  
-- Columns: `month_index`, `budget_inflows`, `budget_outflows`, `actual_inflows`, `actual_outflows`, `variance`.  
-- Pull inflows from Revenue tab, outflows from cost tabs.  
+- 60-month horizontal grid starting at month 0 (closing month). Months run left-to-right as column headers (M0…M59) with friendly month/year labels in tooltips.  
+- Rows are grouped (and color-coded) by category: Revenues, Soft Costs, Hard Costs, Carrying Costs, and Total. Additional sub-rows can be added later (e.g., specific loans) but these five anchors always show.  
+- Soft-cost modal drives the Soft Costs row:
+  - **Single** month → entire amount sits in that month.
+  - **Range** → amount spread evenly across the inclusive window.
+  - **Multiple months** → split evenly or by user-defined percentages that must add up to 100%.
+- Revenue row currently uses the net monthly rent (from Revenue tab) applied to each month; later we can layer in lease-up ramps or vacancy shocks.
+- Hard and Carrying costs are placeholders until those tabs ship; they’ll pull from their respective datasets automatically.
+- Totals row = Revenues + all expenses for each month, letting the user see net cashflow instantly.
+- Data refresh is immediate—updating a soft cost or revenue re-renders the 60-month sheet.
 - Allow manual adjustments (e.g., equity injection).  
 - Export to CSV later.
 
