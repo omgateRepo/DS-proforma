@@ -62,7 +62,7 @@ const createDefaultRevenueForm = () => ({
   unitCount: '',
   rentBudget: '',
   vacancyPct: '5',
-  startMonth: '0',
+  startMonth: '1',
 })
 
 const softCostCategories = [
@@ -79,9 +79,9 @@ const defaultSoftCostForm = {
   costName: '',
   amountUsd: '',
   paymentMode: 'single',
-  paymentMonth: '',
-  rangeStartMonth: '',
-  rangeEndMonth: '',
+  paymentMonth: '1',
+  rangeStartMonth: '1',
+  rangeEndMonth: '1',
   monthsInput: '',
   monthPercentagesInput: '',
 }
@@ -186,9 +186,9 @@ const createDefaultHardCostForm = () => {
     pricePerUnit: '',
     unitsCount: '',
     paymentMode: 'single',
-    paymentMonth: '',
-    rangeStartMonth: '',
-    rangeEndMonth: '',
+    paymentMonth: '1',
+    rangeStartMonth: '1',
+    rangeEndMonth: '1',
     monthsInput: '',
     monthPercentagesInput: '',
   }
@@ -199,7 +199,7 @@ const createDefaultParkingForm = () => ({
   spaceCount: '',
   monthlyRentUsd: '',
   vacancyPct: '5',
-  startMonth: '0',
+  startMonth: '1',
 })
 
 const gpPartners = [
@@ -210,7 +210,7 @@ const gpPartners = [
 const createDefaultGpForm = () => ({
   partner: gpPartners[0].id,
   amountUsd: '',
-  contributionMonth: '0',
+  contributionMonth: '1',
 })
 
 function App() {
@@ -281,6 +281,45 @@ function App() {
 
   const stageOptions = stageLabels()
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
+  const baseDate = useMemo(() => {
+    const closingDate = selectedProject?.general?.closingDate
+    const parsed = closingDate ? new Date(closingDate) : new Date()
+    if (Number.isNaN(parsed.getTime())) return new Date()
+    return new Date(parsed.getFullYear(), parsed.getMonth(), 1)
+  }, [selectedProject?.general?.closingDate])
+
+  const normalizeMonthInputValue = (value, fallback = 1) => {
+    const num = Number(value)
+    if (Number.isNaN(num)) return fallback
+    return Math.max(1, Math.min(CASHFLOW_MONTHS, Math.trunc(num)))
+  }
+
+  const convertMonthInputToOffset = (value) => clampCashflowMonth(normalizeMonthInputValue(value) - 1)
+
+  const formatOffsetForInput = (offset) => String((offset ?? 0) + 1)
+
+  const getCalendarLabelForOffset = (offset) => {
+    const clamped = clampCashflowMonth(offset)
+    const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + clamped, 1)
+    return date.toLocaleString('default', { month: 'short', year: 'numeric' })
+  }
+
+  const getCalendarLabelForInput = (value) => {
+    if (value === '' || value === null || value === undefined) return ''
+    const display = normalizeMonthInputValue(value)
+    return `Month ${display} • ${getCalendarLabelForOffset(display - 1)}`
+  }
+
+  const getCalendarLabelsForListInput = (value) => {
+    if (!value) return ''
+    const entries = value
+      .split(',')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+    if (!entries.length) return ''
+    return entries.map((segment) => getCalendarLabelForInput(segment)).filter(Boolean).join(', ')
+  }
+
   const isEditingApartment = Boolean(editingRevenueId)
   const isEditingParkingRevenue = Boolean(editingParkingId)
   const isEditingGpContribution = Boolean(editingGpId)
@@ -336,6 +375,15 @@ const parseFloatOrNull = (value) => {
       .filter((num) => !Number.isNaN(num))
   }
 
+  const parseMonthListToOffsets = (value) => {
+    if (!value) return []
+    return value
+      .split(',')
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+      .map((segment) => convertMonthInputToOffset(segment))
+  }
+
   const toggleCashflowRow = (rowId) => {
     setExpandedCashflowRows((prev) => {
       const next = new Set(prev)
@@ -357,12 +405,12 @@ const parseFloatOrNull = (value) => {
     }
 
     if (payload.paymentMode === 'single') {
-      payload.paymentMonth = form.paymentMonth === '' ? null : Number(form.paymentMonth)
+      payload.paymentMonth = convertMonthInputToOffset(form.paymentMonth)
     } else if (payload.paymentMode === 'range') {
-      payload.rangeStartMonth = form.rangeStartMonth === '' ? null : Number(form.rangeStartMonth)
-      payload.rangeEndMonth = form.rangeEndMonth === '' ? null : Number(form.rangeEndMonth)
+      payload.rangeStartMonth = convertMonthInputToOffset(form.rangeStartMonth)
+      payload.rangeEndMonth = convertMonthInputToOffset(form.rangeEndMonth)
     } else if (payload.paymentMode === 'multi') {
-      payload.monthList = parseCommaSeparatedNumbers(form.monthsInput)
+      payload.monthList = parseMonthListToOffsets(form.monthsInput)
       if (form.monthPercentagesInput && form.monthPercentagesInput.trim()) {
         payload.monthPercentages = parseCommaSeparatedNumbers(form.monthPercentagesInput)
       }
@@ -406,7 +454,12 @@ const parseFloatOrNull = (value) => {
                     <td>{row.unitCount || '—'}</td>
                     <td>{row.rentBudget ? `$${row.rentBudget.toLocaleString()}` : '—'}</td>
                     <td>{row.vacancyPct ?? 5}%</td>
-                    <td>{row.startMonth ?? 0}</td>
+                    <td>
+                      <div className="month-label">
+                        <span>{`Month ${formatOffsetForInput(row.startMonth)}`}</span>
+                        <span className="month-calendar">{getCalendarLabelForOffset(row.startMonth)}</span>
+                      </div>
+                    </td>
                     <td>
                       {netMonthly
                         ? `$${netMonthly.toLocaleString(undefined, {
@@ -475,7 +528,12 @@ const parseFloatOrNull = (value) => {
                     <td>{row.spaceCount || '—'}</td>
                     <td>{row.monthlyRentUsd ? `$${row.monthlyRentUsd.toLocaleString()}` : '—'}</td>
                     <td>{row.vacancyPct ?? 5}%</td>
-                    <td>{row.startMonth ?? 0}</td>
+                    <td>
+                      <div className="month-label">
+                        <span>{`Month ${formatOffsetForInput(row.startMonth)}`}</span>
+                        <span className="month-calendar">{getCalendarLabelForOffset(row.startMonth)}</span>
+                      </div>
+                    </td>
                     <td>
                       {netMonthly
                         ? `$${netMonthly.toLocaleString(undefined, {
@@ -537,7 +595,12 @@ const parseFloatOrNull = (value) => {
                 <tr key={row.id}>
                   <td>{gpPartners.find((p) => p.id === row.partner)?.label || row.partner}</td>
                   <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
-                  <td>{row.contributionMonth ?? 0}</td>
+                  <td>
+                    <div className="month-label">
+                      <span>{`Month ${formatOffsetForInput(row.contributionMonth)}`}</span>
+                      <span className="month-calendar">{getCalendarLabelForOffset(row.contributionMonth)}</span>
+                    </div>
+                  </td>
                   <td>
                     <div className="row-actions">
                       <button
@@ -593,10 +656,13 @@ const parseFloatOrNull = (value) => {
       costName: row.costName || '',
       amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
       paymentMode: row.paymentMode || 'single',
-      paymentMonth: row.paymentMonth === null || row.paymentMonth === undefined ? '' : String(row.paymentMonth),
-      rangeStartMonth: row.startMonth === null || row.startMonth === undefined ? '' : String(row.startMonth),
-      rangeEndMonth: row.endMonth === null || row.endMonth === undefined ? '' : String(row.endMonth),
-      monthsInput: row.monthList && row.monthList.length ? row.monthList.join(',') : '',
+      paymentMonth: row.paymentMonth === null || row.paymentMonth === undefined ? '1' : formatOffsetForInput(row.paymentMonth),
+      rangeStartMonth:
+        row.startMonth === null || row.startMonth === undefined ? '1' : formatOffsetForInput(row.startMonth),
+      rangeEndMonth:
+        row.endMonth === null || row.endMonth === undefined ? '1' : formatOffsetForInput(row.endMonth),
+      monthsInput:
+        row.monthList && row.monthList.length ? row.monthList.map((month) => formatOffsetForInput(month)).join(', ') : '',
       monthPercentagesInput:
         row.monthPercentages && row.monthPercentages.length ? row.monthPercentages.join(',') : '',
     }
@@ -776,10 +842,6 @@ const calculateNetParking = (row) => {
   }, [selectedProject])
 
   const cashflowMonths = useMemo(() => {
-    let baseDate = selectedProject?.general?.closingDate ? new Date(selectedProject.general.closingDate) : new Date()
-    if (Number.isNaN(baseDate.getTime())) {
-      baseDate = new Date()
-    }
     return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
       const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + index, 1)
       return {
@@ -788,7 +850,7 @@ const calculateNetParking = (row) => {
         calendarLabel: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
       }
     })
-  }, [selectedProject])
+  }, [baseDate])
 
   const revenueSeries = useMemo(() => {
     const apartmentLineItems = apartmentRevenueRows.map((row, index) => {
@@ -1083,7 +1145,7 @@ const calculateNetParking = (row) => {
         monthlyRentUsd:
           row.monthlyRentUsd !== null && row.monthlyRentUsd !== undefined ? String(row.monthlyRentUsd) : '',
         vacancyPct: row.vacancyPct !== null && row.vacancyPct !== undefined ? String(row.vacancyPct) : '5',
-        startMonth: row.startMonth !== null && row.startMonth !== undefined ? String(row.startMonth) : '0',
+        startMonth: formatOffsetForInput(row.startMonth),
       })
       setRevenueModalType('parking')
       setEditingParkingId(row.id)
@@ -1093,10 +1155,7 @@ const calculateNetParking = (row) => {
       setGpContributionForm({
         partner: row.partner,
         amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
-        contributionMonth:
-          row.contributionMonth !== null && row.contributionMonth !== undefined
-            ? String(row.contributionMonth)
-            : '0',
+        contributionMonth: formatOffsetForInput(row.contributionMonth),
       })
       setRevenueModalType('gp')
       setEditingGpId(row.id)
@@ -1109,7 +1168,7 @@ const calculateNetParking = (row) => {
         unitCount: row.unitCount !== null && row.unitCount !== undefined ? String(row.unitCount) : '',
         rentBudget: row.rentBudget !== null && row.rentBudget !== undefined ? String(row.rentBudget) : '',
         vacancyPct: row.vacancyPct !== null && row.vacancyPct !== undefined ? String(row.vacancyPct) : '5',
-        startMonth: row.startMonth !== null && row.startMonth !== undefined ? String(row.startMonth) : '0',
+        startMonth: formatOffsetForInput(row.startMonth),
       })
       setRevenueModalType('apartment')
       setEditingRevenueId(row.id)
@@ -1127,7 +1186,7 @@ const calculateNetParking = (row) => {
       monthlyRentUsd:
         row.monthlyRentUsd !== null && row.monthlyRentUsd !== undefined ? String(row.monthlyRentUsd) : '',
       vacancyPct: row.vacancyPct !== null && row.vacancyPct !== undefined ? String(row.vacancyPct) : '5',
-      startMonth: row.startMonth !== null && row.startMonth !== undefined ? String(row.startMonth) : '0',
+      startMonth: formatOffsetForInput(row.startMonth),
     })
     setRevenueModalType('parking')
     setEditingParkingId(row.id)
@@ -1142,8 +1201,7 @@ const calculateNetParking = (row) => {
     setGpContributionForm({
       partner: row.partner || gpPartners[0].id,
       amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
-      contributionMonth:
-        row.contributionMonth !== null && row.contributionMonth !== undefined ? String(row.contributionMonth) : '0',
+      contributionMonth: formatOffsetForInput(row.contributionMonth),
     })
     setRevenueModalType('gp')
     setEditingGpId(row.id)
@@ -1357,7 +1415,7 @@ const calculateNetParking = (row) => {
       unitCount: revenueForm.unitCount ? Number(revenueForm.unitCount) : null,
       rentBudget: revenueForm.rentBudget ? Number(revenueForm.rentBudget) : null,
       vacancyPct: revenueForm.vacancyPct ? Number(revenueForm.vacancyPct) : 5,
-      startMonth: revenueForm.startMonth ? Number(revenueForm.startMonth) : 0,
+      startMonth: convertMonthInputToOffset(revenueForm.startMonth),
     })
 
     const buildParkingPayload = () => ({
@@ -1365,13 +1423,13 @@ const calculateNetParking = (row) => {
       spaceCount: parkingForm.spaceCount ? Number(parkingForm.spaceCount) : null,
       monthlyRentUsd: parkingForm.monthlyRentUsd ? Number(parkingForm.monthlyRentUsd) : null,
       vacancyPct: parkingForm.vacancyPct ? Number(parkingForm.vacancyPct) : 5,
-      startMonth: parkingForm.startMonth ? Number(parkingForm.startMonth) : 0,
+      startMonth: convertMonthInputToOffset(parkingForm.startMonth),
     })
 
     const buildGpPayload = () => ({
       partner: gpContributionForm.partner,
       amountUsd: gpContributionForm.amountUsd ? Number(gpContributionForm.amountUsd) : null,
-      contributionMonth: gpContributionForm.contributionMonth ? Number(gpContributionForm.contributionMonth) : 0,
+      contributionMonth: convertMonthInputToOffset(gpContributionForm.contributionMonth),
     })
 
     try {
@@ -2118,8 +2176,11 @@ const calculateNetParking = (row) => {
                         <tr>
                           <th>Category</th>
                           {cashflowMonths.map((month) => (
-                            <th key={month.index} title={month.calendarLabel}>
-                              {month.label}
+                            <th key={month.index}>
+                              <div className="month-label">
+                                <span>{month.label}</span>
+                                <span className="month-calendar">{month.calendarLabel}</span>
+                              </div>
                             </th>
                           ))}
                         </tr>
@@ -2289,6 +2350,7 @@ const calculateNetParking = (row) => {
                       onChange={(e) => setRevenueForm((prev) => ({ ...prev, startMonth: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelForInput(revenueForm.startMonth)}</span>
                   </label>
                 </>
               )}
@@ -2340,6 +2402,7 @@ const calculateNetParking = (row) => {
                       onChange={(e) => setParkingForm((prev) => ({ ...prev, startMonth: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelForInput(parkingForm.startMonth)}</span>
                   </label>
                 </>
               )}
@@ -2379,6 +2442,7 @@ const calculateNetParking = (row) => {
                       }
                       disabled={revenueStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelForInput(gpContributionForm.contributionMonth)}</span>
                   </label>
                 </>
               )}
@@ -2477,6 +2541,7 @@ const calculateNetParking = (row) => {
                     placeholder="e.g., 0"
                     disabled={softCostStatus === 'saving'}
                   />
+                  <span className="month-hint">{getCalendarLabelForInput(softCostForm.paymentMonth)}</span>
                 </label>
               )}
 
@@ -2491,6 +2556,7 @@ const calculateNetParking = (row) => {
                       placeholder="e.g., 0"
                       disabled={softCostStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelForInput(softCostForm.rangeStartMonth)}</span>
                   </label>
                   <label>
                     End month
@@ -2501,6 +2567,7 @@ const calculateNetParking = (row) => {
                       placeholder="e.g., 5"
                       disabled={softCostStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelForInput(softCostForm.rangeEndMonth)}</span>
                   </label>
                   <p className="helper-text">Amount will be spread evenly across the range.</p>
                 </div>
@@ -2517,6 +2584,7 @@ const calculateNetParking = (row) => {
                       placeholder="e.g., 0,1,2"
                       disabled={softCostStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelsForListInput(softCostForm.monthsInput)}</span>
                   </label>
                   <label>
                     Percent per month (comma separated, optional)
@@ -2667,6 +2735,7 @@ const calculateNetParking = (row) => {
                     placeholder="e.g., 0"
                     disabled={hardCostStatus === 'saving'}
                   />
+                  <span className="month-hint">{getCalendarLabelForInput(hardCostForm.paymentMonth)}</span>
                 </label>
               )}
 
@@ -2683,6 +2752,7 @@ const calculateNetParking = (row) => {
                       placeholder="e.g., 0"
                       disabled={hardCostStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelForInput(hardCostForm.rangeStartMonth)}</span>
                   </label>
                   <label>
                     End month
@@ -2695,6 +2765,7 @@ const calculateNetParking = (row) => {
                       placeholder="e.g., 5"
                       disabled={hardCostStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelForInput(hardCostForm.rangeEndMonth)}</span>
                   </label>
                   <p className="helper-text">Amount will be spread evenly across the range.</p>
                 </div>
@@ -2711,6 +2782,7 @@ const calculateNetParking = (row) => {
                       placeholder="e.g., 0,1,2"
                       disabled={hardCostStatus === 'saving'}
                     />
+                    <span className="month-hint">{getCalendarLabelsForListInput(hardCostForm.monthsInput)}</span>
                   </label>
                   <label>
                     Percent per month (comma separated, optional)

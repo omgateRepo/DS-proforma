@@ -69,7 +69,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `unit_count`.
   - `monthly_rent_usd` (budget).
   - `vacancy_pct` (default 5%).
-  - `start_month` (integer month offset; revenue hits cashflow starting that month).
+  - `start_month` (integer month offset; revenue hits cashflow starting that month). As the user types/selects a month number, the UI shows `Month N • Month/Year` so you always know which calendar month you’re targeting (closing month is Month 1).
 - Parking omits square footage by default but keeps the same scheduling semantics (start month + vacancy). Revenue is calculated the same way (`rent * count * (1 - vacancy)`).
 - GP contribution form captures:
   - `partner` option (Darmon or Sherman).
@@ -113,6 +113,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - Roof Top — Per Building
 - Measurement unit options: Per Square Feet, Per Linear Feet, Per Apartment, Per Building, or `None`. When the measurement unit is not `None`, the modal requires `price_per_unit` and `units_count` and automatically calculates the total amount. When `None` is selected, the user can enter a lump-sum `amount_usd`.
 - Each entry can schedule money exactly like soft costs (single month, range, multi-month with optional % allocation). Totals roll into the cashflow grid immediately.
+- Every month input (single start month, range boundaries, multi-month lists) displays the Month N + calendar month hint in real time, so users don’t have to mentally translate offsets back to the calendar.
 
 ### 6.4 Soft Costs Tab
 - Same structure as Hard Costs but flagged with category (Architect, Legal, Permits).  
@@ -143,6 +144,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - **Single** month → entire amount sits in that month.
   - **Range** → amount spread evenly across the inclusive window.
   - **Multiple months** → split evenly or by user-defined percentages that must add up to 100%.
+- All month selectors show the Month # + calendar month helper text (Month 5 • Jun 2026) to keep offsets intuitive.
 - Revenue row currently uses the net monthly rent (from Revenue tab) applied to each month; later we can layer in lease-up ramps or vacancy shocks.
 - Carrying cost row is still a placeholder until that tab ships; once built, those entries will feed the grid the same way.
 - Totals row = Revenues + all expenses for each month, letting the user see net cashflow instantly.
