@@ -341,6 +341,28 @@
   border-top: 2px solid var(--border);
 }
 
+.cashflow-toggle {
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+}
+
+.cashflow-toggle span {
+  font-size: 0.75rem;
+}
+
+.cashflow-sub-row td:first-child {
+  padding-left: 1.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 .helper-text {
   font-size: 0.8rem;
   color: var(--muted);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import {
   API_BASE,
@@ -110,6 +110,7 @@ function App() {
   const [revenueModalError, setRevenueModalError] = useState('')
   const [editingRevenueId, setEditingRevenueId] = useState(null)
   const [softCostForm, setSoftCostForm] = useState(defaultSoftCostForm)
+  const [expandedCashflowRows, setExpandedCashflowRows] = useState(() => new Set())
   const [softCostStatus, setSoftCostStatus] = useState('idle')
   const [softCostModalError, setSoftCostModalError] = useState('')
   const [isSoftCostModalOpen, setIsSoftCostModalOpen] = useState(false)
@@ -154,6 +155,18 @@ function App() {
       .filter(Boolean)
       .map((segment) => Number(segment))
       .filter((num) => !Number.isNaN(num))
+  }
+
+  const toggleCashflowRow = (rowId) => {
+    setExpandedCashflowRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(rowId)) {
+        next.delete(rowId)
+      } else {
+        next.add(rowId)
+      }
+      return next
+    })
   }
 
   const buildSoftCostPayload = (form) => {
@@ -221,80 +234,6 @@ function App() {
     return selectedProject.softCosts.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
   }, [selectedProject])
 
-  const softCostAllocations = useMemo(() => {
-    if (!selectedProject) return Array(60).fill(0)
-    const allocations = Array(60).fill(0)
-
-    const clampMonthIndex = (value) => {
-      if (value === null || value === undefined) return null
-      const parsed = Number(value)
-      if (Number.isNaN(parsed)) return null
-      return Math.min(59, Math.max(0, Math.trunc(parsed)))
-    }
-
-    const addAllocation = (monthIndex, amount) => {
-      if (monthIndex === null || Number.isNaN(monthIndex) || !Number.isFinite(amount)) return
-      allocations[monthIndex] += amount
-    }
-
-    selectedProject.softCosts?.forEach((row) => {
-      const amount = row.amountUsd || 0
-      if (!amount) return
-      const mode = row.paymentMode || 'single'
-
-      if (mode === 'range') {
-        let start = clampMonthIndex(row.startMonth ?? row.paymentMonth ?? 0)
-        let end = clampMonthIndex(row.endMonth ?? row.startMonth ?? start)
-        if (start === null) start = 0
-        if (end === null) end = start
-        if (end < start) {
-          const temp = start
-          start = end
-          end = temp
-        }
-        const span = end - start + 1
-        const share = amount / span
-        for (let month = start; month <= end; month += 1) {
-          addAllocation(month, share)
-        }
-        return
-      }
-
-      if (mode === 'multi') {
-        let months = Array.isArray(row.monthList) ? row.monthList : []
-        if (!months.length && row.paymentMonth !== null && row.paymentMonth !== undefined) {
-          months = [row.paymentMonth]
-        }
-        const normalizedMonths = months
-          .map((entry) => clampMonthIndex(entry))
-          .filter((entry) => entry !== null)
-        if (!normalizedMonths.length) {
-          addAllocation(0, amount)
-          return
-        }
-        const pctArray =
-          Array.isArray(row.monthPercentages) && row.monthPercentages.length === normalizedMonths.length
-            ? row.monthPercentages
-            : null
-        if (pctArray) {
-          pctArray.forEach((pct, index) => {
-            const share = (amount * Number(pct || 0)) / 100
-            addAllocation(normalizedMonths[index], share)
-          })
-        } else {
-          const evenShare = amount / normalizedMonths.length
-          normalizedMonths.forEach((month) => addAllocation(month, evenShare))
-        }
-        return
-      }
-
-      const month = clampMonthIndex(row.paymentMonth ?? 0)
-      addAllocation(month ?? 0, amount)
-    })
-
-    return allocations
-  }, [selectedProject])
-
   const cashflowMonths = useMemo(() => {
     let baseDate = selectedProject?.general?.closingDate ? new Date(selectedProject.general.closingDate) : new Date()
     if (Number.isNaN(baseDate.getTime())) {
@@ -312,31 +251,144 @@ function App() {
 
   const revenueSeries = useMemo(() => {
     const monthly = totalMonthlyRevenue || 0
-    return Array(60).fill(monthly)
-  }, [totalMonthlyRevenue])
+    const baseValues = Array(60).fill(monthly)
+    const lineItems = (selectedProject?.revenue || []).map((row, index) => {
+      const net = calculateNetRevenue(row)
+      return {
+        id: row.id || `revenue-${index}`,
+        label: row.typeLabel || 'Unit type',
+        values: Array(60).fill(net),
+      }
+    })
+    return { label: 'Revenues', type: 'revenue', baseValues, lineItems }
+  }, [selectedProject, totalMonthlyRevenue])
 
-  const softCostSeries = useMemo(() => softCostAllocations.map((value) => value * -1), [softCostAllocations])
+  const softCostSeries = useMemo(() => {
+    const clampMonthIndex = (value) => {
+      if (value === null || value === undefined) return null
+      const parsed = Number(value)
+      if (Number.isNaN(parsed)) return null
+      return Math.min(59, Math.max(0, Math.trunc(parsed)))
+    }
 
-  const hardCostSeries = useMemo(() => Array(60).fill(0), [])
+    const bump = (arr, monthIndex, amount) => {
+      if (monthIndex === null || Number.isNaN(monthIndex) || !Number.isFinite(amount)) return
+      arr[monthIndex] += amount
+    }
 
-  const carryingCostSeries = useMemo(() => Array(60).fill(0), [])
+    const totals = Array(60).fill(0)
+
+    const lineItems = (selectedProject?.softCosts || []).map((item, index) => {
+      const allocations = Array(60).fill(0)
+      const amount = item.amountUsd || 0
+      if (amount) {
+        const mode = item.paymentMode || 'single'
+        if (mode === 'range') {
+          let start = clampMonthIndex(item.startMonth ?? item.paymentMonth ?? 0)
+          let end = clampMonthIndex(item.endMonth ?? item.startMonth ?? start)
+          if (start === null) start = 0
+          if (end === null) end = start
+          if (end < start) {
+            const temp = start
+            start = end
+            end = temp
+          }
+          const span = end - start + 1
+          const share = amount / span
+          for (let month = start; month <= end; month += 1) {
+            bump(allocations, month, share)
+            bump(totals, month, share)
+          }
+        } else if (mode === 'multi') {
+          let months = Array.isArray(item.monthList) ? item.monthList : []
+          if (!months.length && item.paymentMonth !== null && item.paymentMonth !== undefined) {
+            months = [item.paymentMonth]
+          }
+          const normalizedMonths = months
+            .map((entry) => clampMonthIndex(entry))
+            .filter((entry) => entry !== null)
+          if (!normalizedMonths.length) {
+            bump(allocations, 0, amount)
+            bump(totals, 0, amount)
+          } else {
+            const pctArray =
+              Array.isArray(item.monthPercentages) && item.monthPercentages.length === normalizedMonths.length
+                ? item.monthPercentages
+                : null
+            if (pctArray) {
+              pctArray.forEach((pct, index) => {
+                const share = (amount * Number(pct || 0)) / 100
+                bump(allocations, normalizedMonths[index], share)
+                bump(totals, normalizedMonths[index], share)
+              })
+            } else {
+              const evenShare = amount / normalizedMonths.length
+              normalizedMonths.forEach((month) => {
+                bump(allocations, month, evenShare)
+                bump(totals, month, evenShare)
+              })
+            }
+          }
+        } else {
+          const month = clampMonthIndex(item.paymentMonth ?? 0) ?? 0
+          bump(allocations, month, amount)
+          bump(totals, month, amount)
+        }
+      }
+
+      return {
+        id: item.id || `soft-${index}`,
+        label: item.costName || 'Soft cost',
+        values: allocations.map((value) => value * -1),
+      }
+    })
+
+    return {
+      label: 'Soft Costs',
+      type: 'expense',
+      baseValues: totals.map((value) => value * -1),
+      lineItems,
+    }
+  }, [selectedProject])
+
+  const hardCostSeries = useMemo(
+    () => ({ label: 'Hard Costs', type: 'expense', baseValues: Array(60).fill(0), lineItems: [] }),
+    [],
+  )
+
+  const carryingCostSeries = useMemo(
+    () => ({ label: 'Carrying Costs', type: 'expense', baseValues: Array(60).fill(0), lineItems: [] }),
+    [],
+  )
 
   const cashflowRows = useMemo(() => {
-    const buildRow = (id, label, values, type) => ({ id, label, values, type })
+    const buildRow = (id, series) => ({
+      id,
+      label: series.label,
+      type: series.type,
+      values: series.baseValues,
+      subRows: series.lineItems,
+    })
     const totalRowValues = cashflowMonths.map((_, index) => {
       return (
-        (revenueSeries[index] || 0) +
-        (softCostSeries[index] || 0) +
-        (hardCostSeries[index] || 0) +
-        (carryingCostSeries[index] || 0)
+        (revenueSeries.baseValues[index] || 0) +
+        (softCostSeries.baseValues[index] || 0) +
+        (hardCostSeries.baseValues[index] || 0) +
+        (carryingCostSeries.baseValues[index] || 0)
       )
     })
     return [
-      buildRow('revenues', 'Revenues', revenueSeries, 'revenue'),
-      buildRow('soft', 'Soft Costs', softCostSeries, 'expense'),
-      buildRow('hard', 'Hard Costs', hardCostSeries, 'expense'),
-      buildRow('carrying', 'Carrying Costs', carryingCostSeries, 'expense'),
-      buildRow('total', 'Total', totalRowValues, 'total'),
+      buildRow('revenues', revenueSeries),
+      buildRow('soft', softCostSeries),
+      buildRow('hard', hardCostSeries),
+      buildRow('carrying', carryingCostSeries),
+      {
+        id: 'total',
+        label: 'Total',
+        type: 'total',
+        values: totalRowValues,
+        subRows: [],
+      },
     ]
   }, [cashflowMonths, revenueSeries, softCostSeries, hardCostSeries, carryingCostSeries])
 
@@ -421,6 +473,10 @@ function App() {
         setWeatherStatus('error')
       })
   }, [])
+
+  useEffect(() => {
+    setExpandedCashflowRows(new Set())
+  }, [selectedProjectId])
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -1198,14 +1254,44 @@ function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {cashflowRows.map((row) => (
-                          <tr key={row.id} className={`cashflow-row ${row.type}`}>
-                            <td>{row.label}</td>
-                            {cashflowMonths.map((month) => (
-                              <td key={`${row.id}-${month.index}`}>{formatCurrencyCell(row.values[month.index])}</td>
-                            ))}
-                          </tr>
-                        ))}
+                        {cashflowRows.map((row) => {
+                          const isExpandable = row.subRows && row.subRows.length > 0
+                          const expanded = isExpandable && expandedCashflowRows.has(row.id)
+                          return (
+                            <Fragment key={row.id}>
+                              <tr className={`cashflow-row ${row.type}`}>
+                                <td>
+                                  {isExpandable ? (
+                                    <button
+                                      type="button"
+                                      className="cashflow-toggle"
+                                      onClick={() => toggleCashflowRow(row.id)}
+                                    >
+                                      <span>{expanded ? '▾' : '▸'}</span>
+                                      {row.label}
+                                    </button>
+                                  ) : (
+                                    row.label
+                                  )}
+                                </td>
+                                {cashflowMonths.map((month) => (
+                                  <td key={`${row.id}-${month.index}`}>{formatCurrencyCell(row.values[month.index])}</td>
+                                ))}
+                              </tr>
+                              {expanded &&
+                                row.subRows.map((subRow) => (
+                                  <tr key={`${row.id}-${subRow.id}`} className="cashflow-row sub cashflow-sub-row">
+                                    <td>{subRow.label}</td>
+                                    {cashflowMonths.map((month) => (
+                                      <td key={`${row.id}-${subRow.id}-${month.index}`}>
+                                        {formatCurrencyCell(subRow.values[month.index])}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                            </Fragment>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1222,11 +1308,13 @@ function App() {
                 </div>
               )}
 
-              <div className="floating-delete">
-                <button className="icon-delete" type="button" onClick={() => requestDeleteProject(selectedProject.id)}>
-                  🗑
-                </button>
-              </div>
+              {activeTab !== 'cashflow' && (
+                <div className="floating-delete">
+                  <button className="icon-delete" type="button" onClick={() => requestDeleteProject(selectedProject.id)}>
+                    🗑
+                  </button>
+                </div>
+              )}
             </>
           )}
         </section>
