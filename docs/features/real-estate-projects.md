@@ -208,3 +208,36 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 ## 9. Changelog
 - `2025-11-26` – Drafted initial specification covering Kanban workflow, detailed tabs, and schema outline.
 
+## 10. Engineering Guidelines & Refactor Plan
+To keep delivery predictable as the app grows, follow these coding practices before adding new features:
+
+1. **Feature Modularization**  
+   - Split the monolithic `frontend/src/App.jsx` into feature folders (`features/kanban`, `features/revenue`, `features/costs`, `features/cashflow`, `features/map`).  
+   - Each feature owns its components, hooks, and styles so changes stay localized.
+
+2. **Shared Components & Utilities**  
+   - Promote reusable UI (modals, dropdowns, inputs) to `frontend/src/components`.  
+   - Centralize cross-cutting helpers (month-offset math, currency formatting) inside `frontend/src/utils`.
+
+3. **State Management**  
+   - Introduce a lightweight store (React Context or Zustand) in `frontend/src/state/projectsStore.js` to hold selected project, Kanban data, and mutations.  
+   - Keep API side effects out of presentational components by moving fetch/update logic into dedicated hooks.
+
+4. **Typing & Validation**  
+   - Gradually migrate new/updated modules to TypeScript, defining shared interfaces in `frontend/src/types`.  
+   - Use runtime validation (zod/yup) inside modal submit handlers so malformed payloads never hit the API.
+
+5. **Database Migrations**  
+   - Replace ad-hoc `ALTER TABLE` calls with a numbered migration system (e.g., Prisma, node-pg-migrate).  
+   - Add `npm run migrate` scripts for both local and Render environments to keep schemas in sync.
+
+6. **Testing & Storybook**  
+   - Add unit tests (Vitest + RTL) for revenue/cost modals and cashflow calculators.  
+   - Document complex UI states in Storybook to speed up QA of incremental styling/behavior tweaks.
+
+7. **Incremental Delivery**  
+   - Implement these guidelines in phases (e.g., modularize revenue/costs first, then cashflow, then shared store).  
+   - Each phase ships independently, preventing refactors from blocking feature work.
+
+All new work should reference this plan so the codebase trends toward smaller components, consistent data handling, and easier maintenance.
+
