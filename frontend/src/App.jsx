@@ -2177,7 +2177,7 @@ const calculateNetParking = (row) => {
                 </div>
               )}
 
-              {activeTab !== 'cashflow' && (
+              {activeTab === 'general' && (
                 <div className="floating-delete">
                   <button className="icon-delete" type="button" onClick={() => requestDeleteProject(selectedProject.id)}>
                     🗑
