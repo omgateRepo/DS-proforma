@@ -15,6 +15,7 @@ import {
 import { RevenueSection } from './features/revenue/RevenueSection.jsx'
 import { HardCostsSection } from './features/costs/HardCostsSection.jsx'
 import { SoftCostsSection } from './features/costs/SoftCostsSection.jsx'
+import { GeneralTab } from './features/general/GeneralTab.jsx'
 import { CashflowBoard } from './features/cashflow/CashflowBoard.jsx'
 import { calculateNetParking, calculateNetRevenue, gpPartners } from './features/revenue/revenueHelpers.js'
 import {
@@ -157,6 +158,25 @@ function App() {
       }
       return next
     })
+  }
+
+  const handleGeneralFieldChange = (field, value) => {
+    setGeneralForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleAddressInputChange = (value) => {
+    setAddressQuery(value)
+    setGeneralForm((prev) => ({
+      ...prev,
+      addressLine1: value,
+    }))
+  }
+
+  const handleAddressInputFocus = () => {
+    setAddressInputTouched(true)
   }
 
   const apartmentRevenueRows = selectedProject?.revenue || []
@@ -613,149 +633,21 @@ function App() {
               </div>
 
               {activeTab === 'general' && (
-                <form className="general-form" onSubmit={handleGeneralSave}>
-                  <div className="form-grid">
-                    <label>
-                      Project Name
-                      <input
-                        type="text"
-                        value={generalForm.name}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, name: e.target.value }))}
-                        required
-                      />
-                    </label>
-                    <label className="address-autocomplete">
-                      Address Line 1
-                      <input
-                        type="text"
-                        value={addressQuery}
-                        placeholder="Start typing address"
-                        onFocus={() => setAddressInputTouched(true)}
-                        onChange={(e) => {
-                          setAddressQuery(e.target.value)
-                          setGeneralForm((prev) => ({ ...prev, addressLine1: e.target.value }))
-                        }}
-                      />
-                      {addressSearchStatus === 'loading' && <span className="muted tiny">Searching…</span>}
-                      {addressSuggestions.length > 0 && (
-                        <ul className="address-suggestions">
-                          {addressSuggestions.map((suggestion) => (
-                            <li key={suggestion.id} onMouseDown={() => handleAddressSelect(suggestion)}>
-                              <strong>{suggestion.addressLine1}</strong>
-                              <span>{suggestion.label}</span>
-                </li>
-              ))}
-            </ul>
-                      )}
-                      {addressSearchStatus === 'error' && addressSearchError && (
-                        <span className="error tiny">{addressSearchError}</span>
-                      )}
-                    </label>
-                    <label>
-                      Address Line 2
-                      <input
-                        type="text"
-                        value={generalForm.addressLine2}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, addressLine2: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      City
-                      <input
-                        type="text"
-                        value={generalForm.city}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, city: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      State
-                      <input
-                        type="text"
-                        value={generalForm.state}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, state: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      ZIP
-                      <input
-                        type="text"
-                        value={generalForm.zip}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, zip: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Purchase Price (USD)
-                      <input
-                        type="number"
-                        value={generalForm.purchasePriceUsd}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, purchasePriceUsd: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Closing Date
-                      <input
-                        type="date"
-                        value={generalForm.closingDate}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, closingDate: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Latitude
-                      <input
-                        type="number"
-                        step="any"
-                        value={generalForm.latitude}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, latitude: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Longitude
-                      <input
-                        type="number"
-                        step="any"
-                        value={generalForm.longitude}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, longitude: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Target Units
-                      <input
-                        type="number"
-                        value={generalForm.targetUnits}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, targetUnits: e.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Target SqFt
-                      <input
-                        type="number"
-                        value={generalForm.targetSqft}
-                        onChange={(e) => setGeneralForm((prev) => ({ ...prev, targetSqft: e.target.value }))}
-                      />
-                    </label>
-                  </div>
-                  {selectedCoords && (
-                    <div className="satellite-preview small">
-                      <img
-                        src={`${apiOrigin || ''}/api/geocode/satellite?lat=${selectedCoords.lat}&lon=${selectedCoords.lon}&zoom=18`}
-                        alt="Satellite preview"
-                      />
-                    </div>
-                  )}
-                  <label>
-                    Description / Notes
-                    <textarea
-                      rows={4}
-                      value={generalForm.description}
-                      onChange={(e) => setGeneralForm((prev) => ({ ...prev, description: e.target.value }))}
-                    />
-                  </label>
-                  <div className="actions">
-                    <button type="submit" disabled={generalStatus === 'saving'}>
-                      {generalStatus === 'saving' ? 'Saving…' : 'Save General Info'}
-                    </button>
-                  </div>
-                </form>
+                <GeneralTab
+                  form={generalForm}
+                  generalStatus={generalStatus}
+                  onSubmit={handleGeneralSave}
+                  onFieldChange={handleGeneralFieldChange}
+                  addressQuery={addressQuery}
+                  onAddressQueryChange={handleAddressInputChange}
+                  addressSuggestions={addressSuggestions}
+                  addressSearchStatus={addressSearchStatus}
+                  addressSearchError={addressSearchError}
+                  onAddressInputFocus={handleAddressInputFocus}
+                  onAddressSelect={handleAddressSelect}
+                  selectedCoords={selectedCoords}
+                  apiOrigin={apiOrigin}
+                />
               )}
 
               {activeTab === 'revenue' && (
