@@ -10,6 +10,31 @@ const WEATHER_URL =
 const STAGES = ['new', 'offer_submitted', 'in_progress', 'stabilized']
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN
 const SOFT_COST_CATEGORIES = ['architect', 'legal', 'permits', 'consulting', 'marketing', 'other']
+const HARD_COST_CATEGORIES = [
+  'structure',
+  'framing',
+  'roof',
+  'windows',
+  'fasade',
+  'rough_plumbing',
+  'rough_electric',
+  'rough_havac',
+  'fire_supresion',
+  'insulation',
+  'drywall',
+  'tiles',
+  'paint',
+  'flooring',
+  'molding_doors',
+  'kitchen',
+  'finished_plumbing',
+  'finished_electric',
+  'appliances',
+  'gym',
+  'study_lounge',
+  'roof_top',
+]
+const MEASUREMENT_UNITS = ['none', 'sqft', 'linear_feet', 'apartment', 'building']
 const PAYMENT_MODES = ['single', 'range', 'multi']
 
 const stubProject = {
@@ -84,16 +109,16 @@ const coerceNumberArray = (value) => {
     .filter((num) => !Number.isNaN(num))
 }
 
-function normalizeSoftCostPayload(body) {
+function normalizeScheduledCostPayload(body, { categoryField, allowedCategories }) {
   const costName = (body.costName || '').trim()
   if (!costName) return { error: 'costName is required' }
 
   const amountUsd = coerceNumberStrict(body.amountUsd)
   if (amountUsd === null) return { error: 'amountUsd is required' }
 
-  const softCategory = (body.softCategory || '').toLowerCase()
-  if (!SOFT_COST_CATEGORIES.includes(softCategory)) {
-    return { error: 'softCategory is invalid' }
+  const categoryValue = (body[categoryField] || '').toLowerCase()
+  if (!allowedCategories.includes(categoryValue)) {
+    return { error: `${categoryField} is invalid` }
   }
 
   const paymentMode = PAYMENT_MODES.includes(body.paymentMode) ? body.paymentMode : 'single'
@@ -138,13 +163,46 @@ function normalizeSoftCostPayload(body) {
   return {
     costName,
     amountUsd,
-    softCategory,
+    categoryValue,
     paymentMode,
     paymentMonth,
     rangeStartMonth,
     rangeEndMonth,
     monthList,
     monthPercentages,
+  }
+}
+
+function normalizeHardCostPayload(body) {
+  const measurementUnit = (body.measurementUnit || 'none').toLowerCase()
+  if (!MEASUREMENT_UNITS.includes(measurementUnit)) {
+    return { error: 'measurementUnit is invalid' }
+  }
+
+  let pricePerUnit = null
+  let unitsCount = null
+  let derivedAmount = body.amountUsd
+
+  if (measurementUnit !== 'none') {
+    pricePerUnit = coerceNumberStrict(body.pricePerUnit)
+    unitsCount = coerceNumberStrict(body.unitsCount)
+    if (pricePerUnit === null) return { error: 'pricePerUnit is required for measured hard costs' }
+    if (unitsCount === null) return { error: 'unitsCount is required for measured hard costs' }
+    derivedAmount = pricePerUnit * unitsCount
+  }
+
+  const base = normalizeScheduledCostPayload(
+    { ...body, amountUsd: derivedAmount },
+    { categoryField: 'hardCategory', allowedCategories: HARD_COST_CATEGORIES },
+  )
+  if (base.error) return base
+
+  return {
+    ...base,
+    measurementUnit,
+    pricePerUnit,
+    unitsCount,
+    amountUsd: derivedAmount,
   }
 }
 
@@ -201,6 +259,9 @@ const mapCostRow = (row) => ({
   paymentMode: row.payment_mode || 'single',
   monthList: parseJsonField(row.month_list) || [],
   monthPercentages: parseJsonField(row.month_percentages) || [],
+  measurementUnit: row.measurement_unit || 'none',
+  pricePerUnit: toNumber(row.price_per_unit),
+  unitsCount: toNumber(row.units_count),
   carryingType: row.carrying_type,
   principalAmountUsd: toNumber(row.principal_amount_usd),
   interestRatePct: toNumber(row.interest_rate_pct),
@@ -511,7 +572,10 @@ router.patch('/projects/:id/revenue/:revenueId', async (req, res) => {
 })
 
 router.post('/projects/:id/soft-costs', async (req, res) => {
-  const normalized = normalizeSoftCostPayload(req.body)
+  const normalized = normalizeScheduledCostPayload(req.body, {
+    categoryField: 'softCategory',
+    allowedCategories: SOFT_COST_CATEGORIES,
+  })
   if (normalized.error) return res.status(400).json({ error: normalized.error })
 
   if (SKIP_DB) {
@@ -519,7 +583,7 @@ router.post('/projects/:id/soft-costs', async (req, res) => {
       id: `soft-${Date.now()}`,
       category: 'soft',
       costName: normalized.costName,
-      costGroup: normalized.softCategory,
+      costGroup: normalized.categoryValue,
       amountUsd: normalized.amountUsd,
       paymentMonth: normalized.paymentMonth,
       startMonth: normalized.rangeStartMonth,
@@ -552,7 +616,7 @@ router.post('/projects/:id/soft-costs', async (req, res) => {
       [
         req.params.id,
         normalized.costName,
-        normalized.softCategory,
+        normalized.categoryValue,
         normalized.amountUsd,
         normalized.paymentMonth,
         normalized.rangeStartMonth,
@@ -569,7 +633,10 @@ router.post('/projects/:id/soft-costs', async (req, res) => {
 })
 
 router.patch('/projects/:id/soft-costs/:costId', async (req, res) => {
-  const normalized = normalizeSoftCostPayload(req.body)
+  const normalized = normalizeScheduledCostPayload(req.body, {
+    categoryField: 'softCategory',
+    allowedCategories: SOFT_COST_CATEGORIES,
+  })
   if (normalized.error) return res.status(400).json({ error: normalized.error })
 
   if (SKIP_DB) {
@@ -577,7 +644,7 @@ router.patch('/projects/:id/soft-costs/:costId', async (req, res) => {
       id: req.params.costId,
       category: 'soft',
       costName: normalized.costName,
-      costGroup: normalized.softCategory,
+      costGroup: normalized.categoryValue,
       amountUsd: normalized.amountUsd,
       paymentMonth: normalized.paymentMonth,
       startMonth: normalized.rangeStartMonth,
@@ -609,7 +676,7 @@ router.patch('/projects/:id/soft-costs/:costId', async (req, res) => {
         req.params.id,
         req.params.costId,
         normalized.costName,
-        normalized.softCategory,
+        normalized.categoryValue,
         normalized.amountUsd,
         normalized.paymentMonth,
         normalized.rangeStartMonth,
@@ -619,7 +686,12 @@ router.patch('/projects/:id/soft-costs/:costId', async (req, res) => {
         normalized.monthPercentages ? JSON.stringify(normalized.monthPercentages) : null,
       ],
     )
-    if (rows.length === 0) return res.status(404).json({ error: 'Soft cost not found' })
+    if (rows.length === 0) {
+      return res.status(404).json({
+        error: 'Soft cost not found',
+        details: `Soft cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
     res.json(mapCostRow(rows[0]))
   } catch (err) {
     res.status(500).json({ error: 'Failed to update soft cost', details: err.message })
@@ -636,10 +708,176 @@ router.delete('/projects/:id/soft-costs/:costId', async (req, res) => {
       'DELETE FROM cost_items WHERE id = $1 AND project_id = $2 AND category = \'soft\' RETURNING id',
       [req.params.costId, req.params.id],
     )
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Soft cost not found' })
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: 'Soft cost not found',
+        details: `Soft cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
     res.json({ id: req.params.costId, deleted: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete soft cost', details: err.message })
+  }
+})
+
+router.post('/projects/:id/hard-costs', async (req, res) => {
+  const normalized = normalizeHardCostPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `hard-${Date.now()}`,
+      category: 'hard',
+      costName: normalized.costName,
+      costGroup: normalized.categoryValue,
+      amountUsd: normalized.amountUsd,
+      paymentMonth: normalized.paymentMonth,
+      startMonth: normalized.rangeStartMonth,
+      endMonth: normalized.rangeEndMonth,
+      paymentMode: normalized.paymentMode,
+      monthList: normalized.monthList || [],
+      monthPercentages: normalized.monthPercentages || [],
+      measurementUnit: normalized.measurementUnit,
+      pricePerUnit: normalized.pricePerUnit,
+      unitsCount: normalized.unitsCount,
+    })
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+      INSERT INTO cost_items (
+        project_id,
+        category,
+        cost_name,
+        cost_group,
+        amount_usd,
+        payment_month,
+        start_month,
+        end_month,
+        payment_mode,
+        month_list,
+        month_percentages,
+        measurement_unit,
+        price_per_unit,
+        units_count
+      )
+      VALUES ($1, 'hard', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *
+    `,
+      [
+        req.params.id,
+        normalized.costName,
+        normalized.categoryValue,
+        normalized.amountUsd,
+        normalized.paymentMonth,
+        normalized.rangeStartMonth,
+        normalized.rangeEndMonth,
+        normalized.paymentMode,
+        normalized.monthList ? JSON.stringify(normalized.monthList) : null,
+        normalized.monthPercentages ? JSON.stringify(normalized.monthPercentages) : null,
+        normalized.measurementUnit,
+        normalized.pricePerUnit,
+        normalized.unitsCount,
+      ],
+    )
+    res.status(201).json(mapCostRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add hard cost', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/hard-costs/:costId', async (req, res) => {
+  const normalized = normalizeHardCostPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.json({
+      id: req.params.costId,
+      category: 'hard',
+      costName: normalized.costName,
+      costGroup: normalized.categoryValue,
+      amountUsd: normalized.amountUsd,
+      paymentMonth: normalized.paymentMonth,
+      startMonth: normalized.rangeStartMonth,
+      endMonth: normalized.rangeEndMonth,
+      paymentMode: normalized.paymentMode,
+      monthList: normalized.monthList || [],
+      monthPercentages: normalized.monthPercentages || [],
+      measurementUnit: normalized.measurementUnit,
+      pricePerUnit: normalized.pricePerUnit,
+      unitsCount: normalized.unitsCount,
+    })
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+      UPDATE cost_items
+      SET
+        cost_name = $3,
+        cost_group = $4,
+        amount_usd = $5,
+        payment_month = $6,
+        start_month = $7,
+        end_month = $8,
+        payment_mode = $9,
+        month_list = $10,
+        month_percentages = $11,
+        measurement_unit = $12,
+        price_per_unit = $13,
+        units_count = $14
+      WHERE id = $2 AND project_id = $1 AND category = 'hard'
+      RETURNING *
+    `,
+      [
+        req.params.id,
+        req.params.costId,
+        normalized.costName,
+        normalized.categoryValue,
+        normalized.amountUsd,
+        normalized.paymentMonth,
+        normalized.rangeStartMonth,
+        normalized.rangeEndMonth,
+        normalized.paymentMode,
+        normalized.monthList ? JSON.stringify(normalized.monthList) : null,
+        normalized.monthPercentages ? JSON.stringify(normalized.monthPercentages) : null,
+        normalized.measurementUnit,
+        normalized.pricePerUnit,
+        normalized.unitsCount,
+      ],
+    )
+    if (rows.length === 0) {
+      return res.status(404).json({
+        error: 'Hard cost not found',
+        details: `Hard cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json(mapCostRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update hard cost', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/hard-costs/:costId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.costId, deleted: true })
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM cost_items WHERE id = $1 AND project_id = $2 AND category = \'hard\' RETURNING id',
+      [req.params.costId, req.params.id],
+    )
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: 'Hard cost not found',
+        details: `Hard cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json({ id: req.params.costId, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete hard cost', details: err.message })
   }
 })
 

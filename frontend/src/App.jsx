@@ -4,9 +4,11 @@ import {
   API_BASE,
   createProject,
   createRevenueItem,
+  createHardCost,
   createSoftCost,
   deleteProject,
   deleteRevenueItem,
+  deleteHardCost,
   deleteSoftCost,
   fetchPhiladelphiaWeather,
   fetchProjectDetail,
@@ -16,6 +18,7 @@ import {
   updateProjectGeneral,
   updateProjectStage,
   updateRevenueItem,
+  updateHardCost,
   updateSoftCost,
 } from './api.js'
 
@@ -27,6 +30,8 @@ const TABS = [
   { id: 'carrying', label: 'Carrying Costs' },
   { id: 'cashflow', label: 'Cashflow' },
 ]
+
+const CASHFLOW_MONTHS = 60
 
 const defaultGeneralForm = {
   name: '',
@@ -74,6 +79,91 @@ const defaultSoftCostForm = {
   monthPercentagesInput: '',
 }
 
+const measurementUnitOptions = [
+  { id: 'none', label: 'None (lump sum)' },
+  { id: 'sqft', label: 'Per Square Feet' },
+  { id: 'linear_feet', label: 'Per Linear Feet' },
+  { id: 'apartment', label: 'Per Apartment' },
+  { id: 'building', label: 'Per Building' },
+]
+
+const measurementUnitMeta = {
+  sqft: { label: 'Square Feet', short: 'sqft', plural: 'square feet' },
+  linear_feet: { label: 'Linear Feet', short: 'lf', plural: 'linear feet' },
+  apartment: { label: 'Apartment', short: 'apt', plural: 'apartments' },
+  building: { label: 'Building', short: 'bldg', plural: 'buildings' },
+}
+
+const hardCostCategories = [
+  { id: 'structure', label: 'Structure' },
+  { id: 'framing', label: 'Framing' },
+  { id: 'roof', label: 'Roof' },
+  { id: 'windows', label: 'Windows' },
+  { id: 'fasade', label: 'Fasade' },
+  { id: 'rough_plumbing', label: 'Rough Plumbing' },
+  { id: 'rough_electric', label: 'Rough Electric' },
+  { id: 'rough_havac', label: 'Rough HAVAC' },
+  { id: 'fire_supresion', label: 'Fire Supresion' },
+  { id: 'insulation', label: 'Insulation' },
+  { id: 'drywall', label: 'Drywall' },
+  { id: 'tiles', label: 'Tiles' },
+  { id: 'paint', label: 'Paint' },
+  { id: 'flooring', label: 'Flooring' },
+  { id: 'molding_doors', label: 'Molding (+ doors)' },
+  { id: 'kitchen', label: 'Kitchen' },
+  { id: 'finished_plumbing', label: 'Finished Plumbing' },
+  { id: 'finished_electric', label: 'Finished Electric' },
+  { id: 'appliances', label: 'Appliances' },
+  { id: 'gym', label: 'Gym' },
+  { id: 'study_lounge', label: 'Study Lounge' },
+  { id: 'roof_top', label: 'Roof Top' },
+]
+
+const hardCostDefaultMeasurement = {
+  structure: 'sqft',
+  framing: 'sqft',
+  roof: 'sqft',
+  windows: 'sqft',
+  fasade: 'sqft',
+  rough_plumbing: 'apartment',
+  rough_electric: 'apartment',
+  rough_havac: 'apartment',
+  fire_supresion: 'sqft',
+  insulation: 'sqft',
+  drywall: 'linear_feet',
+  tiles: 'linear_feet',
+  paint: 'linear_feet',
+  flooring: 'apartment',
+  molding_doors: 'sqft',
+  kitchen: 'apartment',
+  finished_plumbing: 'apartment',
+  finished_electric: 'apartment',
+  appliances: 'apartment',
+  gym: 'building',
+  study_lounge: 'building',
+  roof_top: 'building',
+}
+
+const getDefaultMeasurementForCategory = (categoryId) => hardCostDefaultMeasurement[categoryId] || 'none'
+
+const createDefaultHardCostForm = () => {
+  const initialCategory = hardCostCategories[0].id
+  return {
+    hardCategory: initialCategory,
+    measurementUnit: getDefaultMeasurementForCategory(initialCategory),
+    costName: '',
+    amountUsd: '',
+    pricePerUnit: '',
+    unitsCount: '',
+    paymentMode: 'single',
+    paymentMonth: '',
+    rangeStartMonth: '',
+    rangeEndMonth: '',
+    monthsInput: '',
+    monthPercentagesInput: '',
+  }
+}
+
 function App() {
   const [projects, setProjects] = useState([])
   const [projectsStatus, setProjectsStatus] = useState('loading')
@@ -110,19 +200,28 @@ function App() {
   const [revenueModalError, setRevenueModalError] = useState('')
   const [editingRevenueId, setEditingRevenueId] = useState(null)
   const [softCostForm, setSoftCostForm] = useState(defaultSoftCostForm)
+  const [hardCostForm, setHardCostForm] = useState(() => createDefaultHardCostForm())
   const [expandedCashflowRows, setExpandedCashflowRows] = useState(() => new Set())
   const [softCostStatus, setSoftCostStatus] = useState('idle')
+  const [hardCostStatus, setHardCostStatus] = useState('idle')
   const [softCostModalError, setSoftCostModalError] = useState('')
+  const [hardCostModalError, setHardCostModalError] = useState('')
   const [isSoftCostModalOpen, setIsSoftCostModalOpen] = useState(false)
+  const [isHardCostModalOpen, setIsHardCostModalOpen] = useState(false)
   const [editingSoftCostId, setEditingSoftCostId] = useState(null)
+  const [editingHardCostId, setEditingHardCostId] = useState(null)
   const [pendingSoftCostDeleteId, setPendingSoftCostDeleteId] = useState(null)
+  const [pendingHardCostDeleteId, setPendingHardCostDeleteId] = useState(null)
   const [softCostDeleteStatus, setSoftCostDeleteStatus] = useState('idle')
+  const [hardCostDeleteStatus, setHardCostDeleteStatus] = useState('idle')
   const [softCostDeleteError, setSoftCostDeleteError] = useState('')
+  const [hardCostDeleteError, setHardCostDeleteError] = useState('')
 
   const stageOptions = stageLabels()
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
   const isEditingRevenue = Boolean(editingRevenueId)
   const isEditingSoftCost = Boolean(editingSoftCostId)
+  const isEditingHardCost = Boolean(editingHardCostId)
 
   const formatDateForInput = (value) => {
     if (!value) return ''
@@ -147,6 +246,22 @@ function App() {
     })}`
   }
 
+  const requiresMeasurementDetails = (unit) => unit && unit !== 'none'
+
+  const recomputeHardCostAmount = (form) => {
+    const next = { ...form }
+    if (!requiresMeasurementDetails(next.measurementUnit)) {
+      return next
+    }
+    const price = next.pricePerUnit !== '' ? Number(next.pricePerUnit) : null
+    const units = next.unitsCount !== '' ? Number(next.unitsCount) : null
+    next.amountUsd =
+      price !== null && units !== null && Number.isFinite(price * units) ? String(price * units) : ''
+    return next
+  }
+
+  const measurementUnitLabel = (value) => measurementUnitOptions.find((option) => option.id === value)?.label || value
+
   const parseCommaSeparatedNumbers = (value) => {
     if (!value) return []
     return value
@@ -169,12 +284,12 @@ function App() {
     })
   }
 
-  const buildSoftCostPayload = (form) => {
+  const buildScheduledCostPayload = (form, categoryField) => {
     const payload = {
       costName: form.costName.trim(),
       amountUsd: form.amountUsd === '' ? null : Number(form.amountUsd),
-      softCategory: form.softCategory,
       paymentMode: form.paymentMode,
+      [categoryField]: form[categoryField],
     }
 
     if (payload.paymentMode === 'single') {
@@ -193,8 +308,35 @@ function App() {
   }
 
   const softCategoryLabel = (value) => softCostCategories.find((option) => option.id === value)?.label || 'Other'
+  const hardCategoryLabel = (value) => hardCostCategories.find((option) => option.id === value)?.label || 'Other'
 
-  const formatSoftCostSchedule = (row) => {
+  const buildCostFormFromRow = (row, categoryField, fallbackCategory, options = {}) => {
+    const form = {
+      [categoryField]: row.costGroup || fallbackCategory,
+      costName: row.costName || '',
+      amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
+      paymentMode: row.paymentMode || 'single',
+      paymentMonth: row.paymentMonth === null || row.paymentMonth === undefined ? '' : String(row.paymentMonth),
+      rangeStartMonth: row.startMonth === null || row.startMonth === undefined ? '' : String(row.startMonth),
+      rangeEndMonth: row.endMonth === null || row.endMonth === undefined ? '' : String(row.endMonth),
+      monthsInput: row.monthList && row.monthList.length ? row.monthList.join(',') : '',
+      monthPercentagesInput:
+        row.monthPercentages && row.monthPercentages.length ? row.monthPercentages.join(',') : '',
+    }
+
+    if (options.includeMeasurement) {
+      const defaultMeasurement = options.defaultMeasurement || 'none'
+      form.measurementUnit = row.measurementUnit || defaultMeasurement
+      form.pricePerUnit =
+        row.pricePerUnit !== null && row.pricePerUnit !== undefined ? String(row.pricePerUnit) : ''
+      form.unitsCount =
+        row.unitsCount !== null && row.unitsCount !== undefined ? String(row.unitsCount) : ''
+    }
+
+    return form
+  }
+
+  const formatCostSchedule = (row) => {
     if (!row) return '—'
     if (row.paymentMode === 'range' && row.startMonth !== null && row.endMonth !== null) {
       return `Months ${row.startMonth}–${row.endMonth}`
@@ -217,6 +359,115 @@ function App() {
     return '—'
   }
 
+  const formatMeasurementSummary = (row) => {
+    if (!row || !requiresMeasurementDetails(row.measurementUnit)) return '—'
+    const meta = measurementUnitMeta[row.measurementUnit]
+    const units =
+      row.unitsCount !== null && row.unitsCount !== undefined ? Number(row.unitsCount) : null
+    const price =
+      row.pricePerUnit !== null && row.pricePerUnit !== undefined ? Number(row.pricePerUnit) : null
+    const pluralLabel = meta?.plural || measurementUnitLabel(row.measurementUnit)
+    const shortSuffix = meta?.short ? `/${meta.short}` : ''
+    if (units !== null && price !== null && Number.isFinite(units) && Number.isFinite(price)) {
+      return `${units.toLocaleString()} ${pluralLabel} × $${price.toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })}${shortSuffix}`
+    }
+    return pluralLabel
+  }
+
+  const clampCashflowMonth = (value) => {
+    if (value === null || value === undefined || value === '') return null
+    const parsed = Number(value)
+    if (Number.isNaN(parsed)) return null
+    return Math.min(CASHFLOW_MONTHS - 1, Math.max(0, Math.trunc(parsed)))
+  }
+
+  const buildAllocationsForCost = (row) => {
+    const allocations = Array(CASHFLOW_MONTHS).fill(0)
+    const amount = Number(row?.amountUsd) || 0
+    if (!amount) return allocations
+
+    const addShare = (month, share) => {
+      const idx = clampCashflowMonth(month)
+      if (idx === null || !Number.isFinite(share)) return
+      allocations[idx] += share
+    }
+
+    const paymentMode = row.paymentMode || 'single'
+
+    if (paymentMode === 'range') {
+      let start = clampCashflowMonth(row.startMonth ?? row.paymentMonth ?? 0)
+      let end = clampCashflowMonth(row.endMonth ?? row.startMonth ?? start)
+      if (start === null) start = 0
+      if (end === null) end = start
+      if (end < start) {
+        const swap = start
+        start = end
+        end = swap
+      }
+      const span = end - start + 1
+      const share = span > 0 ? amount / span : amount
+      for (let month = start; month <= end; month += 1) {
+        addShare(month, share)
+      }
+      return allocations
+    }
+
+    if (paymentMode === 'multi') {
+      let months = Array.isArray(row.monthList) ? row.monthList : []
+      if (!months.length && (row.paymentMonth ?? '') !== '') {
+        months = [row.paymentMonth]
+      }
+      const normalizedMonths = months
+        .map((entry) => clampCashflowMonth(entry))
+        .filter((entry) => entry !== null)
+      if (!normalizedMonths.length) {
+        addShare(0, amount)
+        return allocations
+      }
+      let pctArray = Array.isArray(row.monthPercentages) ? row.monthPercentages : []
+      pctArray = pctArray.map((value) => Number(value))
+      const hasValidPercents =
+        pctArray.length === normalizedMonths.length && pctArray.every((value) => Number.isFinite(value))
+      if (hasValidPercents) {
+        normalizedMonths.forEach((month, index) => {
+          addShare(month, (amount * pctArray[index]) / 100)
+        })
+      } else {
+        const evenShare = amount / normalizedMonths.length
+        normalizedMonths.forEach((month) => addShare(month, evenShare))
+      }
+      return allocations
+    }
+
+    const month = clampCashflowMonth(row.paymentMonth ?? 0) ?? 0
+    addShare(month, amount)
+    return allocations
+  }
+
+  const buildExpenseSeries = (rows = [], headerLabel) => {
+    const totals = Array(CASHFLOW_MONTHS).fill(0)
+    const lineItems = rows.map((row, index) => {
+      const allocations = buildAllocationsForCost(row)
+      allocations.forEach((value, idx) => {
+        totals[idx] += value
+      })
+      return {
+        id: row.id || `${headerLabel}-${index}`,
+        label: row.costName || `${headerLabel} ${index + 1}`,
+        values: allocations.map((value) => value * -1),
+      }
+    })
+    return {
+      label: headerLabel,
+      type: 'expense',
+      baseValues: totals.map((value) => value * -1),
+      lineItems,
+    }
+  }
+
   const calculateNetRevenue = (row) => {
     const rent = row.rentBudget || 0
     const units = row.unitCount || 0
@@ -234,12 +485,17 @@ function App() {
     return selectedProject.softCosts.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
   }, [selectedProject])
 
+  const totalHardCosts = useMemo(() => {
+    if (!selectedProject?.hardCosts) return 0
+    return selectedProject.hardCosts.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
+  }, [selectedProject])
+
   const cashflowMonths = useMemo(() => {
     let baseDate = selectedProject?.general?.closingDate ? new Date(selectedProject.general.closingDate) : new Date()
     if (Number.isNaN(baseDate.getTime())) {
       baseDate = new Date()
     }
-    return Array.from({ length: 60 }, (_, index) => {
+    return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
       const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + index, 1)
       return {
         index,
@@ -251,113 +507,30 @@ function App() {
 
   const revenueSeries = useMemo(() => {
     const monthly = totalMonthlyRevenue || 0
-    const baseValues = Array(60).fill(monthly)
+    const baseValues = Array(CASHFLOW_MONTHS).fill(monthly)
     const lineItems = (selectedProject?.revenue || []).map((row, index) => {
       const net = calculateNetRevenue(row)
       return {
         id: row.id || `revenue-${index}`,
         label: row.typeLabel || 'Unit type',
-        values: Array(60).fill(net),
+        values: Array(CASHFLOW_MONTHS).fill(net),
       }
     })
     return { label: 'Revenues', type: 'revenue', baseValues, lineItems }
   }, [selectedProject, totalMonthlyRevenue])
 
-  const softCostSeries = useMemo(() => {
-    const clampMonthIndex = (value) => {
-      if (value === null || value === undefined) return null
-      const parsed = Number(value)
-      if (Number.isNaN(parsed)) return null
-      return Math.min(59, Math.max(0, Math.trunc(parsed)))
-    }
-
-    const bump = (arr, monthIndex, amount) => {
-      if (monthIndex === null || Number.isNaN(monthIndex) || !Number.isFinite(amount)) return
-      arr[monthIndex] += amount
-    }
-
-    const totals = Array(60).fill(0)
-
-    const lineItems = (selectedProject?.softCosts || []).map((item, index) => {
-      const allocations = Array(60).fill(0)
-      const amount = item.amountUsd || 0
-      if (amount) {
-        const mode = item.paymentMode || 'single'
-        if (mode === 'range') {
-          let start = clampMonthIndex(item.startMonth ?? item.paymentMonth ?? 0)
-          let end = clampMonthIndex(item.endMonth ?? item.startMonth ?? start)
-          if (start === null) start = 0
-          if (end === null) end = start
-          if (end < start) {
-            const temp = start
-            start = end
-            end = temp
-          }
-          const span = end - start + 1
-          const share = amount / span
-          for (let month = start; month <= end; month += 1) {
-            bump(allocations, month, share)
-            bump(totals, month, share)
-          }
-        } else if (mode === 'multi') {
-          let months = Array.isArray(item.monthList) ? item.monthList : []
-          if (!months.length && item.paymentMonth !== null && item.paymentMonth !== undefined) {
-            months = [item.paymentMonth]
-          }
-          const normalizedMonths = months
-            .map((entry) => clampMonthIndex(entry))
-            .filter((entry) => entry !== null)
-          if (!normalizedMonths.length) {
-            bump(allocations, 0, amount)
-            bump(totals, 0, amount)
-          } else {
-            const pctArray =
-              Array.isArray(item.monthPercentages) && item.monthPercentages.length === normalizedMonths.length
-                ? item.monthPercentages
-                : null
-            if (pctArray) {
-              pctArray.forEach((pct, index) => {
-                const share = (amount * Number(pct || 0)) / 100
-                bump(allocations, normalizedMonths[index], share)
-                bump(totals, normalizedMonths[index], share)
-              })
-            } else {
-              const evenShare = amount / normalizedMonths.length
-              normalizedMonths.forEach((month) => {
-                bump(allocations, month, evenShare)
-                bump(totals, month, evenShare)
-              })
-            }
-          }
-        } else {
-          const month = clampMonthIndex(item.paymentMonth ?? 0) ?? 0
-          bump(allocations, month, amount)
-          bump(totals, month, amount)
-        }
-      }
-
-      return {
-        id: item.id || `soft-${index}`,
-        label: item.costName || 'Soft cost',
-        values: allocations.map((value) => value * -1),
-      }
-    })
-
-    return {
-      label: 'Soft Costs',
-      type: 'expense',
-      baseValues: totals.map((value) => value * -1),
-      lineItems,
-    }
-  }, [selectedProject])
+  const softCostSeries = useMemo(
+    () => buildExpenseSeries(selectedProject?.softCosts || [], 'Soft Costs'),
+    [selectedProject],
+  )
 
   const hardCostSeries = useMemo(
-    () => ({ label: 'Hard Costs', type: 'expense', baseValues: Array(60).fill(0), lineItems: [] }),
-    [],
+    () => buildExpenseSeries(selectedProject?.hardCosts || [], 'Hard Costs'),
+    [selectedProject],
   )
 
   const carryingCostSeries = useMemo(
-    () => ({ label: 'Carrying Costs', type: 'expense', baseValues: Array(60).fill(0), lineItems: [] }),
+    () => ({ label: 'Carrying Costs', type: 'expense', baseValues: Array(CASHFLOW_MONTHS).fill(0), lineItems: [] }),
     [],
   )
 
@@ -579,29 +752,75 @@ function App() {
 
   function startEditSoftCost(row) {
     setSoftCostModalError('')
-    setSoftCostForm({
-      softCategory: row.costGroup || 'other',
-      costName: row.costName || '',
-      amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
-      paymentMode: row.paymentMode || 'single',
-      paymentMonth:
-        row.paymentMode === 'single' && row.paymentMonth !== null && row.paymentMonth !== undefined
-          ? String(row.paymentMonth)
-          : '',
-      rangeStartMonth:
-        row.paymentMode === 'range' && row.startMonth !== null && row.startMonth !== undefined
-          ? String(row.startMonth)
-          : '',
-      rangeEndMonth:
-        row.paymentMode === 'range' && row.endMonth !== null && row.endMonth !== undefined
-          ? String(row.endMonth)
-          : '',
-      monthsInput: row.monthList && row.monthList.length ? row.monthList.join(',') : '',
-      monthPercentagesInput:
-        row.monthPercentages && row.monthPercentages.length ? row.monthPercentages.join(',') : '',
-    })
+    setSoftCostForm(buildCostFormFromRow(row, 'softCategory', softCostCategories[0].id))
     setEditingSoftCostId(row.id)
     setIsSoftCostModalOpen(true)
+  }
+
+  function openHardCostModal() {
+    setHardCostModalError('')
+    setHardCostForm(createDefaultHardCostForm())
+    setEditingHardCostId(null)
+    setHardCostStatus('idle')
+    setIsHardCostModalOpen(true)
+  }
+
+  function closeHardCostModal() {
+    if (hardCostStatus === 'saving') return
+    setIsHardCostModalOpen(false)
+    setHardCostModalError('')
+    setEditingHardCostId(null)
+    setHardCostStatus('idle')
+    setHardCostForm(createDefaultHardCostForm())
+  }
+
+  function startEditHardCost(row) {
+    setHardCostModalError('')
+    const form = buildCostFormFromRow(row, 'hardCategory', hardCostCategories[0].id, {
+      includeMeasurement: true,
+      defaultMeasurement: getDefaultMeasurementForCategory(row.costGroup || hardCostCategories[0].id),
+    })
+    setHardCostForm(recomputeHardCostAmount(form))
+    setEditingHardCostId(row.id)
+    setIsHardCostModalOpen(true)
+  }
+
+  function handleHardCategoryChange(value) {
+    setHardCostForm((prev) => {
+      const measurementUnit = getDefaultMeasurementForCategory(value)
+      const next = {
+        ...prev,
+        hardCategory: value,
+        measurementUnit,
+      }
+      if (measurementUnit === 'none') {
+        next.pricePerUnit = ''
+        next.unitsCount = ''
+        next.amountUsd = ''
+      } else {
+        next.pricePerUnit = ''
+        next.unitsCount = ''
+      }
+      return recomputeHardCostAmount(next)
+    })
+  }
+
+  function handleHardMeasurementChange(value) {
+    setHardCostForm((prev) => {
+      const next = {
+        ...prev,
+        measurementUnit: value,
+      }
+      if (value === 'none') {
+        next.pricePerUnit = ''
+        next.unitsCount = ''
+        next.amountUsd = ''
+      } else if (value !== prev.measurementUnit) {
+        next.pricePerUnit = ''
+        next.unitsCount = ''
+      }
+      return recomputeHardCostAmount(next)
+    })
   }
 
   function closeCreateModal() {
@@ -741,7 +960,7 @@ function App() {
     if (!selectedProjectId) return
     setSoftCostStatus('saving')
     setSoftCostModalError('')
-    const payload = buildSoftCostPayload(softCostForm)
+    const payload = buildScheduledCostPayload(softCostForm, 'softCategory')
 
     try {
       if (editingSoftCostId) {
@@ -757,6 +976,53 @@ function App() {
     } catch (err) {
       setSoftCostStatus('error')
       setSoftCostModalError(err.message)
+    }
+  }
+
+  async function handleHardCostSubmit(event) {
+    event.preventDefault()
+    if (!selectedProjectId) return
+    setHardCostStatus('saving')
+    setHardCostModalError('')
+    const needsUnits = requiresMeasurementDetails(hardCostForm.measurementUnit)
+    if (needsUnits) {
+      if (!hardCostForm.pricePerUnit || !hardCostForm.unitsCount) {
+        setHardCostStatus('idle')
+        setHardCostModalError('Price per unit and number of units are required.')
+        return
+      }
+    } else if (!hardCostForm.amountUsd) {
+      setHardCostStatus('idle')
+      setHardCostModalError('Amount is required.')
+      return
+    }
+
+    const payload = buildScheduledCostPayload(hardCostForm, 'hardCategory')
+    payload.measurementUnit = hardCostForm.measurementUnit
+    if (needsUnits) {
+      payload.pricePerUnit = Number(hardCostForm.pricePerUnit)
+      payload.unitsCount = Number(hardCostForm.unitsCount)
+      payload.amountUsd = Number(hardCostForm.amountUsd || 0)
+    } else {
+      payload.pricePerUnit = null
+      payload.unitsCount = null
+      payload.amountUsd = payload.amountUsd === null ? null : Number(payload.amountUsd)
+    }
+
+    try {
+      if (editingHardCostId) {
+        await updateHardCost(selectedProjectId, editingHardCostId, payload)
+      } else {
+        await createHardCost(selectedProjectId, payload)
+      }
+      setHardCostStatus('idle')
+      setHardCostForm(createDefaultHardCostForm())
+      setEditingHardCostId(null)
+      setIsHardCostModalOpen(false)
+      await loadProjectDetail(selectedProjectId)
+    } catch (err) {
+      setHardCostStatus('error')
+      setHardCostModalError(err.message)
     }
   }
 
@@ -813,6 +1079,34 @@ function App() {
     setPendingSoftCostDeleteId(null)
     setSoftCostDeleteError('')
     setSoftCostDeleteStatus('idle')
+  }
+
+  function handleDeleteHardCost(costId) {
+    if (!selectedProjectId) return
+    setHardCostDeleteError('')
+    setPendingHardCostDeleteId(costId)
+  }
+
+  async function confirmDeleteHardCost() {
+    if (!selectedProjectId || !pendingHardCostDeleteId) return
+    setHardCostDeleteStatus('saving')
+    setHardCostDeleteError('')
+    try {
+      await deleteHardCost(selectedProjectId, pendingHardCostDeleteId)
+      setHardCostDeleteStatus('idle')
+      setPendingHardCostDeleteId(null)
+      await loadProjectDetail(selectedProjectId)
+    } catch (err) {
+      setHardCostDeleteStatus('error')
+      setHardCostDeleteError(err.message)
+    }
+  }
+
+  function cancelDeleteHardCost() {
+    if (hardCostDeleteStatus === 'saving') return
+    setPendingHardCostDeleteId(null)
+    setHardCostDeleteError('')
+    setHardCostDeleteStatus('idle')
   }
 
   function handleAddressSelect(suggestion) {
@@ -1156,6 +1450,82 @@ function App() {
                 </div>
               )}
 
+              {activeTab === 'hard' && (
+                <div className="soft-tab">
+                  <div className="soft-header">
+                    <div>
+                      <h3>Hard Costs</h3>
+                      <p className="muted tiny">Construction scope: site work, structure, envelope, interiors.</p>
+                    </div>
+                    <button type="button" className="primary" onClick={openHardCostModal}>
+                      + Add Hard Cost
+                    </button>
+                  </div>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th>Cost Name</th>
+                          <th>Units</th>
+                          <th>Amount (USD)</th>
+                          <th>Schedule</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedProject.hardCosts?.map((row) => (
+                          <tr key={row.id}>
+                            <td>{hardCategoryLabel(row.costGroup)}</td>
+                            <td>{row.costName}</td>
+                            <td>{formatMeasurementSummary(row)}</td>
+                            <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
+                            <td>{formatCostSchedule(row)}</td>
+                            <td>
+                              <div className="row-actions">
+                                <button
+                                  type="button"
+                                  className="icon-button"
+                                  onClick={() => startEditHardCost(row)}
+                                  disabled={hardCostStatus === 'saving' || hardCostDeleteStatus === 'saving'}
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-delete"
+                                  onClick={() => handleDeleteHardCost(row.id)}
+                                  disabled={hardCostStatus === 'saving' || hardCostDeleteStatus === 'saving'}
+                                >
+                                  🗑
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {selectedProject.hardCosts?.length === 0 && (
+                          <tr>
+                            <td colSpan={5}>No hard costs yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {selectedProject.hardCosts?.length ? (
+                        <tfoot>
+                          <tr>
+                            <td colSpan={4} className="revenue-total-label">
+                              Total hard costs
+                            </td>
+                            <td colSpan={2} className="revenue-total-value">
+                              ${totalHardCosts.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      ) : null}
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'soft' && (
                 <div className="soft-tab">
                   <div className="soft-header">
@@ -1184,7 +1554,7 @@ function App() {
                             <td>{softCategoryLabel(row.costGroup)}</td>
                             <td>{row.costName}</td>
                             <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
-                            <td>{formatSoftCostSchedule(row)}</td>
+                            <td>{formatCostSchedule(row)}</td>
                             <td>
                               <div className="row-actions">
                                 <button
@@ -1236,8 +1606,8 @@ function App() {
                     <div>
                       <h3>Cashflow (60 months)</h3>
                       <p className="muted tiny">
-                        Starting {closingMonthLabel || 'from the current month'} · revenues+soft costs shown (hard/carrying
-                        coming next)
+                        Starting {closingMonthLabel || 'from the current month'} · revenues + hard/soft costs shown
+                        (carrying coming next)
                       </p>
                     </div>
                   </div>
@@ -1298,12 +1668,10 @@ function App() {
                 </div>
               )}
 
-              {['hard', 'carrying'].includes(activeTab) && (
+              {activeTab === 'carrying' && (
                 <div className="placeholder">
                   <p>
-                    {activeTab === 'hard' && 'Hard costs'}
-                    {activeTab === 'carrying' && 'Carrying costs'}
-                    will be implemented next.
+                    Carrying costs will be implemented next.
                   </p>
                 </div>
               )}
@@ -1553,6 +1921,200 @@ function App() {
         </div>
       )}
 
+      {isHardCostModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>{isEditingHardCost ? 'Edit Hard Cost' : 'Add Hard Cost'}</h3>
+            <form className="modal-form" onSubmit={handleHardCostSubmit}>
+              <label>
+                Category
+                <select
+                  value={hardCostForm.hardCategory}
+                  onChange={(e) => handleHardCategoryChange(e.target.value)}
+                  disabled={hardCostStatus === 'saving'}
+                >
+                  {hardCostCategories.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Measurement unit
+                <select
+                  value={hardCostForm.measurementUnit}
+                  onChange={(e) => handleHardMeasurementChange(e.target.value)}
+                  disabled={hardCostStatus === 'saving'}
+                >
+                  {measurementUnitOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Cost name
+                <input
+                  type="text"
+                  value={hardCostForm.costName}
+                  onChange={(e) => setHardCostForm((prev) => ({ ...prev, costName: e.target.value }))}
+                  required
+                  disabled={hardCostStatus === 'saving'}
+                />
+              </label>
+              {requiresMeasurementDetails(hardCostForm.measurementUnit) ? (
+                <>
+                  <label>
+                    Price per unit (USD)
+                    <input
+                      type="number"
+                      value={hardCostForm.pricePerUnit}
+                      onChange={(e) =>
+                        setHardCostForm((prev) =>
+                          recomputeHardCostAmount({ ...prev, pricePerUnit: e.target.value }),
+                        )
+                      }
+                      disabled={hardCostStatus === 'saving'}
+                    />
+                  </label>
+                  <label>
+                    Number of units
+                    <input
+                      type="number"
+                      value={hardCostForm.unitsCount}
+                      onChange={(e) =>
+                        setHardCostForm((prev) =>
+                          recomputeHardCostAmount({ ...prev, unitsCount: e.target.value }),
+                        )
+                      }
+                      disabled={hardCostStatus === 'saving'}
+                    />
+                  </label>
+                  <label>
+                    Total amount (USD)
+                    <input type="number" value={hardCostForm.amountUsd} readOnly disabled />
+                  </label>
+                </>
+              ) : (
+                <label>
+                  Amount (USD)
+                  <input
+                    type="number"
+                    value={hardCostForm.amountUsd}
+                    onChange={(e) => setHardCostForm((prev) => ({ ...prev, amountUsd: e.target.value }))}
+                    required
+                    disabled={hardCostStatus === 'saving'}
+                  />
+                </label>
+              )}
+              <label>
+                Payment mode
+                <select
+                  value={hardCostForm.paymentMode}
+                  onChange={(e) => setHardCostForm((prev) => ({ ...prev, paymentMode: e.target.value }))}
+                  disabled={hardCostStatus === 'saving'}
+                >
+                  <option value="single">Single month</option>
+                  <option value="range">Range</option>
+                  <option value="multi">Multiple months</option>
+                </select>
+              </label>
+
+              {hardCostForm.paymentMode === 'single' && (
+                <label>
+                  Payment month (offset)
+                  <input
+                    type="number"
+                    value={hardCostForm.paymentMonth}
+                    onChange={(e) => setHardCostForm((prev) => ({ ...prev, paymentMonth: e.target.value }))}
+                    placeholder="e.g., 0"
+                    disabled={hardCostStatus === 'saving'}
+                  />
+                </label>
+              )}
+
+              {hardCostForm.paymentMode === 'range' && (
+                <div className="dual-fields">
+                  <label>
+                    Start month
+                    <input
+                      type="number"
+                      value={hardCostForm.rangeStartMonth}
+                      onChange={(e) =>
+                        setHardCostForm((prev) => ({ ...prev, rangeStartMonth: e.target.value }))
+                      }
+                      placeholder="e.g., 0"
+                      disabled={hardCostStatus === 'saving'}
+                    />
+                  </label>
+                  <label>
+                    End month
+                    <input
+                      type="number"
+                      value={hardCostForm.rangeEndMonth}
+                      onChange={(e) =>
+                        setHardCostForm((prev) => ({ ...prev, rangeEndMonth: e.target.value }))
+                      }
+                      placeholder="e.g., 5"
+                      disabled={hardCostStatus === 'saving'}
+                    />
+                  </label>
+                  <p className="helper-text">Amount will be spread evenly across the range.</p>
+                </div>
+              )}
+
+              {hardCostForm.paymentMode === 'multi' && (
+                <>
+                  <label>
+                    Months (comma separated)
+                    <input
+                      type="text"
+                      value={hardCostForm.monthsInput}
+                      onChange={(e) => setHardCostForm((prev) => ({ ...prev, monthsInput: e.target.value }))}
+                      placeholder="e.g., 0,1,2"
+                      disabled={hardCostStatus === 'saving'}
+                    />
+                  </label>
+                  <label>
+                    Percent per month (comma separated, optional)
+                    <input
+                      type="text"
+                      value={hardCostForm.monthPercentagesInput}
+                      onChange={(e) =>
+                        setHardCostForm((prev) => ({ ...prev, monthPercentagesInput: e.target.value }))
+                      }
+                      placeholder="e.g., 40,30,30"
+                      disabled={hardCostStatus === 'saving'}
+                    />
+                  </label>
+                  <p className="helper-text">
+                    If omitted, the amount will be split evenly. Percentages must total 100%.
+                  </p>
+                </>
+              )}
+
+              {hardCostModalError && <p className="error">{hardCostModalError}</p>}
+              <div className="modal-actions">
+                <button type="button" className="ghost" onClick={closeHardCostModal} disabled={hardCostStatus === 'saving'}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary" disabled={hardCostStatus === 'saving'}>
+                  {hardCostStatus === 'saving'
+                    ? isEditingHardCost
+                      ? 'Saving…'
+                      : 'Adding…'
+                    : isEditingHardCost
+                      ? 'Save Changes'
+                      : 'Save Hard Cost'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {pendingDeleteProjectId && (
         <div className="modal-backdrop">
           <div className="modal-panel">
@@ -1605,6 +2167,29 @@ function App() {
                 disabled={softCostDeleteStatus === 'saving'}
               >
                 {softCostDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingHardCostDeleteId && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Delete hard cost?</h3>
+            <p>This action cannot be undone.</p>
+            {hardCostDeleteError && <p className="error">{hardCostDeleteError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="ghost" onClick={cancelDeleteHardCost} disabled={hardCostDeleteStatus === 'saving'}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={confirmDeleteHardCost}
+                disabled={hardCostDeleteStatus === 'saving'}
+              >
+                {hardCostDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

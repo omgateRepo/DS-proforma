@@ -74,12 +74,37 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 - Each revenue row can be edited via the same modal (pre-populate existing values, allow vacancy override). Save writes back to the API.
 
 ### 6.3 Hard Costs Tab
-- Free-form line items with:
-  - `cost_name`.
-  - `amount_usd`.
-  - `payment_month` (integer offset from project start, e.g., month 0-36).  
-- Support grouping (Foundation, Framing, MEP).  
-- Show running total and highlight over-budget items once actuals recorded.
+- Same modal workflow as Soft Costs (popup, form fields, scheduling selector).  
+- Required fields:
+  - `cost_name`
+  - `amount_usd`
+  - `hardCategory` (choose from the predefined list below)
+  - Scheduling inputs: `payment_mode` + either `payment_month`, `range_start/end`, or `month_list` (with optional percentages).  
+- Predefined starting list (can be tweaked later, but ship with these):
+  - Structure — Per Square Feet
+  - Framing — Per Square Feet
+  - Roof — Per Square Feet
+  - Windows — Per Square Feet
+  - Fasade — Per Square Feet
+  - Rough Plumbing — Per Apartment
+  - Rough Electric — Per Apartment
+  - Rough HAVAC — Per Apartment
+  - Fire Supresion — Per Square Feet
+  - Insulation — Per Square Feet
+  - Drywall — Per Linear Feet
+  - Tiles — Per Linear Feet
+  - Paint — Per Linear Feet
+  - Flooring — Per Apartment
+  - Molding (+ doors) — Per Square Feet
+  - Kitchen — Per Apartment
+  - Finished Plumbing — Per Apartment
+  - Finished Electric — Per Apartment
+  - Appliances — Per Apartment
+  - Gym — Per Building
+  - Study Lounge — Per Building
+  - Roof Top — Per Building
+- Measurement unit options: Per Square Feet, Per Linear Feet, Per Apartment, Per Building, or `None`. When the measurement unit is not `None`, the modal requires `price_per_unit` and `units_count` and automatically calculates the total amount. When `None` is selected, the user can enter a lump-sum `amount_usd`.
+- Each entry can schedule money exactly like soft costs (single month, range, multi-month with optional % allocation). Totals roll into the cashflow grid immediately.
 
 ### 6.4 Soft Costs Tab
 - Same structure as Hard Costs but flagged with category (Architect, Legal, Permits).  
@@ -105,15 +130,15 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 
 ### 6.6 Cashflow Tab
 - 60-month horizontal grid starting at month 0 (closing month). Months run left-to-right as column headers (M0…M59) with friendly month/year labels in tooltips.  
-- Rows are grouped (and color-coded) by category: Revenues, Soft Costs, Hard Costs, Carrying Costs, and Total. Additional sub-rows can be added later (e.g., specific loans) but these five anchors always show.  
-- Soft-cost modal drives the Soft Costs row:
+- Rows are grouped (and color-coded) by category: Revenues, Soft Costs, Hard Costs, Carrying Costs, and Total. Each header can expand to reveal the underlying line items.  
+- Soft & Hard cost modals feed their rows:
   - **Single** month → entire amount sits in that month.
   - **Range** → amount spread evenly across the inclusive window.
   - **Multiple months** → split evenly or by user-defined percentages that must add up to 100%.
 - Revenue row currently uses the net monthly rent (from Revenue tab) applied to each month; later we can layer in lease-up ramps or vacancy shocks.
-- Hard and Carrying costs are placeholders until those tabs ship; they’ll pull from their respective datasets automatically.
+- Carrying cost row is still a placeholder until that tab ships; once built, those entries will feed the grid the same way.
 - Totals row = Revenues + all expenses for each month, letting the user see net cashflow instantly.
-- Data refresh is immediate—updating a soft cost or revenue re-renders the 60-month sheet.
+- Data refresh is immediate—updating a revenue, hard cost, or soft cost re-renders the 60-month sheet.
 - Allow manual adjustments (e.g., equity injection).  
 - Export to CSV later.
 

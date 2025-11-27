@@ -109,6 +109,9 @@ async function ensureCostItemsTable() {
       term_years NUMERIC,
       interval TEXT,
       start_date DATE,
+      measurement_unit TEXT,
+      price_per_unit NUMERIC,
+      units_count NUMERIC,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `)
@@ -131,6 +134,21 @@ async function ensureCostItemsTable() {
   await pool.query(`
     ALTER TABLE cost_items
     ADD COLUMN IF NOT EXISTS month_percentages JSONB;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS measurement_unit TEXT;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS price_per_unit NUMERIC;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS units_count NUMERIC;
   `)
 }
 

@@ -10,7 +10,11 @@ async function handleJsonResponse(res, errorMessage) {
     } catch (err) {
       // ignore
     }
-    throw new Error(details.error || errorMessage)
+    const parts = []
+    if (details.error) parts.push(details.error)
+    if (details.details && details.details !== details.error) parts.push(details.details)
+    if (details.id) parts.push(`ID: ${details.id}`)
+    throw new Error(parts.join(' - ') || errorMessage)
   }
   return res.json()
 }
@@ -120,6 +124,31 @@ export async function deleteSoftCost(projectId, costId) {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete soft cost')
+}
+
+export async function createHardCost(projectId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/hard-costs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add hard cost')
+}
+
+export async function updateHardCost(projectId, costId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/hard-costs/${costId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update hard cost')
+}
+
+export async function deleteHardCost(projectId, costId) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/hard-costs/${costId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete hard cost')
 }
 
 export async function searchAddresses(query) {
