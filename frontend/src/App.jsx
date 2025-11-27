@@ -188,7 +188,7 @@ function App() {
       const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + index, 1)
       return {
         index,
-        label: `M${index}`,
+        label: `M${index + 1}`,
         calendarLabel: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
       }
     })
