@@ -2,23 +2,19 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import {
   API_BASE,
-  createHardCost,
   createProject,
-  createSoftCost,
-  deleteHardCost,
   deleteProject,
-  deleteSoftCost,
   fetchPhiladelphiaWeather,
   fetchProjectDetail,
   fetchProjects,
   searchAddresses,
   stageLabels,
-  updateHardCost,
   updateProjectGeneral,
   updateProjectStage,
-  updateSoftCost,
 } from './api.js'
 import { RevenueSection } from './features/revenue/RevenueSection.jsx'
+import { HardCostsSection } from './features/costs/HardCostsSection.jsx'
+import { SoftCostsSection } from './features/costs/SoftCostsSection.jsx'
 import { calculateNetParking, calculateNetRevenue, gpPartners } from './features/revenue/revenueHelpers.js'
 
 const TABS = [
@@ -31,6 +27,13 @@ const TABS = [
 ]
 
 const CASHFLOW_MONTHS = 60
+
+const clampCashflowMonth = (value) => {
+  if (value === null || value === undefined) return 0
+  const parsed = Number(value)
+  if (Number.isNaN(parsed)) return 0
+  return Math.max(0, Math.min(CASHFLOW_MONTHS - 1, Math.trunc(parsed)))
+}
 
 const defaultGeneralForm = {
   name: '',
@@ -49,49 +52,6 @@ const defaultGeneralForm = {
   description: '',
 }
 
-const softCostCategories = [
-  { id: 'architect', label: 'Architect / Design' },
-  { id: 'legal', label: 'Legal' },
-  { id: 'permits', label: 'Permits' },
-  { id: 'consulting', label: 'Consulting' },
-  { id: 'marketing', label: 'Marketing' },
-  { id: 'other', label: 'Other' },
-]
-
-const defaultSoftCostForm = {
-  softCategory: 'architect',
-  costName: '',
-  amountUsd: '',
-  paymentMode: 'single',
-  paymentMonth: '1',
-  rangeStartMonth: '1',
-  rangeEndMonth: '1',
-  monthsInput: '',
-  monthPercentagesInput: '',
-}
-
-const measurementUnitOptions = [
-  { id: 'none', label: 'None (lump sum)' },
-  { id: 'sqft', label: 'Per Square Feet' },
-  { id: 'linear_feet', label: 'Per Linear Feet' },
-  { id: 'apartment', label: 'Per Apartment' },
-  { id: 'building', label: 'Per Building' },
-]
-
-const measurementUnitMeta = {
-  sqft: { label: 'Square Feet', short: 'sqft', plural: 'square feet' },
-  linear_feet: { label: 'Linear Feet', short: 'lf', plural: 'linear feet' },
-  apartment: { label: 'Apartment', short: 'apt', plural: 'apartments' },
-  building: { label: 'Building', short: 'bldg', plural: 'buildings' },
-}
-
-const clampCashflowMonth = (value) => {
-  if (value === null || value === undefined) return 0
-  const parsed = Number(value)
-  if (Number.isNaN(parsed)) return 0
-  return Math.max(0, Math.min(CASHFLOW_MONTHS - 1, Math.trunc(parsed)))
-}
-
 const buildRecurringLineValues = (netAmount, startMonth) => {
   const startIndex = clampCashflowMonth(startMonth)
   const values = Array(CASHFLOW_MONTHS).fill(0)
@@ -106,76 +66,6 @@ const buildContributionValues = (amount, monthIndex) => {
   const index = clampCashflowMonth(monthIndex)
   values[index] = amount || 0
   return values
-}
-
-const hardCostCategories = [
-  { id: 'structure', label: 'Structure' },
-  { id: 'framing', label: 'Framing' },
-  { id: 'roof', label: 'Roof' },
-  { id: 'windows', label: 'Windows' },
-  { id: 'fasade', label: 'Fasade' },
-  { id: 'rough_plumbing', label: 'Rough Plumbing' },
-  { id: 'rough_electric', label: 'Rough Electric' },
-  { id: 'rough_havac', label: 'Rough HAVAC' },
-  { id: 'fire_supresion', label: 'Fire Supresion' },
-  { id: 'insulation', label: 'Insulation' },
-  { id: 'drywall', label: 'Drywall' },
-  { id: 'tiles', label: 'Tiles' },
-  { id: 'paint', label: 'Paint' },
-  { id: 'flooring', label: 'Flooring' },
-  { id: 'molding_doors', label: 'Molding (+ doors)' },
-  { id: 'kitchen', label: 'Kitchen' },
-  { id: 'finished_plumbing', label: 'Finished Plumbing' },
-  { id: 'finished_electric', label: 'Finished Electric' },
-  { id: 'appliances', label: 'Appliances' },
-  { id: 'gym', label: 'Gym' },
-  { id: 'study_lounge', label: 'Study Lounge' },
-  { id: 'roof_top', label: 'Roof Top' },
-]
-
-const hardCostDefaultMeasurement = {
-  structure: 'sqft',
-  framing: 'sqft',
-  roof: 'sqft',
-  windows: 'sqft',
-  fasade: 'sqft',
-  rough_plumbing: 'apartment',
-  rough_electric: 'apartment',
-  rough_havac: 'apartment',
-  fire_supresion: 'sqft',
-  insulation: 'sqft',
-  drywall: 'linear_feet',
-  tiles: 'linear_feet',
-  paint: 'linear_feet',
-  flooring: 'apartment',
-  molding_doors: 'sqft',
-  kitchen: 'apartment',
-  finished_plumbing: 'apartment',
-  finished_electric: 'apartment',
-  appliances: 'apartment',
-  gym: 'building',
-  study_lounge: 'building',
-  roof_top: 'building',
-}
-
-const getDefaultMeasurementForCategory = (categoryId) => hardCostDefaultMeasurement[categoryId] || 'none'
-
-const createDefaultHardCostForm = () => {
-  const initialCategory = hardCostCategories[0].id
-  return {
-    hardCategory: initialCategory,
-    measurementUnit: getDefaultMeasurementForCategory(initialCategory),
-    costName: '',
-    amountUsd: '',
-    pricePerUnit: '',
-    unitsCount: '',
-    paymentMode: 'single',
-    paymentMonth: '1',
-    rangeStartMonth: '1',
-    rangeEndMonth: '1',
-    monthsInput: '',
-    monthPercentagesInput: '',
-  }
 }
 
 function App() {
@@ -207,23 +97,7 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState(null)
   const [deleteStatus, setDeleteStatus] = useState('idle')
-  const [softCostForm, setSoftCostForm] = useState(defaultSoftCostForm)
-  const [hardCostForm, setHardCostForm] = useState(() => createDefaultHardCostForm())
   const [expandedCashflowRows, setExpandedCashflowRows] = useState(() => new Set())
-  const [softCostStatus, setSoftCostStatus] = useState('idle')
-  const [hardCostStatus, setHardCostStatus] = useState('idle')
-  const [softCostModalError, setSoftCostModalError] = useState('')
-  const [hardCostModalError, setHardCostModalError] = useState('')
-  const [isSoftCostModalOpen, setIsSoftCostModalOpen] = useState(false)
-  const [isHardCostModalOpen, setIsHardCostModalOpen] = useState(false)
-  const [editingSoftCostId, setEditingSoftCostId] = useState(null)
-  const [editingHardCostId, setEditingHardCostId] = useState(null)
-  const [pendingSoftCostDeleteId, setPendingSoftCostDeleteId] = useState(null)
-  const [pendingHardCostDeleteId, setPendingHardCostDeleteId] = useState(null)
-  const [softCostDeleteStatus, setSoftCostDeleteStatus] = useState('idle')
-  const [hardCostDeleteStatus, setHardCostDeleteStatus] = useState('idle')
-  const [softCostDeleteError, setSoftCostDeleteError] = useState('')
-  const [hardCostDeleteError, setHardCostDeleteError] = useState('')
 
   const stageOptions = stageLabels()
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
@@ -266,9 +140,6 @@ function App() {
     return entries.map((segment) => getCalendarLabelForInput(segment)).filter(Boolean).join(', ')
   }
 
-  const isEditingSoftCost = Boolean(editingSoftCostId)
-  const isEditingHardCost = Boolean(editingHardCostId)
-
   const formatDateForInput = (value) => {
     if (!value) return ''
     return value.split('T')[0]
@@ -292,41 +163,6 @@ const parseFloatOrNull = (value) => {
     })}`
   }
 
-  const requiresMeasurementDetails = (unit) => unit && unit !== 'none'
-
-  const recomputeHardCostAmount = (form) => {
-    const next = { ...form }
-    if (!requiresMeasurementDetails(next.measurementUnit)) {
-      return next
-    }
-    const price = next.pricePerUnit !== '' ? Number(next.pricePerUnit) : null
-    const units = next.unitsCount !== '' ? Number(next.unitsCount) : null
-    next.amountUsd =
-      price !== null && units !== null && Number.isFinite(price * units) ? String(price * units) : ''
-    return next
-  }
-
-  const measurementUnitLabel = (value) => measurementUnitOptions.find((option) => option.id === value)?.label || value
-
-  const parseCommaSeparatedNumbers = (value) => {
-    if (!value) return []
-    return value
-      .split(',')
-      .map((segment) => segment.trim())
-      .filter(Boolean)
-      .map((segment) => Number(segment))
-      .filter((num) => !Number.isNaN(num))
-  }
-
-  const parseMonthListToOffsets = (value) => {
-    if (!value) return []
-    return value
-      .split(',')
-      .map((segment) => segment.trim())
-      .filter(Boolean)
-      .map((segment) => convertMonthInputToOffset(segment))
-  }
-
   const toggleCashflowRow = (rowId) => {
     setExpandedCashflowRows((prev) => {
       const next = new Set(prev)
@@ -339,113 +175,9 @@ const parseFloatOrNull = (value) => {
     })
   }
 
-  const buildScheduledCostPayload = (form, categoryField) => {
-    const payload = {
-      costName: form.costName.trim(),
-      amountUsd: form.amountUsd === '' ? null : Number(form.amountUsd),
-      paymentMode: form.paymentMode,
-      [categoryField]: form[categoryField],
-    }
-
-    if (payload.paymentMode === 'single') {
-      payload.paymentMonth = convertMonthInputToOffset(form.paymentMonth)
-    } else if (payload.paymentMode === 'range') {
-      payload.rangeStartMonth = convertMonthInputToOffset(form.rangeStartMonth)
-      payload.rangeEndMonth = convertMonthInputToOffset(form.rangeEndMonth)
-    } else if (payload.paymentMode === 'multi') {
-      payload.monthList = parseMonthListToOffsets(form.monthsInput)
-      if (form.monthPercentagesInput && form.monthPercentagesInput.trim()) {
-        payload.monthPercentages = parseCommaSeparatedNumbers(form.monthPercentagesInput)
-      }
-    }
-
-    return payload
-  }
-
   const apartmentRevenueRows = selectedProject?.revenue || []
   const parkingRevenueRows = selectedProject?.parkingRevenue || []
   const gpContributionRows = selectedProject?.gpContributions || []
-
-
-  const softCategoryLabel = (value) => softCostCategories.find((option) => option.id === value)?.label || 'Other'
-  const hardCategoryLabel = (value) => hardCostCategories.find((option) => option.id === value)?.label || 'Other'
-
-  const buildCostFormFromRow = (row, categoryField, fallbackCategory, options = {}) => {
-    const form = {
-      [categoryField]: row.costGroup || fallbackCategory,
-      costName: row.costName || '',
-      amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
-      paymentMode: row.paymentMode || 'single',
-      paymentMonth: row.paymentMonth === null || row.paymentMonth === undefined ? '1' : formatOffsetForInput(row.paymentMonth),
-      rangeStartMonth:
-        row.startMonth === null || row.startMonth === undefined ? '1' : formatOffsetForInput(row.startMonth),
-      rangeEndMonth:
-        row.endMonth === null || row.endMonth === undefined ? '1' : formatOffsetForInput(row.endMonth),
-      monthsInput:
-        row.monthList && row.monthList.length ? row.monthList.map((month) => formatOffsetForInput(month)).join(', ') : '',
-      monthPercentagesInput:
-        row.monthPercentages && row.monthPercentages.length ? row.monthPercentages.join(',') : '',
-    }
-
-    if (options.includeMeasurement) {
-      const defaultMeasurement = options.defaultMeasurement || 'none'
-      form.measurementUnit = row.measurementUnit || defaultMeasurement
-      form.pricePerUnit =
-        row.pricePerUnit !== null && row.pricePerUnit !== undefined ? String(row.pricePerUnit) : ''
-      form.unitsCount =
-        row.unitsCount !== null && row.unitsCount !== undefined ? String(row.unitsCount) : ''
-    }
-
-    return form
-  }
-
-  const formatCostSchedule = (row) => {
-    if (!row) return '—'
-    if (row.paymentMode === 'range' && row.startMonth !== null && row.endMonth !== null) {
-      return `Months ${row.startMonth}–${row.endMonth}`
-    }
-    if (row.paymentMode === 'multi' && row.monthList?.length) {
-      if (row.monthPercentages?.length) {
-        return row.monthList
-          .map((month, index) => {
-            const percentage = row.monthPercentages[index]
-            if (percentage === undefined) return `Month ${month}`
-            return `Month ${month} (${percentage}%)`
-          })
-          .join(', ')
-      }
-      return row.monthList.map((month) => `Month ${month}`).join(', ')
-    }
-    if (row.paymentMonth !== null && row.paymentMonth !== undefined) {
-      return `Month ${row.paymentMonth}`
-    }
-    return '—'
-  }
-
-  const formatMeasurementSummary = (row) => {
-    if (!row || !requiresMeasurementDetails(row.measurementUnit)) return '—'
-    const meta = measurementUnitMeta[row.measurementUnit]
-    const units =
-      row.unitsCount !== null && row.unitsCount !== undefined ? Number(row.unitsCount) : null
-    const price =
-      row.pricePerUnit !== null && row.pricePerUnit !== undefined ? Number(row.pricePerUnit) : null
-    const pluralLabel = meta?.plural || measurementUnitLabel(row.measurementUnit)
-    const shortSuffix = meta?.short ? `/${meta.short}` : ''
-    if (units !== null && price !== null && Number.isFinite(units) && Number.isFinite(price)) {
-      return `${units.toLocaleString()} ${pluralLabel} × $${price.toLocaleString(undefined, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })}${shortSuffix}`
-    }
-    return pluralLabel
-  }
-
-  const clampCashflowMonth = (value) => {
-    if (value === null || value === undefined || value === '') return null
-    const parsed = Number(value)
-    if (Number.isNaN(parsed)) return null
-    return Math.min(CASHFLOW_MONTHS - 1, Math.max(0, Math.trunc(parsed)))
-  }
 
   const buildAllocationsForCost = (row) => {
     const allocations = Array(CASHFLOW_MONTHS).fill(0)
@@ -530,16 +262,6 @@ const parseFloatOrNull = (value) => {
       lineItems,
     }
   }
-
-  const totalSoftCosts = useMemo(() => {
-    if (!selectedProject?.softCosts) return 0
-    return selectedProject.softCosts.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
-  }, [selectedProject])
-
-  const totalHardCosts = useMemo(() => {
-    if (!selectedProject?.hardCosts) return 0
-    return selectedProject.hardCosts.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
-  }, [selectedProject])
 
   const cashflowMonths = useMemo(() => {
     return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
@@ -799,95 +521,6 @@ const parseFloatOrNull = (value) => {
     setIsCreateModalOpen(true)
   }
 
-  function openSoftCostModal() {
-    setSoftCostModalError('')
-    setSoftCostForm(defaultSoftCostForm)
-    setEditingSoftCostId(null)
-    setSoftCostStatus('idle')
-    setIsSoftCostModalOpen(true)
-  }
-
-  function closeSoftCostModal() {
-    if (softCostStatus === 'saving') return
-    setIsSoftCostModalOpen(false)
-    setSoftCostModalError('')
-    setEditingSoftCostId(null)
-    setSoftCostStatus('idle')
-  }
-
-  function startEditSoftCost(row) {
-    setSoftCostModalError('')
-    setSoftCostForm(buildCostFormFromRow(row, 'softCategory', softCostCategories[0].id))
-    setEditingSoftCostId(row.id)
-    setIsSoftCostModalOpen(true)
-  }
-
-  function openHardCostModal() {
-    setHardCostModalError('')
-    setHardCostForm(createDefaultHardCostForm())
-    setEditingHardCostId(null)
-    setHardCostStatus('idle')
-    setIsHardCostModalOpen(true)
-  }
-
-  function closeHardCostModal() {
-    if (hardCostStatus === 'saving') return
-    setIsHardCostModalOpen(false)
-    setHardCostModalError('')
-    setEditingHardCostId(null)
-    setHardCostStatus('idle')
-    setHardCostForm(createDefaultHardCostForm())
-  }
-
-  function startEditHardCost(row) {
-    setHardCostModalError('')
-    const form = buildCostFormFromRow(row, 'hardCategory', hardCostCategories[0].id, {
-      includeMeasurement: true,
-      defaultMeasurement: getDefaultMeasurementForCategory(row.costGroup || hardCostCategories[0].id),
-    })
-    setHardCostForm(recomputeHardCostAmount(form))
-    setEditingHardCostId(row.id)
-    setIsHardCostModalOpen(true)
-  }
-
-  function handleHardCategoryChange(value) {
-    setHardCostForm((prev) => {
-      const measurementUnit = getDefaultMeasurementForCategory(value)
-      const next = {
-        ...prev,
-        hardCategory: value,
-        measurementUnit,
-      }
-      if (measurementUnit === 'none') {
-        next.pricePerUnit = ''
-        next.unitsCount = ''
-        next.amountUsd = ''
-      } else {
-        next.pricePerUnit = ''
-        next.unitsCount = ''
-      }
-      return recomputeHardCostAmount(next)
-    })
-  }
-
-  function handleHardMeasurementChange(value) {
-    setHardCostForm((prev) => {
-      const next = {
-        ...prev,
-        measurementUnit: value,
-      }
-      if (value === 'none') {
-        next.pricePerUnit = ''
-        next.unitsCount = ''
-        next.amountUsd = ''
-      } else if (value !== prev.measurementUnit) {
-        next.pricePerUnit = ''
-        next.unitsCount = ''
-      }
-      return recomputeHardCostAmount(next)
-    })
-  }
-
   function closeCreateModal() {
     if (createStatus === 'saving') return
     setIsCreateModalOpen(false)
@@ -989,133 +622,6 @@ const parseFloatOrNull = (value) => {
       setGeneralStatus('error')
       alert(err.message)
     }
-  }
-
-  async function handleSoftCostSubmit(event) {
-    event.preventDefault()
-    if (!selectedProjectId) return
-    setSoftCostStatus('saving')
-    setSoftCostModalError('')
-    const payload = buildScheduledCostPayload(softCostForm, 'softCategory')
-
-    try {
-      if (editingSoftCostId) {
-        await updateSoftCost(selectedProjectId, editingSoftCostId, payload)
-      } else {
-        await createSoftCost(selectedProjectId, payload)
-      }
-      setSoftCostStatus('idle')
-      setSoftCostForm(defaultSoftCostForm)
-      setEditingSoftCostId(null)
-      setIsSoftCostModalOpen(false)
-      await loadProjectDetail(selectedProjectId)
-    } catch (err) {
-      setSoftCostStatus('error')
-      setSoftCostModalError(err.message)
-    }
-  }
-
-  async function handleHardCostSubmit(event) {
-    event.preventDefault()
-    if (!selectedProjectId) return
-    setHardCostStatus('saving')
-    setHardCostModalError('')
-    const needsUnits = requiresMeasurementDetails(hardCostForm.measurementUnit)
-    if (needsUnits) {
-      if (!hardCostForm.pricePerUnit || !hardCostForm.unitsCount) {
-        setHardCostStatus('idle')
-        setHardCostModalError('Price per unit and number of units are required.')
-        return
-      }
-    } else if (!hardCostForm.amountUsd) {
-      setHardCostStatus('idle')
-      setHardCostModalError('Amount is required.')
-      return
-    }
-
-    const payload = buildScheduledCostPayload(hardCostForm, 'hardCategory')
-    payload.measurementUnit = hardCostForm.measurementUnit
-    if (needsUnits) {
-      payload.pricePerUnit = Number(hardCostForm.pricePerUnit)
-      payload.unitsCount = Number(hardCostForm.unitsCount)
-      payload.amountUsd = Number(hardCostForm.amountUsd || 0)
-    } else {
-      payload.pricePerUnit = null
-      payload.unitsCount = null
-      payload.amountUsd = payload.amountUsd === null ? null : Number(payload.amountUsd)
-    }
-
-    try {
-      if (editingHardCostId) {
-        await updateHardCost(selectedProjectId, editingHardCostId, payload)
-      } else {
-        await createHardCost(selectedProjectId, payload)
-      }
-      setHardCostStatus('idle')
-      setHardCostForm(createDefaultHardCostForm())
-      setEditingHardCostId(null)
-      setIsHardCostModalOpen(false)
-      await loadProjectDetail(selectedProjectId)
-    } catch (err) {
-      setHardCostStatus('error')
-      setHardCostModalError(err.message)
-    }
-  }
-
-  function handleDeleteSoftCost(costId) {
-    if (!selectedProjectId) return
-    setSoftCostDeleteError('')
-    setPendingSoftCostDeleteId(costId)
-  }
-
-  async function confirmDeleteSoftCost() {
-    if (!selectedProjectId || !pendingSoftCostDeleteId) return
-    setSoftCostDeleteStatus('saving')
-    setSoftCostDeleteError('')
-    try {
-      await deleteSoftCost(selectedProjectId, pendingSoftCostDeleteId)
-      setSoftCostDeleteStatus('idle')
-      setPendingSoftCostDeleteId(null)
-      await loadProjectDetail(selectedProjectId)
-    } catch (err) {
-      setSoftCostDeleteStatus('error')
-      setSoftCostDeleteError(err.message)
-    }
-  }
-
-  function cancelDeleteSoftCost() {
-    if (softCostDeleteStatus === 'saving') return
-    setPendingSoftCostDeleteId(null)
-    setSoftCostDeleteError('')
-    setSoftCostDeleteStatus('idle')
-  }
-
-  function handleDeleteHardCost(costId) {
-    if (!selectedProjectId) return
-    setHardCostDeleteError('')
-    setPendingHardCostDeleteId(costId)
-  }
-
-  async function confirmDeleteHardCost() {
-    if (!selectedProjectId || !pendingHardCostDeleteId) return
-    setHardCostDeleteStatus('saving')
-    setHardCostDeleteError('')
-    try {
-      await deleteHardCost(selectedProjectId, pendingHardCostDeleteId)
-      setHardCostDeleteStatus('idle')
-      setPendingHardCostDeleteId(null)
-      await loadProjectDetail(selectedProjectId)
-    } catch (err) {
-      setHardCostDeleteStatus('error')
-      setHardCostDeleteError(err.message)
-    }
-  }
-
-  function cancelDeleteHardCost() {
-    if (hardCostDeleteStatus === 'saving') return
-    setPendingHardCostDeleteId(null)
-    setHardCostDeleteError('')
-    setHardCostDeleteStatus('idle')
   }
 
   function handleAddressSelect(suggestion) {
@@ -1404,153 +910,27 @@ const parseFloatOrNull = (value) => {
               )}
 
               {activeTab === 'hard' && (
-                <div className="soft-tab">
-                  <div className="soft-header">
-                    <div>
-                      <h3>Hard Costs</h3>
-                      <p className="muted tiny">Construction scope: site work, structure, envelope, interiors.</p>
-                    </div>
-                    <button type="button" className="primary" onClick={openHardCostModal}>
-                      + Add Hard Cost
-                    </button>
-                  </div>
-                  <div className="table-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Category</th>
-                          <th>Cost Name</th>
-                          <th>Units</th>
-                          <th>Amount (USD)</th>
-                          <th>Schedule</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedProject.hardCosts?.map((row) => (
-                          <tr key={row.id}>
-                            <td>{hardCategoryLabel(row.costGroup)}</td>
-                            <td>{row.costName}</td>
-                            <td>{formatMeasurementSummary(row)}</td>
-                            <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
-                            <td>{formatCostSchedule(row)}</td>
-                            <td>
-                              <div className="row-actions">
-                                <button
-                                  type="button"
-                                  className="icon-button"
-                                  onClick={() => startEditHardCost(row)}
-                                  disabled={hardCostStatus === 'saving' || hardCostDeleteStatus === 'saving'}
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  type="button"
-                                  className="icon-delete"
-                                  onClick={() => handleDeleteHardCost(row.id)}
-                                  disabled={hardCostStatus === 'saving' || hardCostDeleteStatus === 'saving'}
-                                >
-                                  🗑
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                        {selectedProject.hardCosts?.length === 0 && (
-                          <tr>
-                            <td colSpan={5}>No hard costs yet.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                      {selectedProject.hardCosts?.length ? (
-                        <tfoot>
-                          <tr>
-                            <td colSpan={4} className="revenue-total-label">
-                              Total hard costs
-                            </td>
-                            <td colSpan={2} className="revenue-total-value">
-                              ${totalHardCosts.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      ) : null}
-                    </table>
-                  </div>
-                </div>
+                <HardCostsSection
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                  formatOffsetForInput={formatOffsetForInput}
+                  convertMonthInputToOffset={convertMonthInputToOffset}
+                  getCalendarLabelForInput={getCalendarLabelForInput}
+                  getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                />
               )}
 
               {activeTab === 'soft' && (
-                <div className="soft-tab">
-                  <div className="soft-header">
-                    <div>
-                      <h3>Soft Costs</h3>
-                      <p className="muted tiny">Architects, legal, permits, consultants, marketing.</p>
-                    </div>
-                    <button type="button" className="primary" onClick={openSoftCostModal}>
-                      + Add Soft Cost
-                    </button>
-                  </div>
-                  <div className="table-scroll">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Category</th>
-                          <th>Cost Name</th>
-                          <th>Amount (USD)</th>
-                          <th>Schedule</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedProject.softCosts?.map((row) => (
-                          <tr key={row.id}>
-                            <td>{softCategoryLabel(row.costGroup)}</td>
-                            <td>{row.costName}</td>
-                            <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
-                            <td>{formatCostSchedule(row)}</td>
-                            <td>
-                              <div className="row-actions">
-                                <button
-                                  type="button"
-                                  className="icon-button"
-                                  onClick={() => startEditSoftCost(row)}
-                                  disabled={softCostStatus === 'saving' || softCostDeleteStatus === 'saving'}
-                                >
-                                  ✏️
-                                </button>
-                                <button
-                                  type="button"
-                                  className="icon-delete"
-                                  onClick={() => handleDeleteSoftCost(row.id)}
-                                  disabled={softCostStatus === 'saving' || softCostDeleteStatus === 'saving'}
-                                >
-                                  🗑
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                        {selectedProject.softCosts?.length === 0 && (
-                          <tr>
-                            <td colSpan={5}>No soft costs yet.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                      {selectedProject.softCosts?.length ? (
-                        <tfoot>
-                          <tr>
-                            <td colSpan={3} className="revenue-total-label">
-                              Total soft costs
-                            </td>
-                            <td colSpan={2} className="revenue-total-value">
-                              ${totalSoftCosts.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      ) : null}
-                    </table>
-                  </div>
-                </div>
+                <SoftCostsSection
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                  formatOffsetForInput={formatOffsetForInput}
+                  convertMonthInputToOffset={convertMonthInputToOffset}
+                  getCalendarLabelForInput={getCalendarLabelForInput}
+                  getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                />
               )}
 
               {activeTab === 'cashflow' && (
@@ -1671,348 +1051,6 @@ const parseFloatOrNull = (value) => {
         </div>
       )}
 
-      {isSoftCostModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-panel">
-            <h3>{isEditingSoftCost ? 'Edit Soft Cost' : 'Add Soft Cost'}</h3>
-            <form className="modal-form" onSubmit={handleSoftCostSubmit}>
-              <label>
-                Category
-                <select
-                  value={softCostForm.softCategory}
-                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, softCategory: e.target.value }))}
-                  disabled={softCostStatus === 'saving'}
-                >
-                  {softCostCategories.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Cost name
-                <input
-                  type="text"
-                  value={softCostForm.costName}
-                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, costName: e.target.value }))}
-                  required
-                  disabled={softCostStatus === 'saving'}
-                />
-              </label>
-              <label>
-                Amount (USD)
-                <input
-                  type="number"
-                  value={softCostForm.amountUsd}
-                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, amountUsd: e.target.value }))}
-                  required
-                  disabled={softCostStatus === 'saving'}
-                />
-              </label>
-              <label>
-                Payment mode
-                <select
-                  value={softCostForm.paymentMode}
-                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, paymentMode: e.target.value }))}
-                  disabled={softCostStatus === 'saving'}
-                >
-                  <option value="single">Single month</option>
-                  <option value="range">Range</option>
-                  <option value="multi">Multiple months</option>
-                </select>
-              </label>
-
-              {softCostForm.paymentMode === 'single' && (
-                <label>
-                  Payment month (offset)
-                  <input
-                    type="number"
-                    value={softCostForm.paymentMonth}
-                    onChange={(e) => setSoftCostForm((prev) => ({ ...prev, paymentMonth: e.target.value }))}
-                    placeholder="e.g., 0"
-                    disabled={softCostStatus === 'saving'}
-                  />
-                  <span className="month-hint">{getCalendarLabelForInput(softCostForm.paymentMonth)}</span>
-                </label>
-              )}
-
-              {softCostForm.paymentMode === 'range' && (
-                <div className="dual-fields">
-                  <label>
-                    Start month
-                    <input
-                      type="number"
-                      value={softCostForm.rangeStartMonth}
-                      onChange={(e) => setSoftCostForm((prev) => ({ ...prev, rangeStartMonth: e.target.value }))}
-                      placeholder="e.g., 0"
-                      disabled={softCostStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelForInput(softCostForm.rangeStartMonth)}</span>
-                  </label>
-                  <label>
-                    End month
-                    <input
-                      type="number"
-                      value={softCostForm.rangeEndMonth}
-                      onChange={(e) => setSoftCostForm((prev) => ({ ...prev, rangeEndMonth: e.target.value }))}
-                      placeholder="e.g., 5"
-                      disabled={softCostStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelForInput(softCostForm.rangeEndMonth)}</span>
-                  </label>
-                  <p className="helper-text">Amount will be spread evenly across the range.</p>
-                </div>
-              )}
-
-              {softCostForm.paymentMode === 'multi' && (
-                <>
-                  <label>
-                    Months (comma separated)
-                    <input
-                      type="text"
-                      value={softCostForm.monthsInput}
-                      onChange={(e) => setSoftCostForm((prev) => ({ ...prev, monthsInput: e.target.value }))}
-                      placeholder="e.g., 0,1,2"
-                      disabled={softCostStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelsForListInput(softCostForm.monthsInput)}</span>
-                  </label>
-                  <label>
-                    Percent per month (comma separated, optional)
-                    <input
-                      type="text"
-                      value={softCostForm.monthPercentagesInput}
-                      onChange={(e) =>
-                        setSoftCostForm((prev) => ({ ...prev, monthPercentagesInput: e.target.value }))
-                      }
-                      placeholder="e.g., 40,30,30"
-                      disabled={softCostStatus === 'saving'}
-                    />
-                  </label>
-                  <p className="helper-text">
-                    If omitted, the amount will be split evenly. Percentages must total 100%.
-                  </p>
-                </>
-              )}
-
-              {softCostModalError && <p className="error">{softCostModalError}</p>}
-              <div className="modal-actions">
-                <button type="button" className="ghost" onClick={closeSoftCostModal} disabled={softCostStatus === 'saving'}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary" disabled={softCostStatus === 'saving'}>
-                  {softCostStatus === 'saving'
-                    ? isEditingSoftCost
-                      ? 'Saving…'
-                      : 'Adding…'
-                    : isEditingSoftCost
-                      ? 'Save Changes'
-                      : 'Save Soft Cost'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isHardCostModalOpen && (
-        <div className="modal-backdrop">
-          <div className="modal-panel">
-            <h3>{isEditingHardCost ? 'Edit Hard Cost' : 'Add Hard Cost'}</h3>
-            <form className="modal-form" onSubmit={handleHardCostSubmit}>
-              <label>
-                Category
-                <select
-                  value={hardCostForm.hardCategory}
-                  onChange={(e) => handleHardCategoryChange(e.target.value)}
-                  disabled={hardCostStatus === 'saving'}
-                >
-                  {hardCostCategories.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Measurement unit
-                <select
-                  value={hardCostForm.measurementUnit}
-                  onChange={(e) => handleHardMeasurementChange(e.target.value)}
-                  disabled={hardCostStatus === 'saving'}
-                >
-                  {measurementUnitOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Cost name
-                <input
-                  type="text"
-                  value={hardCostForm.costName}
-                  onChange={(e) => setHardCostForm((prev) => ({ ...prev, costName: e.target.value }))}
-                  required
-                  disabled={hardCostStatus === 'saving'}
-                />
-              </label>
-              {requiresMeasurementDetails(hardCostForm.measurementUnit) ? (
-                <>
-                  <label>
-                    Price per unit (USD)
-                    <input
-                      type="number"
-                      value={hardCostForm.pricePerUnit}
-                      onChange={(e) =>
-                        setHardCostForm((prev) =>
-                          recomputeHardCostAmount({ ...prev, pricePerUnit: e.target.value }),
-                        )
-                      }
-                      disabled={hardCostStatus === 'saving'}
-                    />
-                  </label>
-                  <label>
-                    Number of units
-                    <input
-                      type="number"
-                      value={hardCostForm.unitsCount}
-                      onChange={(e) =>
-                        setHardCostForm((prev) =>
-                          recomputeHardCostAmount({ ...prev, unitsCount: e.target.value }),
-                        )
-                      }
-                      disabled={hardCostStatus === 'saving'}
-                    />
-                  </label>
-                  <label>
-                    Total amount (USD)
-                    <input type="number" value={hardCostForm.amountUsd} readOnly disabled />
-                  </label>
-                </>
-              ) : (
-                <label>
-                  Amount (USD)
-                  <input
-                    type="number"
-                    value={hardCostForm.amountUsd}
-                    onChange={(e) => setHardCostForm((prev) => ({ ...prev, amountUsd: e.target.value }))}
-                    required
-                    disabled={hardCostStatus === 'saving'}
-                  />
-                </label>
-              )}
-              <label>
-                Payment mode
-                <select
-                  value={hardCostForm.paymentMode}
-                  onChange={(e) => setHardCostForm((prev) => ({ ...prev, paymentMode: e.target.value }))}
-                  disabled={hardCostStatus === 'saving'}
-                >
-                  <option value="single">Single month</option>
-                  <option value="range">Range</option>
-                  <option value="multi">Multiple months</option>
-                </select>
-              </label>
-
-              {hardCostForm.paymentMode === 'single' && (
-                <label>
-                  Payment month (offset)
-                  <input
-                    type="number"
-                    value={hardCostForm.paymentMonth}
-                    onChange={(e) => setHardCostForm((prev) => ({ ...prev, paymentMonth: e.target.value }))}
-                    placeholder="e.g., 0"
-                    disabled={hardCostStatus === 'saving'}
-                  />
-                  <span className="month-hint">{getCalendarLabelForInput(hardCostForm.paymentMonth)}</span>
-                </label>
-              )}
-
-              {hardCostForm.paymentMode === 'range' && (
-                <div className="dual-fields">
-                  <label>
-                    Start month
-                    <input
-                      type="number"
-                      value={hardCostForm.rangeStartMonth}
-                      onChange={(e) =>
-                        setHardCostForm((prev) => ({ ...prev, rangeStartMonth: e.target.value }))
-                      }
-                      placeholder="e.g., 0"
-                      disabled={hardCostStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelForInput(hardCostForm.rangeStartMonth)}</span>
-                  </label>
-                  <label>
-                    End month
-                    <input
-                      type="number"
-                      value={hardCostForm.rangeEndMonth}
-                      onChange={(e) =>
-                        setHardCostForm((prev) => ({ ...prev, rangeEndMonth: e.target.value }))
-                      }
-                      placeholder="e.g., 5"
-                      disabled={hardCostStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelForInput(hardCostForm.rangeEndMonth)}</span>
-                  </label>
-                  <p className="helper-text">Amount will be spread evenly across the range.</p>
-                </div>
-              )}
-
-              {hardCostForm.paymentMode === 'multi' && (
-                <>
-                  <label>
-                    Months (comma separated)
-                    <input
-                      type="text"
-                      value={hardCostForm.monthsInput}
-                      onChange={(e) => setHardCostForm((prev) => ({ ...prev, monthsInput: e.target.value }))}
-                      placeholder="e.g., 0,1,2"
-                      disabled={hardCostStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelsForListInput(hardCostForm.monthsInput)}</span>
-                  </label>
-                  <label>
-                    Percent per month (comma separated, optional)
-                    <input
-                      type="text"
-                      value={hardCostForm.monthPercentagesInput}
-                      onChange={(e) =>
-                        setHardCostForm((prev) => ({ ...prev, monthPercentagesInput: e.target.value }))
-                      }
-                      placeholder="e.g., 40,30,30"
-                      disabled={hardCostStatus === 'saving'}
-                    />
-                  </label>
-                  <p className="helper-text">
-                    If omitted, the amount will be split evenly. Percentages must total 100%.
-                  </p>
-                </>
-              )}
-
-              {hardCostModalError && <p className="error">{hardCostModalError}</p>}
-              <div className="modal-actions">
-                <button type="button" className="ghost" onClick={closeHardCostModal} disabled={hardCostStatus === 'saving'}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary" disabled={hardCostStatus === 'saving'}>
-                  {hardCostStatus === 'saving'
-                    ? isEditingHardCost
-                      ? 'Saving…'
-                      : 'Adding…'
-                    : isEditingHardCost
-                      ? 'Save Changes'
-                      : 'Save Hard Cost'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {pendingDeleteProjectId && (
         <div className="modal-backdrop">
@@ -2026,52 +1064,6 @@ const parseFloatOrNull = (value) => {
               </button>
               <button type="button" className="danger" onClick={confirmDeleteProject} disabled={deleteStatus === 'saving'}>
                 {deleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pendingSoftCostDeleteId && (
-        <div className="modal-backdrop">
-          <div className="modal-panel">
-            <h3>Delete soft cost?</h3>
-            <p>This action cannot be undone.</p>
-            {softCostDeleteError && <p className="error">{softCostDeleteError}</p>}
-            <div className="modal-actions">
-              <button type="button" className="ghost" onClick={cancelDeleteSoftCost} disabled={softCostDeleteStatus === 'saving'}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="danger"
-                onClick={confirmDeleteSoftCost}
-                disabled={softCostDeleteStatus === 'saving'}
-              >
-                {softCostDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pendingHardCostDeleteId && (
-        <div className="modal-backdrop">
-          <div className="modal-panel">
-            <h3>Delete hard cost?</h3>
-            <p>This action cannot be undone.</p>
-            {hardCostDeleteError && <p className="error">{hardCostDeleteError}</p>}
-            <div className="modal-actions">
-              <button type="button" className="ghost" onClick={cancelDeleteHardCost} disabled={hardCostDeleteStatus === 'saving'}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="danger"
-                onClick={confirmDeleteHardCost}
-                disabled={hardCostDeleteStatus === 'saving'}
-              >
-                {hardCostDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
