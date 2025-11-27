@@ -59,19 +59,27 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 - Actions: edit inline, save/cancel, upload hero photo (future).
 
 ### 6.2 Revenue Tab
-- Each entry represents a unit type. Creating/editing rows happens inside a modal so the tab stays clean.
-- Fields captured:
-  - `type_label` (e.g., "1bd/1bth").
-  - `unit_sqft`.
+- Clicking the **Add** button now presents three options:
+  1. **Apartment Type** (formerly “unit type”) – multi-unit rents (e.g., 1bd/1bth).
+  2. **Parking Type** – structured like apartment types but for parking variations (garage, uncovered, etc.).
+  3. **GP Contribution** – one-time capital infusions from partners (Darmon or Sherman).
+- Apartment/Parking forms capture:
+  - `type_label` (e.g., "1bd/1bth" or "Garage Parking").
+  - `unit_sqft` (optional for apartments, still tracked for reference).
   - `unit_count`.
   - `monthly_rent_usd` (budget).
-  - `vacancy_pct` (default 5%). Revenue for the line is `monthly_rent_usd * unit_count * (1 - vacancy_pct/100)`.
-  - Optional future: `actual_monthly_rent_usd`.
-- Listing UI shows:
-  - Base rent, vacancy %, net monthly revenue per line, and per-line total (net monthly * unit_count).
-  - Summary footer with overall monthly revenue total (sum of net line revenues).
-- Bulk actions: duplicate row, delete row, apply % increase.
-- Each revenue row can be edited via the same modal (pre-populate existing values, allow vacancy override). Save writes back to the API.
+  - `vacancy_pct` (default 5%).
+  - `start_month` (integer month offset; revenue hits cashflow starting that month).
+- Parking omits square footage by default but keeps the same scheduling semantics (start month + vacancy). Revenue is calculated the same way (`rent * count * (1 - vacancy)`).
+- GP contribution form captures:
+  - `partner` option (Darmon or Sherman).
+  - `amount_usd`.
+  - `contribution_month` (single month index when the cash comes in). Contributions only hit the cashflow once.
+- Listing UI is grouped by category (Apartments, Parking, GP Contributions) with per-section totals and the overall monthly revenue summary.
+- Cashflow integration:
+  - Apartment/Parking lines start at their configured month; before that they contribute zero.
+  - GP contributions inject a single-month inflow in the cashflow grid.
+- Bulk actions: duplicate/delete still apply per category. Future enhancements (e.g., % increase) can respect the new structure.
 
 ### 6.3 Hard Costs Tab
 - Same modal workflow as Soft Costs (popup, form fields, scheduling selector).  

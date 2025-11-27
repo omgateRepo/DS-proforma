@@ -577,6 +577,58 @@ td {
   color: var(--muted);
 }
 
+.revenue-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.revenue-section {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem;
+  background: var(--card-bg);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.revenue-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.add-menu {
+  position: relative;
+}
+
+.add-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  z-index: 20;
+}
+
+.add-menu-dropdown button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.add-menu-dropdown button:hover {
+  background: #f8fafc;
+}
+
 .revenue-total-label {
   text-align: right;
   font-weight: 600;

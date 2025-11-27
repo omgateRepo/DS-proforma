@@ -87,8 +87,14 @@ async function ensureApartmentTypesTable() {
       rent_budget NUMERIC,
       vacancy_pct NUMERIC NOT NULL DEFAULT 5,
       rent_actual NUMERIC,
+      start_month INTEGER,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `)
+
+  await pool.query(`
+    ALTER TABLE apartment_types
+    ADD COLUMN IF NOT EXISTS start_month INTEGER;
   `)
 }
 
@@ -168,6 +174,34 @@ async function ensureCashflowEntriesTable() {
   `)
 }
 
+async function ensureParkingTypesTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS parking_types (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      type_label TEXT NOT NULL,
+      space_count INTEGER NOT NULL DEFAULT 0,
+      monthly_rent_usd NUMERIC,
+      vacancy_pct NUMERIC NOT NULL DEFAULT 5,
+      start_month INTEGER,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
+}
+
+async function ensureGpContributionsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS gp_contributions (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      partner TEXT NOT NULL,
+      amount_usd NUMERIC NOT NULL,
+      contribution_month INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
+}
+
 export async function ensureSchema() {
   await ensureUuidExtension()
   await renameStatusColumnIfNeeded()
@@ -176,4 +210,6 @@ export async function ensureSchema() {
   await ensureApartmentTypesTable()
   await ensureCostItemsTable()
   await ensureCashflowEntriesTable()
+  await ensureParkingTypesTable()
+  await ensureGpContributionsTable()
 }

@@ -151,6 +151,56 @@ export async function deleteHardCost(projectId, costId) {
   return handleJsonResponse(res, 'Failed to delete hard cost')
 }
 
+export async function createParkingRevenue(projectId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add parking revenue')
+}
+
+export async function updateParkingRevenue(projectId, parkingId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking/${parkingId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update parking revenue')
+}
+
+export async function deleteParkingRevenue(projectId, parkingId) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking/${parkingId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete parking revenue')
+}
+
+export async function createGpContribution(projectId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add GP contribution')
+}
+
+export async function updateGpContribution(projectId, contributionId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions/${contributionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update GP contribution')
+}
+
+export async function deleteGpContribution(projectId, contributionId) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions/${contributionId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete GP contribution')
+}
+
 export async function searchAddresses(query) {
   if (!query.trim()) return []
   const res = await fetch(`${baseUrl}/api/geocode/search?q=${encodeURIComponent(query)}`)

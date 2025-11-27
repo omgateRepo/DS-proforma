@@ -64,8 +64,22 @@ const stubProject = {
       unitCount: 20,
       rentBudget: 2100,
       vacancyPct: 5,
+      startMonth: 0,
       rentActual: 0,
     },
+  ],
+  parkingRevenue: [
+    {
+      id: 'park-1',
+      typeLabel: 'Garage Parking',
+      spaceCount: 10,
+      monthlyRentUsd: 200,
+      vacancyPct: 5,
+      startMonth: 3,
+    },
+  ],
+  gpContributions: [
+    { id: 'gp-1', partner: 'darmon', amountUsd: 250000, contributionMonth: 2 },
   ],
   hardCosts: [],
   softCosts: [],
@@ -244,7 +258,24 @@ const mapRevenueRow = (row) => ({
   unitCount: row.unit_count,
   rentBudget: toNumber(row.rent_budget),
   vacancyPct: toNumber(row.vacancy_pct),
+  startMonth: toInt(row.start_month),
   rentActual: toNumber(row.rent_actual),
+})
+
+const mapParkingRow = (row) => ({
+  id: row.id,
+  typeLabel: row.type_label,
+  spaceCount: row.space_count,
+  monthlyRentUsd: toNumber(row.monthly_rent_usd),
+  vacancyPct: toNumber(row.vacancy_pct),
+  startMonth: toInt(row.start_month),
+})
+
+const mapGpContributionRow = (row) => ({
+  id: row.id,
+  partner: row.partner,
+  amountUsd: toNumber(row.amount_usd),
+  contributionMonth: toInt(row.contribution_month),
 })
 
 const mapCostRow = (row) => ({
@@ -352,13 +383,17 @@ router.get('/projects/:id', async (req, res) => {
 
     const project = mapProjectDetail(rows[0])
 
-    const [revenue, costs, cashflow] = await Promise.all([
+    const [revenue, parking, contributions, costs, cashflow] = await Promise.all([
       pool.query('SELECT * FROM apartment_types WHERE project_id = $1 ORDER BY created_at ASC', [req.params.id]),
+      pool.query('SELECT * FROM parking_types WHERE project_id = $1 ORDER BY created_at ASC', [req.params.id]),
+      pool.query('SELECT * FROM gp_contributions WHERE project_id = $1 ORDER BY created_at ASC', [req.params.id]),
       pool.query('SELECT * FROM cost_items WHERE project_id = $1 ORDER BY created_at ASC', [req.params.id]),
       pool.query('SELECT * FROM cashflow_entries WHERE project_id = $1 ORDER BY month_index ASC', [req.params.id]),
     ])
 
     project.revenue = revenue.rows.map(mapRevenueRow)
+    project.parkingRevenue = parking.rows.map(mapParkingRow)
+    project.gpContributions = contributions.rows.map(mapGpContributionRow)
     const costRows = costs.rows.map(mapCostRow)
     project.hardCosts = costRows.filter((row) => row.category === 'hard')
     project.softCosts = costRows.filter((row) => row.category === 'soft')
@@ -490,22 +525,23 @@ router.patch('/projects/:id/stage', async (req, res) => {
 })
 
 router.post('/projects/:id/revenue', async (req, res) => {
-  const { typeLabel, unitSqft, unitCount, rentBudget, vacancyPct } = req.body
+  const { typeLabel, unitSqft, unitCount, rentBudget, vacancyPct, startMonth } = req.body
   if (!typeLabel) return res.status(400).json({ error: 'typeLabel is required' })
   const vacancy = vacancyPct !== undefined && vacancyPct !== null ? Number(vacancyPct) : 5
+  const start = startMonth !== undefined && startMonth !== null ? Number(startMonth) : 0
   if (SKIP_DB) {
     return res
       .status(201)
-      .json({ id: `rev-${Date.now()}`, typeLabel, unitSqft, unitCount, rentBudget, vacancyPct: vacancy })
+      .json({ id: `rev-${Date.now()}`, typeLabel, unitSqft, unitCount, rentBudget, vacancyPct: vacancy, startMonth: start })
   }
   try {
     const { rows } = await pool.query(
       `
-      INSERT INTO apartment_types (project_id, type_label, unit_sqft, unit_count, rent_budget, vacancy_pct)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO apartment_types (project_id, type_label, unit_sqft, unit_count, rent_budget, vacancy_pct, start_month)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `,
-      [req.params.id, typeLabel, unitSqft || null, unitCount || 0, rentBudget || null, vacancy],
+      [req.params.id, typeLabel, unitSqft || null, unitCount || 0, rentBudget || null, vacancy, start],
     )
     res.status(201).json(mapRevenueRow(rows[0]))
   } catch (err) {
@@ -514,7 +550,7 @@ router.post('/projects/:id/revenue', async (req, res) => {
 })
 
 router.patch('/projects/:id/revenue/:revenueId', async (req, res) => {
-  const { typeLabel, unitSqft, unitCount, rentBudget, vacancyPct } = req.body
+  const { typeLabel, unitSqft, unitCount, rentBudget, vacancyPct, startMonth } = req.body
   if (SKIP_DB) {
     return res.json({
       id: req.params.revenueId,
@@ -523,6 +559,7 @@ router.patch('/projects/:id/revenue/:revenueId', async (req, res) => {
       unitCount: unitCount || 0,
       rentBudget: rentBudget || 0,
       vacancyPct: vacancyPct ?? 5,
+      startMonth: startMonth ?? 0,
     })
   }
 
@@ -535,6 +572,7 @@ router.patch('/projects/:id/revenue/:revenueId', async (req, res) => {
     unitCount: 'unit_count',
     rentBudget: 'rent_budget',
     vacancyPct: 'vacancy_pct',
+    startMonth: 'start_month',
   }
 
   Object.entries(map).forEach(([key, column]) => {
@@ -894,6 +932,181 @@ router.delete('/projects/:id/revenue/:revenueId', async (req, res) => {
     res.json({ id: req.params.revenueId, deleted: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete revenue item', details: err.message })
+  }
+})
+
+const normalizeParkingPayload = (body) => {
+  const typeLabel = (body.typeLabel || '').trim()
+  if (!typeLabel) return { error: 'typeLabel is required' }
+  const spaceCount = coerceInt(body.spaceCount)
+  if (spaceCount === null || spaceCount < 0) return { error: 'spaceCount is required' }
+  const monthlyRentUsd = coerceNumberStrict(body.monthlyRentUsd)
+  if (monthlyRentUsd === null) return { error: 'monthlyRentUsd is required' }
+  const vacancyPct = body.vacancyPct !== undefined && body.vacancyPct !== null ? Number(body.vacancyPct) : 5
+  const startMonth = coerceInt(body.startMonth) ?? 0
+  return { typeLabel, spaceCount, monthlyRentUsd, vacancyPct, startMonth }
+}
+
+router.post('/projects/:id/parking', async (req, res) => {
+  const normalized = normalizeParkingPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `park-${Date.now()}`,
+      ...normalized,
+    })
+  }
+  try {
+    const { rows } = await pool.query(
+      `
+      INSERT INTO parking_types (project_id, type_label, space_count, monthly_rent_usd, vacancy_pct, start_month)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `,
+      [req.params.id, normalized.typeLabel, normalized.spaceCount, normalized.monthlyRentUsd, normalized.vacancyPct, normalized.startMonth],
+    )
+    res.status(201).json(mapParkingRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add parking revenue', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/parking/:parkingId', async (req, res) => {
+  const normalized = normalizeParkingPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+  if (SKIP_DB) {
+    return res.json({ id: req.params.parkingId, ...normalized })
+  }
+  try {
+    const { rows } = await pool.query(
+      `
+      UPDATE parking_types
+      SET type_label = $3,
+          space_count = $4,
+          monthly_rent_usd = $5,
+          vacancy_pct = $6,
+          start_month = $7
+      WHERE id = $2 AND project_id = $1
+      RETURNING *
+    `,
+      [
+        req.params.id,
+        req.params.parkingId,
+        normalized.typeLabel,
+        normalized.spaceCount,
+        normalized.monthlyRentUsd,
+        normalized.vacancyPct,
+        normalized.startMonth,
+      ],
+    )
+    if (rows.length === 0) {
+      return res.status(404).json({
+        error: 'Parking revenue not found',
+        details: `Parking item ${req.params.parkingId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json(mapParkingRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update parking revenue', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/parking/:parkingId', async (req, res) => {
+  if (SKIP_DB) return res.json({ id: req.params.parkingId, deleted: true })
+  try {
+    const result = await pool.query('DELETE FROM parking_types WHERE id = $1 AND project_id = $2 RETURNING id', [
+      req.params.parkingId,
+      req.params.id,
+    ])
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: 'Parking revenue not found',
+        details: `Parking item ${req.params.parkingId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json({ id: req.params.parkingId, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete parking revenue', details: err.message })
+  }
+})
+
+const normalizeGpContributionPayload = (body) => {
+  const partner = (body.partner || '').toLowerCase()
+  if (!['darmon', 'sherman'].includes(partner)) return { error: 'partner is invalid' }
+  const amountUsd = coerceNumberStrict(body.amountUsd)
+  if (amountUsd === null) return { error: 'amountUsd is required' }
+  const contributionMonth = coerceInt(body.contributionMonth)
+  if (contributionMonth === null) return { error: 'contributionMonth is required' }
+  return { partner, amountUsd, contributionMonth }
+}
+
+router.post('/projects/:id/gp-contributions', async (req, res) => {
+  const normalized = normalizeGpContributionPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+  if (SKIP_DB) {
+    return res.status(201).json({ id: `gpc-${Date.now()}`, ...normalized })
+  }
+  try {
+    const { rows } = await pool.query(
+      `
+      INSERT INTO gp_contributions (project_id, partner, amount_usd, contribution_month)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `,
+      [req.params.id, normalized.partner, normalized.amountUsd, normalized.contributionMonth],
+    )
+    res.status(201).json(mapGpContributionRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add GP contribution', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/gp-contributions/:contributionId', async (req, res) => {
+  const normalized = normalizeGpContributionPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+  if (SKIP_DB) {
+    return res.json({ id: req.params.contributionId, ...normalized })
+  }
+  try {
+    const { rows } = await pool.query(
+      `
+      UPDATE gp_contributions
+      SET partner = $3,
+          amount_usd = $4,
+          contribution_month = $5
+      WHERE id = $2 AND project_id = $1
+      RETURNING *
+    `,
+      [req.params.id, req.params.contributionId, normalized.partner, normalized.amountUsd, normalized.contributionMonth],
+    )
+    if (rows.length === 0) {
+      return res.status(404).json({
+        error: 'GP contribution not found',
+        details: `GP contribution ${req.params.contributionId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json(mapGpContributionRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update GP contribution', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/gp-contributions/:contributionId', async (req, res) => {
+  if (SKIP_DB) return res.json({ id: req.params.contributionId, deleted: true })
+  try {
+    const result = await pool.query(
+      'DELETE FROM gp_contributions WHERE id = $1 AND project_id = $2 RETURNING id',
+      [req.params.contributionId, req.params.id],
+    )
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: 'GP contribution not found',
+        details: `GP contribution ${req.params.contributionId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json({ id: req.params.contributionId, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete GP contribution', details: err.message })
   }
 })
 
