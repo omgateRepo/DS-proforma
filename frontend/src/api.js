@@ -151,6 +151,31 @@ export async function deleteHardCost(projectId, costId) {
   return handleJsonResponse(res, 'Failed to delete hard cost')
 }
 
+export async function createCarryingCost(projectId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/carrying-costs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add carrying cost')
+}
+
+export async function updateCarryingCost(projectId, costId, payload) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/carrying-costs/${costId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update carrying cost')
+}
+
+export async function deleteCarryingCost(projectId, costId) {
+  const res = await fetch(`${baseUrl}/api/projects/${projectId}/carrying-costs/${costId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete carrying cost')
+}
+
 export async function createParkingRevenue(projectId, payload) {
   const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking`, {
     method: 'POST',

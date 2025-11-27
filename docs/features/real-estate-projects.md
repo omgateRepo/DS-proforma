@@ -124,18 +124,64 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 - These options let finance teams stage retainers, progress draws, or recurring soft costs without juggling separate entries.
 
 ### 6.5 Carrying Costs Tab
-- Each item requires a `type` selected from:
-  - `construction_loan`
-  - `stabilized_loan`
-  - `real_estate_tax`
-  - `insurance`
-  - `other`
-- For loan types (construction/stabilized):
-  - Fields: `principal_amount_usd`, `interest_rate_pct`, `term_years`, `start_date`.
-  - Derived: monthly debt service (simple amortization placeholder until we integrate a proper loan model).
-- For non-loan types (tax, insurance, other):
-  - Fields: `amount_usd`, `start_date`, `interval` (monthly, quarterly, annual).
-  - Derived: normalized monthly amount (amount / interval frequency).
+The Carrying tab now mirrors the Revenue tab’s pattern: a single **Add** menu that lets users pick which cost bucket to add rows under. Supported buckets (MVP):
+
+1. **Loans**
+2. **Property Tax**
+3. **Management Fees**
+
+Each bucket renders its own table with per-line totals plus a modal for add/edit (consistent UI with other tabs). Delete controls remain hidden (global rule) except within the modal confirmation step.
+
+#### 6.5.1 Loans
+- **Item Structure**
+  - `title` (freeform, e.g., “Bridge Loan A”).
+  - `loan_mode`: `interest_only` or `amortizing`.
+  - `loan_amount_usd`.
+  - `loan_term_months` (integer).
+  - `interest_rate_pct` (APR).
+  - `funding_month` (month offset when proceeds hit the cashflow; displays Month N + calendar hint like other inputs).
+  - `repayment_start_month` (first month debt service leaves the account).
+- **Cashflow Behavior**
+  - Funding month injects a positive inflow equal to `loan_amount_usd` (shown on the cashflow grid under Carrying Costs → Loans → `Funding` line so it still groups with the debt story).
+  - For **amortizing loans**:
+    - Compute a level monthly payment using the standard amortization formula.
+    - Split each month’s payment into two sub-lines in the Carrying Costs section: `Loan – Interest` and `Loan – Principal`.
+    - Continue until the term ends or the balance hits zero.
+  - For **interest-only loans**:
+    - Monthly outflow = `loan_amount_usd * rate / 12` (still rendered as the `Loan – Interest` sub-line).
+    - During the month immediately **before** the term ends, insert a lump-sum outflow equal to the original principal labeled `Loan – Principal Payoff`.
+
+#### 6.5.2 Property Tax
+- **Fields**
+  - `title` (optional helper text, defaults to “Property Tax” if blank).
+  - `amount_usd` (per interval).
+  - `start_month`.
+  - `end_month` (optional; if omitted the item continues through the 60-month grid).
+  - `interval_unit`: `monthly`, `quarterly`, or `yearly`.
+- **Cashflow Behavior**
+  - Normalize the amount to a monthly series based on the interval.
+    - Monthly = amount every month.
+    - Quarterly = amount every 3 months.
+    - Yearly = amount every 12 months.
+  - Respect start/end months when plotting to the grid.
+
+#### 6.5.3 Management Fees
+- **Fields**
+  - `title` (required; e.g., “Leasing Management”).
+  - `amount_usd` (per interval).
+  - `start_month`.
+  - `end_month` (optional).
+  - `interval_unit`: `monthly`, `quarterly`, `yearly`.
+- **Cashflow Behavior**
+  - Same interval logic as Property Tax.
+  - These rows appear under Carrying Costs → Management with per-line totals and flow into the aggregated Carrying Costs row.
+
+#### 6.5.4 UI & Validation Notes
+- All month-entry controls reuse the shared helpers so they show `Month N • Calendar Month`.
+- Loan modal validates that `funding_month <= repayment_start_month` and `loan_term_months > 0`.
+- Property Tax + Management modals ensure `start_month <= end_month` when an end month is provided.
+- Modals disclose how amounts map to the cashflow (e.g., “Quarterly • $45,000 posts every Month 3 starting Month 4”).
+- Carrying Costs table shows grouped totals per bucket plus the combined monthly impact.
 
 ### 6.6 Cashflow Tab
 - 60-month horizontal grid starting at month 0 (closing month). Months run left-to-right as column headers (M0…M59) with friendly month/year labels in tooltips.  
@@ -161,7 +207,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 | `projects` | `id (uuid)`, `name`, `stage`, `address_line1`, `city`, `state`, `zip`, `property_type`, `purchase_price_usd`, `target_units`, `target_sqft`, `created_at`, `updated_at`, `deleted_at` | Stage enum: `new`, `offer_submitted`, `in_progress`, `stabilized`. |
 | `project_stage_history` | `id`, `project_id`, `from_stage`, `to_stage`, `changed_by`, `changed_at` | Append-only log for analytics. |
 | `apartment_types` | `id`, `project_id`, `type_label`, `unit_sqft`, `unit_count`, `rent_budget`, `rent_actual` | Revenue tab rows. |
-| `cost_items` | `id`, `project_id`, `category` (`hard`, `soft`, `carrying`), `cost_name`, `amount_usd`, `payment_month`, `start_month`, `end_month`, `carrying_type`, `principal_amount_usd`, `interest_rate_pct`, `term_years`, `interval`, `start_date` | For carrying costs, certain columns apply depending on `carrying_type`. |
+| `cost_items` | `id`, `project_id`, `category` (`hard`, `soft`, `carrying`), `cost_name`, `amount_usd`, `payment_month`, `start_month`, `end_month`, `carrying_type`, `loan_mode`, `loan_amount_usd`, `loan_term_months`, `interest_rate_pct`, `funding_month`, `repayment_start_month`, `interval_unit` | Carrying rows now track richer attributes per type; hard/soft rows continue to use scheduling + measurement columns documented above. |
 | `cashflow_entries` | `id`, `project_id`, `month_index`, `budget_inflows`, `budget_outflows`, `actual_inflows`, `actual_outflows`, `notes` | Derived but persisted for overrides. |
 
 ### 7.2 Relationships

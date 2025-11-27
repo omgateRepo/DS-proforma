@@ -156,6 +156,36 @@ async function ensureCostItemsTable() {
     ALTER TABLE cost_items
     ADD COLUMN IF NOT EXISTS units_count NUMERIC;
   `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS loan_mode TEXT;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS loan_amount_usd NUMERIC;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS loan_term_months INTEGER;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS funding_month INTEGER;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS repayment_start_month INTEGER;
+  `)
+
+  await pool.query(`
+    ALTER TABLE cost_items
+    ADD COLUMN IF NOT EXISTS interval_unit TEXT;
+  `)
 }
 
 async function ensureCashflowEntriesTable() {

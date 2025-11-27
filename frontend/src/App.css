@@ -288,10 +288,37 @@
 .general-form,
 .revenue-tab,
 .soft-tab,
-.cashflow-tab {
+.cashflow-tab,
+.carrying-tab {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.carrying-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.carrying-section {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+
+.carrying-summary {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.carrying-summary strong {
+  font-size: 1.25rem;
 }
 
 .soft-header {

@@ -16,6 +16,7 @@ import { RevenueSection } from './features/revenue/RevenueSection.jsx'
 import { HardCostsSection } from './features/costs/HardCostsSection.jsx'
 import { SoftCostsSection } from './features/costs/SoftCostsSection.jsx'
 import { GeneralTab } from './features/general/GeneralTab.jsx'
+import { KanbanBoard } from './features/kanban/KanbanBoard.jsx'
 import { CashflowBoard } from './features/cashflow/CashflowBoard.jsx'
 import { calculateNetParking, calculateNetRevenue, gpPartners } from './features/revenue/revenueHelpers.js'
 import {
@@ -23,7 +24,9 @@ import {
   buildRecurringLineValues,
   buildCashflowRows,
   buildExpenseSeries,
+  buildCarryingSeries,
 } from './features/cashflow/cashflowHelpers.js'
+import { CarryingCostsSection } from './features/carrying/CarryingCostsSection.jsx'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -182,6 +185,7 @@ function App() {
   const apartmentRevenueRows = selectedProject?.revenue || []
   const parkingRevenueRows = selectedProject?.parkingRevenue || []
   const gpContributionRows = selectedProject?.gpContributions || []
+  const carryingCostRows = selectedProject?.carryingCosts || []
 
   const cashflowMonths = useMemo(() => {
     return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
@@ -244,8 +248,8 @@ function App() {
   )
 
   const carryingCostSeries = useMemo(
-    () => ({ label: 'Carrying Costs', type: 'expense', baseValues: Array(CASHFLOW_MONTHS).fill(0), lineItems: [] }),
-    [],
+    () => buildCarryingSeries(carryingCostRows, CASHFLOW_MONTHS),
+    [carryingCostRows],
   )
 
   const cashflowRows = useMemo(() => {
@@ -529,79 +533,18 @@ function App() {
 
   return (
     <div className="app-shell">
-      {isKanbanView && (
-        <header className="app-header">
-          <div>
-            <p className="eyebrow">Real Estate Control Center</p>
-        <h1>DS Proforma</h1>
-          </div>
-          <div className="header-actions">
-            <div className="weather-card">
-              <h3>Philadelphia Weather</h3>
-              {weatherStatus === 'loading' && <p>Sampling temperature…</p>}
-              {weatherStatus === 'error' && <p className="error">{weatherError}</p>}
-              {weatherStatus === 'loaded' && weather && (
-                <>
-                  <p className="weather-temp">{weather.temperature_c}°C</p>
-                  <p className="muted">Sampled at {new Date(weather.sampled_at).toLocaleTimeString('en-US')}</p>
-                </>
-              )}
-            </div>
-            <button className="primary" type="button" onClick={openCreateModal}>
-              + Add Project
-            </button>
-          </div>
-      </header>
-      )}
-
       {isKanbanView ? (
-        <>
-          <section className="kanban-section">
-            <div className="kanban">
-              {stageOptions.map((stage) => (
-                <div className="kanban-column" key={stage.id}>
-                  <div className="column-header">
-                    <h3>{stage.label}</h3>
-                    <span className="pill">{projectsByStage[stage.id]?.length ?? 0}</span>
-                  </div>
-                  <div className="column-body">
-                    {projectsByStage[stage.id] && projectsByStage[stage.id].length > 0 ? (
-                      projectsByStage[stage.id].map((project) => (
-                        <article key={project.id} className="project-card">
-                          <div onClick={() => setSelectedProjectId(project.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setSelectedProjectId(project.id)}>
-                            <h4>{project.name}</h4>
-                            <p className="muted">
-                              {project.city || 'City'}, {project.state || 'State'}
-                            </p>
-                            <p className="muted">
-                              Units: {project.targetUnits ?? '—'} • Budget:{' '}
-                              {project.purchasePriceUsd ? `$${(project.purchasePriceUsd / 1_000_000).toFixed(2)}M` : '—'}
-                            </p>
-                          </div>
-                          <select
-                            value={project.stage}
-                            onChange={(e) => {
-                              handleStageChange(project.id, e.target.value)
-                            }}
-                            disabled={stageUpdatingFor === project.id}
-                          >
-                            {stageOptions.map((option) => (
-                              <option key={option.id} value={option.id}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </article>
-                      ))
-                    ) : (
-                      <p className="muted empty">No deals</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </>
+        <KanbanBoard
+          stageOptions={stageOptions}
+          projectsByStage={projectsByStage}
+          onSelectProject={setSelectedProjectId}
+          onStageChange={handleStageChange}
+          stageUpdatingFor={stageUpdatingFor}
+          onAddProject={openCreateModal}
+          weather={weather}
+          weatherStatus={weatherStatus}
+          weatherError={weatherError}
+        />
       ) : (
         <section className="detail-section detail-full">
           <div className="detail-nav">
@@ -686,6 +629,17 @@ function App() {
                 />
               )}
 
+              {activeTab === 'carrying' && (
+                <CarryingCostsSection
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                  formatOffsetForInput={formatOffsetForInput}
+                  convertMonthInputToOffset={convertMonthInputToOffset}
+                  getCalendarLabelForInput={getCalendarLabelForInput}
+                />
+              )}
+
               {activeTab === 'cashflow' && (
                 <CashflowBoard
                   months={cashflowMonths}
@@ -694,14 +648,6 @@ function App() {
                   expandedRows={expandedCashflowRows}
                   onToggleRow={toggleCashflowRow}
                 />
-              )}
-
-              {activeTab === 'carrying' && (
-                <div className="placeholder">
-                  <p>
-                    Carrying costs will be implemented next.
-                  </p>
-                </div>
               )}
 
               {activeTab === 'general' && (

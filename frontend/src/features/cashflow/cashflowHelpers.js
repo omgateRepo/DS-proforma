@@ -5,6 +5,8 @@ const clampCashflowMonth = (value, maxMonths) => {
   return Math.max(0, Math.min(maxMonths - 1, Math.trunc(parsed)))
 }
 
+const hasMagnitude = (values) => values.some((value) => Math.abs(value) > 0.0001)
+
 export const buildRecurringLineValues = (netAmount, startMonth, months = 60) => {
   const startIndex = clampCashflowMonth(startMonth, months)
   const values = Array(months).fill(0)
@@ -156,5 +158,130 @@ export const buildCashflowRows = ({
   })
 
   return rows
+}
+
+const INTERVAL_STEPS = {
+  monthly: 1,
+  quarterly: 3,
+  yearly: 12,
+}
+
+const buildIntervalExpenseValues = (row, months) => {
+  const values = Array(months).fill(0)
+  const amount = Number(row.amountUsd) || 0
+  if (!amount) return values
+
+  const startMonth = clampCashflowMonth(row.startMonth ?? 0, months)
+  const endMonth =
+    row.endMonth === null || row.endMonth === undefined
+      ? months - 1
+      : clampCashflowMonth(row.endMonth, months)
+
+  if (endMonth < startMonth) return values
+
+  const step = INTERVAL_STEPS[row.intervalUnit] || 1
+  if (step <= 0) return values
+
+  for (let month = startMonth; month < months && month <= endMonth; month += step) {
+    values[month] -= amount
+  }
+  return values
+}
+
+const buildLoanValues = (row, months) => {
+  const amount = Number(row.loanAmountUsd || row.amountUsd) || 0
+  const term = Number(row.loanTermMonths) || 0
+  const ratePct = Number(row.interestRatePct) || 0
+  const rate = ratePct / 100 / 12
+  const fundingMonth = clampCashflowMonth(row.fundingMonth ?? 0, months)
+  const repaymentStart = clampCashflowMonth(row.repaymentStartMonth ?? fundingMonth, months)
+  const values = {
+    funding: Array(months).fill(0),
+    interest: Array(months).fill(0),
+    principal: Array(months).fill(0),
+  }
+
+  if (!amount || term <= 0) return values
+  if (fundingMonth < months) {
+    values.funding[fundingMonth] += amount
+  }
+
+  if (row.loanMode === 'interest_only') {
+    const interestPayment = rate ? amount * rate : 0
+    for (let i = 0; i < term; i += 1) {
+      const monthIndex = repaymentStart + i
+      if (monthIndex >= months) break
+      if (interestPayment) values.interest[monthIndex] -= interestPayment
+    }
+    const payoffMonth = repaymentStart + Math.max(term - 1, 0)
+    if (payoffMonth < months) {
+      values.principal[payoffMonth] -= amount
+    }
+    return values
+  }
+
+  const payment =
+    rate === 0
+      ? amount / term
+      : (amount * rate * (1 + rate) ** term) / ((1 + rate) ** term - 1 || 1)
+
+  let remaining = amount
+  for (let i = 0; i < term; i += 1) {
+    const monthIndex = repaymentStart + i
+    if (monthIndex >= months) break
+    const interestPortion = rate ? remaining * rate : 0
+    let principalPortion = payment - interestPortion
+    if (principalPortion > remaining || i === term - 1) {
+      principalPortion = remaining
+    }
+    remaining -= principalPortion
+    if (interestPortion) values.interest[monthIndex] -= interestPortion
+    if (principalPortion) values.principal[monthIndex] -= principalPortion
+    if (remaining <= 0) break
+  }
+
+  return values
+}
+
+export const buildCarryingSeries = (rows = [], months = 60) => {
+  const baseValues = Array(months).fill(0)
+  const lineItems = []
+
+  rows.forEach((row, index) => {
+    if (row.carryingType === 'loan') {
+      const loanValues = buildLoanValues(row, months)
+      const lineDefinitions = [
+        { id: `${row.id || `loan-${index}`}-funding`, label: `${row.costName || 'Loan'} • Funding`, values: loanValues.funding },
+        { id: `${row.id || `loan-${index}`}-interest`, label: `${row.costName || 'Loan'} • Interest`, values: loanValues.interest },
+        { id: `${row.id || `loan-${index}`}-principal`, label: `${row.costName || 'Loan'} • Principal`, values: loanValues.principal },
+      ]
+      lineDefinitions.forEach((item) => {
+        if (!hasMagnitude(item.values)) return
+        item.values.forEach((value, idx) => {
+          baseValues[idx] += value
+        })
+        lineItems.push(item)
+      })
+      return
+    }
+
+    const recurringValues = buildIntervalExpenseValues(row, months)
+    if (!hasMagnitude(recurringValues)) return
+    recurringValues.forEach((value, idx) => {
+      baseValues[idx] += value
+    })
+    lineItems.push({
+      id: row.id || `carrying-${index}`,
+      label: row.costName || 'Carrying Cost',
+      values: recurringValues,
+    })
+  })
+
+  return {
+    label: 'Carrying Costs',
+    type: 'expense',
+    baseValues,
+    lineItems,
+  }
 }
 

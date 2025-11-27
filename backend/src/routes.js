@@ -36,6 +36,9 @@ const HARD_COST_CATEGORIES = [
 ]
 const MEASUREMENT_UNITS = ['none', 'sqft', 'linear_feet', 'apartment', 'building']
 const PAYMENT_MODES = ['single', 'range', 'multi']
+const CARRYING_TYPES = ['loan', 'property_tax', 'management']
+const LOAN_MODES = ['interest_only', 'amortizing']
+const INTERVAL_UNITS = ['monthly', 'quarterly', 'yearly']
 
 const stubProject = {
   id: 'stub-1',
@@ -220,6 +223,90 @@ function normalizeHardCostPayload(body) {
   }
 }
 
+const defaultCarryingTitles = {
+  loan: 'Loan',
+  property_tax: 'Property Tax',
+  management: 'Management Fee',
+}
+
+function normalizeCarryingPayload(body) {
+  const carryingType = (body.carryingType || body.type || '').toLowerCase()
+  if (!CARRYING_TYPES.includes(carryingType)) {
+    return { error: 'carryingType is invalid' }
+  }
+
+  const costName = (body.costName || body.title || '').trim() || defaultCarryingTitles[carryingType]
+
+  if (carryingType === 'loan') {
+    const loanMode = (body.loanMode || '').toLowerCase()
+    if (!LOAN_MODES.includes(loanMode)) return { error: 'loanMode is invalid' }
+
+    const loanAmountUsd = coerceNumberStrict(body.loanAmountUsd)
+    if (loanAmountUsd === null) return { error: 'loanAmountUsd is required' }
+
+    const interestRatePct = coerceNumberStrict(body.interestRatePct)
+    if (interestRatePct === null) return { error: 'interestRatePct is required' }
+
+    const loanTermMonths = coerceInt(body.loanTermMonths)
+    if (loanTermMonths === null || loanTermMonths <= 0) {
+      return { error: 'loanTermMonths must be greater than 0' }
+    }
+
+    const fundingMonth = coerceInt(body.fundingMonth)
+    if (fundingMonth === null) return { error: 'fundingMonth is required' }
+
+    const repaymentStartMonth = coerceInt(body.repaymentStartMonth)
+    if (repaymentStartMonth === null) return { error: 'repaymentStartMonth is required' }
+    if (repaymentStartMonth < fundingMonth) {
+      return { error: 'repaymentStartMonth cannot be before fundingMonth' }
+    }
+
+    return {
+      costName,
+      carryingType,
+      loanMode,
+      loanAmountUsd,
+      interestRatePct,
+      loanTermMonths,
+      fundingMonth,
+      repaymentStartMonth,
+      amountUsd: loanAmountUsd,
+      intervalUnit: null,
+      startMonth: null,
+      endMonth: null,
+    }
+  }
+
+  const amountUsd = coerceNumberStrict(body.amountUsd)
+  if (amountUsd === null) return { error: 'amountUsd is required' }
+
+  const startMonth = coerceInt(body.startMonth)
+  if (startMonth === null) return { error: 'startMonth is required' }
+
+  const hasEndMonth = body.endMonth !== undefined && body.endMonth !== null && body.endMonth !== ''
+  const endMonth = hasEndMonth ? coerceInt(body.endMonth) : null
+  if (hasEndMonth && endMonth === null) return { error: 'endMonth is invalid' }
+  if (endMonth !== null && endMonth < startMonth) return { error: 'endMonth cannot be before startMonth' }
+
+  const intervalUnit = (body.intervalUnit || body.interval || 'monthly').toLowerCase()
+  if (!INTERVAL_UNITS.includes(intervalUnit)) return { error: 'intervalUnit is invalid' }
+
+  return {
+    costName,
+    carryingType,
+    amountUsd,
+    startMonth,
+    endMonth,
+    intervalUnit,
+    loanMode: null,
+    loanAmountUsd: null,
+    interestRatePct: null,
+    loanTermMonths: null,
+    fundingMonth: null,
+    repaymentStartMonth: null,
+  }
+}
+
 const mapProjectRow = (row) => ({
   id: row.id,
   name: row.name,
@@ -294,11 +381,18 @@ const mapCostRow = (row) => ({
   pricePerUnit: toNumber(row.price_per_unit),
   unitsCount: toNumber(row.units_count),
   carryingType: row.carrying_type,
-  principalAmountUsd: toNumber(row.principal_amount_usd),
+  loanMode: row.loan_mode || null,
+  loanAmountUsd: toNumber(row.loan_amount_usd ?? row.principal_amount_usd),
   interestRatePct: toNumber(row.interest_rate_pct),
-  termYears: toNumber(row.term_years),
-  interval: row.interval,
-  startDate: row.start_date,
+  loanTermMonths:
+    row.loan_term_months !== undefined && row.loan_term_months !== null
+      ? toInt(row.loan_term_months)
+      : row.term_years
+      ? Number(row.term_years) * 12
+      : null,
+  fundingMonth: toInt(row.funding_month),
+  repaymentStartMonth: toInt(row.repayment_start_month),
+  intervalUnit: row.interval_unit || row.interval || null,
 })
 
 const mapCashflowRow = (row) => ({
@@ -916,6 +1010,173 @@ router.delete('/projects/:id/hard-costs/:costId', async (req, res) => {
     res.json({ id: req.params.costId, deleted: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete hard cost', details: err.message })
+  }
+})
+
+router.post('/projects/:id/carrying-costs', async (req, res) => {
+  const normalized = normalizeCarryingPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `carry-${Date.now()}`,
+      category: 'carrying',
+      costName: normalized.costName,
+      costGroup: normalized.carryingType,
+      carryingType: normalized.carryingType,
+      amountUsd: normalized.amountUsd,
+      startMonth: normalized.startMonth,
+      endMonth: normalized.endMonth,
+      intervalUnit: normalized.intervalUnit,
+      loanMode: normalized.loanMode,
+      loanAmountUsd: normalized.loanAmountUsd,
+      interestRatePct: normalized.interestRatePct,
+      loanTermMonths: normalized.loanTermMonths,
+      fundingMonth: normalized.fundingMonth,
+      repaymentStartMonth: normalized.repaymentStartMonth,
+    })
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+      INSERT INTO cost_items (
+        project_id,
+        category,
+        cost_name,
+        cost_group,
+        amount_usd,
+        start_month,
+        end_month,
+        carrying_type,
+        loan_mode,
+        loan_amount_usd,
+        loan_term_months,
+        interest_rate_pct,
+        funding_month,
+        repayment_start_month,
+        interval_unit
+      )
+      VALUES ($1, 'carrying', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *
+    `,
+      [
+        req.params.id,
+        normalized.costName,
+        normalized.carryingType,
+        normalized.amountUsd,
+        normalized.startMonth,
+        normalized.endMonth,
+        normalized.carryingType,
+        normalized.loanMode,
+        normalized.loanAmountUsd,
+        normalized.loanTermMonths,
+        normalized.interestRatePct,
+        normalized.fundingMonth,
+        normalized.repaymentStartMonth,
+        normalized.intervalUnit,
+      ],
+    )
+    res.status(201).json(mapCostRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add carrying cost', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/carrying-costs/:costId', async (req, res) => {
+  const normalized = normalizeCarryingPayload(req.body)
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.json({
+      id: req.params.costId,
+      category: 'carrying',
+      costName: normalized.costName,
+      costGroup: normalized.carryingType,
+      carryingType: normalized.carryingType,
+      amountUsd: normalized.amountUsd,
+      startMonth: normalized.startMonth,
+      endMonth: normalized.endMonth,
+      intervalUnit: normalized.intervalUnit,
+      loanMode: normalized.loanMode,
+      loanAmountUsd: normalized.loanAmountUsd,
+      interestRatePct: normalized.interestRatePct,
+      loanTermMonths: normalized.loanTermMonths,
+      fundingMonth: normalized.fundingMonth,
+      repaymentStartMonth: normalized.repaymentStartMonth,
+    })
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `
+      UPDATE cost_items
+      SET
+        cost_name = $3,
+        cost_group = $4,
+        amount_usd = $5,
+        start_month = $6,
+        end_month = $7,
+        carrying_type = $8,
+        loan_mode = $9,
+        loan_amount_usd = $10,
+        loan_term_months = $11,
+        interest_rate_pct = $12,
+        funding_month = $13,
+        repayment_start_month = $14,
+        interval_unit = $15
+      WHERE id = $2 AND project_id = $1 AND category = 'carrying'
+      RETURNING *
+    `,
+      [
+        req.params.id,
+        req.params.costId,
+        normalized.costName,
+        normalized.carryingType,
+        normalized.amountUsd,
+        normalized.startMonth,
+        normalized.endMonth,
+        normalized.carryingType,
+        normalized.loanMode,
+        normalized.loanAmountUsd,
+        normalized.loanTermMonths,
+        normalized.interestRatePct,
+        normalized.fundingMonth,
+        normalized.repaymentStartMonth,
+        normalized.intervalUnit,
+      ],
+    )
+    if (rows.length === 0) {
+      return res.status(404).json({
+        error: 'Carrying cost not found',
+        details: `Carrying cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json(mapCostRow(rows[0]))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update carrying cost', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/carrying-costs/:costId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.costId, deleted: true })
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM cost_items WHERE id = $1 AND project_id = $2 AND category = \'carrying\' RETURNING id',
+      [req.params.costId, req.params.id],
+    )
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: 'Carrying cost not found',
+        details: `Carrying cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json({ id: req.params.costId, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete carrying cost', details: err.message })
   }
 })
 
