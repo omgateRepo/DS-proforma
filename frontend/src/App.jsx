@@ -15,7 +15,14 @@ import {
 import { RevenueSection } from './features/revenue/RevenueSection.jsx'
 import { HardCostsSection } from './features/costs/HardCostsSection.jsx'
 import { SoftCostsSection } from './features/costs/SoftCostsSection.jsx'
+import { CashflowBoard } from './features/cashflow/CashflowBoard.jsx'
 import { calculateNetParking, calculateNetRevenue, gpPartners } from './features/revenue/revenueHelpers.js'
+import {
+  buildContributionValues,
+  buildRecurringLineValues,
+  buildCashflowRows,
+  buildExpenseSeries,
+} from './features/cashflow/cashflowHelpers.js'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -27,13 +34,6 @@ const TABS = [
 ]
 
 const CASHFLOW_MONTHS = 60
-
-const clampCashflowMonth = (value) => {
-  if (value === null || value === undefined) return 0
-  const parsed = Number(value)
-  if (Number.isNaN(parsed)) return 0
-  return Math.max(0, Math.min(CASHFLOW_MONTHS - 1, Math.trunc(parsed)))
-}
 
 const defaultGeneralForm = {
   name: '',
@@ -50,22 +50,6 @@ const defaultGeneralForm = {
   targetUnits: '',
   targetSqft: '',
   description: '',
-}
-
-const buildRecurringLineValues = (netAmount, startMonth) => {
-  const startIndex = clampCashflowMonth(startMonth)
-  const values = Array(CASHFLOW_MONTHS).fill(0)
-  for (let idx = startIndex; idx < CASHFLOW_MONTHS; idx += 1) {
-    values[idx] = netAmount
-  }
-  return values
-}
-
-const buildContributionValues = (amount, monthIndex) => {
-  const values = Array(CASHFLOW_MONTHS).fill(0)
-  const index = clampCashflowMonth(monthIndex)
-  values[index] = amount || 0
-  return values
 }
 
 function App() {
@@ -114,12 +98,22 @@ function App() {
     return Math.max(1, Math.min(CASHFLOW_MONTHS, Math.trunc(num)))
   }
 
-  const convertMonthInputToOffset = (value) => clampCashflowMonth(normalizeMonthInputValue(value) - 1)
+  const clampInputToCashflowMonth = (value) => {
+    if (value === null || value === undefined || value === '') return null
+    const parsed = Number(value)
+    if (Number.isNaN(parsed)) return null
+    return Math.min(CASHFLOW_MONTHS - 1, Math.max(0, Math.trunc(parsed)))
+  }
+
+  const convertMonthInputToOffset = (value) => {
+    const normalized = normalizeMonthInputValue(value) - 1
+    return Math.max(0, Math.min(CASHFLOW_MONTHS - 1, normalized))
+  }
 
   const formatOffsetForInput = (offset) => String((offset ?? 0) + 1)
 
   const getCalendarLabelForOffset = (offset) => {
-    const clamped = clampCashflowMonth(offset)
+    const clamped = clampInputToCashflowMonth(offset)
     const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + clamped, 1)
     return date.toLocaleString('default', { month: 'short', year: 'numeric' })
   }
@@ -145,22 +139,12 @@ function App() {
     return value.split('T')[0]
   }
 
-const formatNumberForInput = (value) => (value === null || value === undefined ? '' : String(value))
+  const formatNumberForInput = (value) => (value === null || value === undefined ? '' : String(value))
 
-const parseFloatOrNull = (value) => {
-  if (value === '' || value === null || value === undefined) return null
-  const parsed = Number(value)
-  return Number.isNaN(parsed) ? null : parsed
-}
-
-  const formatCurrencyCell = (value) => {
-    if (!value) return '—'
-    const amount = Number(value)
-    if (!Number.isFinite(amount) || Math.abs(amount) < 0.005) return '—'
-    return `${amount < 0 ? '-' : ''}$${Math.abs(amount).toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })}`
+  const parseFloatOrNull = (value) => {
+    if (value === '' || value === null || value === undefined) return null
+    const parsed = Number(value)
+    return Number.isNaN(parsed) ? null : parsed
   }
 
   const toggleCashflowRow = (rowId) => {
@@ -178,90 +162,6 @@ const parseFloatOrNull = (value) => {
   const apartmentRevenueRows = selectedProject?.revenue || []
   const parkingRevenueRows = selectedProject?.parkingRevenue || []
   const gpContributionRows = selectedProject?.gpContributions || []
-
-  const buildAllocationsForCost = (row) => {
-    const allocations = Array(CASHFLOW_MONTHS).fill(0)
-    const amount = Number(row?.amountUsd) || 0
-    if (!amount) return allocations
-
-    const addShare = (month, share) => {
-      const idx = clampCashflowMonth(month)
-      if (idx === null || !Number.isFinite(share)) return
-      allocations[idx] += share
-    }
-
-    const paymentMode = row.paymentMode || 'single'
-
-    if (paymentMode === 'range') {
-      let start = clampCashflowMonth(row.startMonth ?? row.paymentMonth ?? 0)
-      let end = clampCashflowMonth(row.endMonth ?? row.startMonth ?? start)
-      if (start === null) start = 0
-      if (end === null) end = start
-      if (end < start) {
-        const swap = start
-        start = end
-        end = swap
-      }
-      const span = end - start + 1
-      const share = span > 0 ? amount / span : amount
-      for (let month = start; month <= end; month += 1) {
-        addShare(month, share)
-      }
-      return allocations
-    }
-
-    if (paymentMode === 'multi') {
-      let months = Array.isArray(row.monthList) ? row.monthList : []
-      if (!months.length && (row.paymentMonth ?? '') !== '') {
-        months = [row.paymentMonth]
-      }
-      const normalizedMonths = months
-        .map((entry) => clampCashflowMonth(entry))
-        .filter((entry) => entry !== null)
-      if (!normalizedMonths.length) {
-        addShare(0, amount)
-        return allocations
-      }
-      let pctArray = Array.isArray(row.monthPercentages) ? row.monthPercentages : []
-      pctArray = pctArray.map((value) => Number(value))
-      const hasValidPercents =
-        pctArray.length === normalizedMonths.length && pctArray.every((value) => Number.isFinite(value))
-      if (hasValidPercents) {
-        normalizedMonths.forEach((month, index) => {
-          addShare(month, (amount * pctArray[index]) / 100)
-        })
-      } else {
-        const evenShare = amount / normalizedMonths.length
-        normalizedMonths.forEach((month) => addShare(month, evenShare))
-      }
-      return allocations
-    }
-
-    const month = clampCashflowMonth(row.paymentMonth ?? 0) ?? 0
-    addShare(month, amount)
-    return allocations
-  }
-
-  const buildExpenseSeries = (rows = [], headerLabel) => {
-    const totals = Array(CASHFLOW_MONTHS).fill(0)
-    const lineItems = rows.map((row, index) => {
-      const allocations = buildAllocationsForCost(row)
-      allocations.forEach((value, idx) => {
-        totals[idx] += value
-      })
-      return {
-        id: row.id || `${headerLabel}-${index}`,
-        label: row.costName || `${headerLabel} ${index + 1}`,
-        values: allocations.map((value) => value * -1),
-      }
-    })
-    return {
-      label: headerLabel,
-      type: 'expense',
-      baseValues: totals.map((value) => value * -1),
-      lineItems,
-    }
-  }
 
   const cashflowMonths = useMemo(() => {
     return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
@@ -314,12 +214,12 @@ const parseFloatOrNull = (value) => {
   }, [apartmentRevenueRows, parkingRevenueRows, gpContributionRows])
 
   const softCostSeries = useMemo(
-    () => buildExpenseSeries(selectedProject?.softCosts || [], 'Soft Costs'),
+    () => buildExpenseSeries(selectedProject?.softCosts || [], 'Soft Costs', CASHFLOW_MONTHS),
     [selectedProject],
   )
 
   const hardCostSeries = useMemo(
-    () => buildExpenseSeries(selectedProject?.hardCosts || [], 'Hard Costs'),
+    () => buildExpenseSeries(selectedProject?.hardCosts || [], 'Hard Costs', CASHFLOW_MONTHS),
     [selectedProject],
   )
 
@@ -329,52 +229,13 @@ const parseFloatOrNull = (value) => {
   )
 
   const cashflowRows = useMemo(() => {
-    const buildRow = (id, series) => ({
-      id,
-      label: series.label,
-      type: series.type,
-      values: series.baseValues,
-      subRows: series.lineItems,
+    return buildCashflowRows({
+      months: cashflowMonths,
+      revenueSeries,
+      softCostSeries,
+      hardCostSeries,
+      carryingCostSeries,
     })
-    const totalRowValues = cashflowMonths.map((_, index) => {
-      return (
-        (revenueSeries.baseValues[index] || 0) +
-        (softCostSeries.baseValues[index] || 0) +
-        (hardCostSeries.baseValues[index] || 0) +
-        (carryingCostSeries.baseValues[index] || 0)
-      )
-    })
-    const rows = [
-      buildRow('revenues', revenueSeries),
-      buildRow('soft', softCostSeries),
-      buildRow('hard', hardCostSeries),
-      buildRow('carrying', carryingCostSeries),
-    ]
-
-    rows.push({
-        id: 'total',
-        label: 'Total',
-        type: 'total',
-        values: totalRowValues,
-        subRows: [],
-    })
-
-    const balanceValues = []
-    let runningBalance = 0
-    totalRowValues.forEach((value, idx) => {
-      runningBalance += value || 0
-      balanceValues[idx] = runningBalance
-    })
-
-    rows.push({
-      id: 'balance',
-      label: 'Balance',
-      type: 'total',
-      values: balanceValues,
-      subRows: [],
-    })
-
-    return rows
   }, [cashflowMonths, revenueSeries, softCostSeries, hardCostSeries, carryingCostSeries])
 
   const closingMonthLabel = useMemo(() => {
@@ -934,74 +795,13 @@ const parseFloatOrNull = (value) => {
               )}
 
               {activeTab === 'cashflow' && (
-                <div className="cashflow-tab">
-                  <div className="cashflow-header">
-                    <div>
-                      <h3>Cashflow (60 months)</h3>
-                      <p className="muted tiny">
-                        Starting {closingMonthLabel || 'from the current month'} · revenues + hard/soft costs shown
-                        (carrying coming next)
-                      </p>
-                    </div>
-                  </div>
-                  <div className="table-scroll">
-                    <table className="cashflow-grid">
-                      <thead>
-                        <tr>
-                          <th>Category</th>
-                          {cashflowMonths.map((month) => (
-                            <th key={month.index}>
-                              <div className="month-label">
-                                <span>{month.label}</span>
-                                <span className="month-calendar">{month.calendarLabel}</span>
-                              </div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cashflowRows.map((row) => {
-                          const isExpandable = row.subRows && row.subRows.length > 0
-                          const expanded = isExpandable && expandedCashflowRows.has(row.id)
-                          return (
-                            <Fragment key={row.id}>
-                              <tr className={`cashflow-row ${row.type}`}>
-                                <td>
-                                  {isExpandable ? (
-                                    <button
-                                      type="button"
-                                      className="cashflow-toggle"
-                                      onClick={() => toggleCashflowRow(row.id)}
-                                    >
-                                      <span>{expanded ? '▾' : '▸'}</span>
-                                      {row.label}
-                                    </button>
-                                  ) : (
-                                    row.label
-                                  )}
-                                </td>
-                                {cashflowMonths.map((month) => (
-                                  <td key={`${row.id}-${month.index}`}>{formatCurrencyCell(row.values[month.index])}</td>
-                                ))}
-                              </tr>
-                              {expanded &&
-                                row.subRows.map((subRow) => (
-                                  <tr key={`${row.id}-${subRow.id}`} className="cashflow-row sub cashflow-sub-row">
-                                    <td>{subRow.label}</td>
-                                    {cashflowMonths.map((month) => (
-                                      <td key={`${row.id}-${subRow.id}-${month.index}`}>
-                                        {formatCurrencyCell(subRow.values[month.index])}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))}
-                            </Fragment>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                <CashflowBoard
+                  months={cashflowMonths}
+                  rows={cashflowRows}
+                  closingMonthLabel={closingMonthLabel}
+                  expandedRows={expandedCashflowRows}
+                  onToggleRow={toggleCashflowRow}
+                />
               )}
 
               {activeTab === 'carrying' && (
