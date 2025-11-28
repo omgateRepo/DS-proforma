@@ -1,0 +1,9 @@
+{
+  "name": "ds-proforma",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
+}
+
