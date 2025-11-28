@@ -1,13 +1,41 @@
 import { Fragment } from 'react'
 import { formatCurrencyCell } from './cashflowHelpers.js'
 
+type CashflowMonth = {
+  index: number
+  label: string
+  calendarLabel: string
+}
+
+type CashflowSubRow = {
+  id: string
+  label: string
+  values: number[]
+}
+
+type CashflowRow = {
+  id: string
+  label: string
+  type: 'revenue' | 'expense' | 'total'
+  values: number[]
+  subRows: CashflowSubRow[]
+}
+
+type CashflowBoardProps = {
+  months: CashflowMonth[]
+  rows: CashflowRow[]
+  closingMonthLabel: string | null
+  expandedRows: Set<string>
+  onToggleRow?: (rowId: string) => void
+}
+
 export function CashflowBoard({
   months,
   rows,
   closingMonthLabel,
   expandedRows,
   onToggleRow,
-}) {
+}: CashflowBoardProps) {
   return (
     <div className="cashflow-tab">
       <div className="cashflow-header">

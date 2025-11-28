@@ -7,7 +7,7 @@ last_updated: 2025-11-26
 Operate a single web application that tracks multifamily real-estate deals from sourcing through stabilization. Users can add/delete projects, manage their position on a Kanban board, and capture detailed revenue/cost data for each project.
 
 ## 2. Objectives
-- Centralize every deal with an auditable lifecycle (New → Offer Submitted → In Progress → Stabilized).
+- Centralize every deal with an auditable lifecycle (New → Offer Submitted → Under Contract → In Development → Stabilized).
 - Provide a canonical place to model rent roll assumptions, construction budgets, and carrying costs for each project.
 - Produce a cashflow rollup (budget vs actual) without exporting to spreadsheets.
 
@@ -26,10 +26,11 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
    - Triggered from a global “Add Project” button that opens a modal asking only for the name (keeps the Kanban board uncluttered).  
    - Optional metadata (future): address, target units, notes.
 2. **Kanban board**  
-   - Columns: New, Offer Submitted, In Progress, Stabilized.  
+   - Columns: New, Offer Submitted, Under Contract, In Development, Stabilized.  
    - Cards show name + key stats (units, current rent, total cost).  
    - Drag-and-drop (or dropdown) to change stage; record timestamp in history table.  
    - The Kanban view is dedicated: it shows only the board plus the global “Add Project” button (full-width layout with generous spacing). Selecting a card navigates to the project detail view (no split-pane).
+   - Stage transitions enforce data-completeness gates (documented in §6.1.1) so deals cannot advance without the required General tab information.
 3. **Delete project**  
    - Allowed from any stage; must cascade delete all child records (apartments, costs, cashflow lines).  
    - Soft delete for compliance (mark `deleted_at`) is acceptable if we keep data for reporting.  
@@ -58,6 +59,19 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `sponsor` (future, for LP/GP tracking).
 - Actions: edit inline, save/cancel, upload hero photo (future).
 
+#### 6.1.1 Stage-based validation
+
+- **Project creation (stage = New)**  
+  - Only the `name` is required in the “Add Project” modal.  
+  - All General tab fields remain optional while the project stays in the `New` column.
+- **Moving to Offer Submitted**  
+  - Block the transition unless the following General fields are populated: `address_line1`, `city`, `state`, `zip`, `purchase_price_usd`.
+- **Moving to Under Contract (new third stage)**  
+  - Requires everything from Offer Submitted **plus** `target_units`, `target_sqft`, and `closing_date`.
+- **Moving to In Development or Stabilized**  
+  - No additional fields beyond the Under Contract requirements, but the gate remains enforced (i.e., a project cannot jump ahead unless all fields listed above are filled in).
+- These validations fire both when dragging cards across the Kanban board and when selecting a stage from the detail view dropdown. The UI should surface a clear error message listing the missing fields.
+
 ### 6.2 Revenue Tab
 - Clicking the **Add** button now presents three options:
   1. **Apartment Type** (formerly “unit type”) – multi-unit rents (e.g., 1bd/1bth).
@@ -75,7 +89,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `partner` option (Darmon or Sherman).
   - `amount_usd`.
   - `contribution_month` (single month index when the cash comes in). Contributions only hit the cashflow once.
-- Listing UI is grouped by category (Apartments, Parking, GP Contributions) with per-section totals and the overall monthly revenue summary.
+- Listing UI is grouped by category (Apartments, Parking, GP Contributions) with per-section totals and the overall monthly revenue summary. All revenue modal fields are required before save so cashflow projections are always based on complete input.
 - Cashflow integration:
   - Apartment/Parking lines start at their configured month; before that they contribute zero.
   - GP contributions inject a single-month inflow in the cashflow grid.
@@ -112,7 +126,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - Study Lounge — Per Building
   - Roof Top — Per Building
 - Measurement unit options: Per Square Feet, Per Linear Feet, Per Apartment, Per Building, or `None`. When the measurement unit is not `None`, the modal requires `price_per_unit` and `units_count` and automatically calculates the total amount. When `None` is selected, the user can enter a lump-sum `amount_usd`.
-- Each entry can schedule money exactly like soft costs (single month, range, multi-month with optional % allocation). Totals roll into the cashflow grid immediately.
+- Each entry can schedule money exactly like soft costs (single month, range, multi-month with optional % allocation). Every hard-cost modal field (name, category, measurement fields when applicable, schedule) is required so downstream reports never contain partial data. Totals roll into the cashflow grid immediately.
 - Every month input (single start month, range boundaries, multi-month lists) displays the Month N + calendar month hint in real time, so users don’t have to mentally translate offsets back to the calendar.
 
 ### 6.4 Soft Costs Tab
@@ -121,7 +135,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - **Single month:** enter one integer offset (month index).
   - **Range:** specify start and end month (inclusive). The amount is spread evenly unless custom percentages are provided.
   - **Multiple months:** comma-separated month indexes (e.g., `0,1,2`). When multiple months are chosen, optionally specify the percentage of the total allocated per month (must add up to 100%).
-- These options let finance teams stage retainers, progress draws, or recurring soft costs without juggling separate entries.
+- These options let finance teams stage retainers, progress draws, or recurring soft costs without juggling separate entries, and all inputs in the modal are required to keep the cashflow in sync.
 
 ### 6.5 Carrying Costs Tab
 The Carrying tab now mirrors the Revenue tab’s pattern: a single **Add** menu that lets users pick which cost bucket to add rows under. Supported buckets (MVP):
@@ -130,7 +144,7 @@ The Carrying tab now mirrors the Revenue tab’s pattern: a single **Add** menu 
 2. **Property Tax**
 3. **Management Fees**
 
-Each bucket renders its own table with per-line totals plus a modal for add/edit (consistent UI with other tabs). Delete controls remain hidden (global rule) except within the modal confirmation step.
+Each bucket renders its own table with per-line totals plus a modal for add/edit (consistent UI with other tabs). Delete controls remain hidden (global rule) except within the modal confirmation step. Every carrying-cost modal field is required before save to avoid ambiguous cashflow rows.
 
 #### 6.5.1 Loans
 - **Item Structure**
@@ -198,13 +212,18 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 - Allow manual adjustments (e.g., equity injection).  
 - Export to CSV later.
 
+### 6.7 Shared API Types (`@ds-proforma/types`)
+- The repo now ships a dedicated workspace that exports Zod schemas for every major payload (project create/update, apartment/parking revenue, GP contributions, etc.).
+- The backend uses those schemas to validate incoming JSON before touching Prisma, while the frontend can import the same definitions (or their inferred TypeScript types) to keep forms and API clients aligned.
+- Whenever you introduce a new field or endpoint, update the shared schema first; both client and server should rely on it instead of duplicating validation logic.
+
 ## 7. Data Model
 
 ### 7.1 Entities
 
 | Table | Key Fields | Notes |
 | --- | --- | --- |
-| `projects` | `id (uuid)`, `name`, `stage`, `address_line1`, `city`, `state`, `zip`, `property_type`, `purchase_price_usd`, `target_units`, `target_sqft`, `created_at`, `updated_at`, `deleted_at` | Stage enum: `new`, `offer_submitted`, `in_progress`, `stabilized`. |
+| `projects` | `id (uuid)`, `name`, `stage`, `address_line1`, `city`, `state`, `zip`, `property_type`, `purchase_price_usd`, `target_units`, `target_sqft`, `created_at`, `updated_at`, `deleted_at` | Stage enum: `new`, `offer_submitted`, `under_contract`, `in_development`, `stabilized`. |
 | `project_stage_history` | `id`, `project_id`, `from_stage`, `to_stage`, `changed_by`, `changed_at` | Append-only log for analytics. |
 | `apartment_types` | `id`, `project_id`, `type_label`, `unit_sqft`, `unit_count`, `rent_budget`, `rent_actual` | Revenue tab rows. |
 | `cost_items` | `id`, `project_id`, `category` (`hard`, `soft`, `carrying`), `cost_name`, `amount_usd`, `payment_month`, `start_month`, `end_month`, `carrying_type`, `loan_mode`, `loan_amount_usd`, `loan_term_months`, `interest_rate_pct`, `funding_month`, `repayment_start_month`, `interval_unit` | Carrying rows now track richer attributes per type; hard/soft rows continue to use scheduling + measurement columns documented above. |
@@ -221,7 +240,7 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 {
   "id": "proj_123",
   "name": "Maple Apartments",
-  "stage": "in_progress",
+  "stage": "in_development",
   "revenue": [
     {
       "type_label": "1bd/1bth",
@@ -248,7 +267,7 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 
 ## 8. Open Questions
 1. Do we need multi-tenant support (per investor group)?  
-2. Should stage transitions enforce required data (e.g., must have rent roll before entering In Progress)?  
+2. Should stage transitions enforce required data (e.g., must have rent roll before entering In Development)?  
 3. Cashflow time horizon defaults (36 vs 60 months)?
 
 ## 9. Changelog

@@ -37,26 +37,39 @@ See `.env.example`. Required at minimum:
 - Create a database and update `DATABASE_URL` accordingly.
 
 ### Render
-1. In Render, create a **PostgreSQL** instance (Free tier works for testing).
+1. Create a **PostgreSQL** instance (Free tier works for testing).
 2. Copy the internal connection string (format: `postgres://USER:PASSWORD@HOST:PORT/DB`).
 3. In the backend service settings set:
    - `SKIP_DB=false`
    - `DATABASE_URL=<the connection string>`
    - `FRONTEND_ORIGIN=<your frontend Render URL>`
-4. Redeploy. On boot the app will automatically ensure the `projects` table exists (see below).
-5. The frontend will now receive live data from the database.
+4. On every deploy run `npm run prisma:migrate:deploy` (see below) so Render’s DB stays in sync with your Prisma migrations.
 
-## Migrations / Schema
-The server now runs a lightweight bootstrap on startup (when `SKIP_DB=false`) that:
-1. Enables the `uuid-ossp` extension (if the role has permission).
-2. Creates the `projects` table if it doesn’t exist:
-   ```sql
-   CREATE TABLE IF NOT EXISTS projects (
-     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-     name TEXT NOT NULL,
-     stage TEXT NOT NULL DEFAULT 'new',
-     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-   );
-   ```
-If you prefer to manage schema yourself, simply disable the bootstrap by running your own migrations before starting the server.
+## Prisma Migrations
+The backend now uses Prisma for schema management.
+
+Common commands:
+```bash
+# Pull the DB schema into prisma/schema.prisma
+npx prisma db pull
+
+# Generate the client after changing the schema
+npx prisma generate
+
+# Create & apply a new migration (local dev)
+npx prisma migrate dev --name add_new_column
+
+# Apply existing migrations in prod (Render)
+npx prisma migrate deploy
+```
+
+Workflow:
+1. Edit `prisma/schema.prisma`.
+2. Run `npx prisma migrate dev --name <change>`; commit both the migration SQL + schema.
+3. Deploy; in Render, set a build or postdeploy command to run `npx prisma migrate deploy`.
+4. The app now boots without `ensureSchema`; Prisma migrations are the source of truth.
+
+## Shared Schemas
+- The workspace `@ds-proforma/types` exposes the canonical Zod schemas for API payloads (project create/update, revenue items, GP contributions, etc.).
+- Reuse those schemas when validating `req.body` to keep contracts aligned with the frontend; avoid hand-written validators unless a field is backend-only.
+- As we introduce TypeScript on the client, we can `z.infer` those schemas to derive DTOs automatically instead of duplicating interface definitions.

@@ -26,11 +26,11 @@ See `docs/README.md` for authoring flow and `backend/README.md`, `frontend/READM
 - Backend exposes `/api/weather`, which proxies Open-Meteo to sample the current temperature in Philadelphia.
 - Frontend shows the reading at the top of the page on load, proving the API call path end-to-end.
 
-## Connecting PostgreSQL
+## Connecting PostgreSQL & Prisma
 1. Provision Postgres (Render managed DB or local Docker).
 2. Copy `.env.example` → `.env` inside `backend/` and set:
    - `SKIP_DB=false`
    - `DATABASE_URL=postgres://user:pass@host:port/db`
    - `FRONTEND_ORIGIN=<frontend URL>`
-3. Restart/redeploy the backend; it now auto-creates the `projects` table (and enables `uuid-ossp` if allowed) before serving requests.
-4. Frontend will list real projects stored in the database.
+3. Run migrations locally with `npx prisma migrate dev` (or `npx prisma migrate deploy` in CI/prod).
+4. Redeploy; Prisma keeps the schema in sync, and the frontend will list live projects.

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { FormEvent, Fragment, useMemo, useState } from 'react'
 import { createSoftCost, deleteSoftCost, updateSoftCost } from '../../api.js'
 import {
   buildCostFormFromRow,
@@ -8,6 +8,38 @@ import {
   softCategoryLabel,
   softCostCategories,
 } from './costHelpers.js'
+import type { EntityId, ProjectDetail, SoftCostRow } from '../../types'
+
+type RequestStatus = 'idle' | 'saving' | 'error'
+
+type OffsetFormatter = (offset?: number | null) => string
+type CalendarLabelFormatter = (value: string | number | null | undefined) => string
+type CalendarListFormatter = (value: string | number | null | undefined) => string
+type MonthOffsetConverter = (value: string | number | null | undefined) => number
+
+type SoftCostFormState = {
+  softCategory: string
+  costName: string
+  amountUsd: string
+  paymentMode: 'single' | 'range' | 'multi'
+  paymentMonth: string
+  rangeStartMonth: string
+  rangeEndMonth: string
+  monthsInput: string
+  monthPercentagesInput: string
+}
+
+type SoftCostsSectionProps = {
+  project: ProjectDetail | null
+  projectId: EntityId | null
+  onProjectRefresh?: (projectId: EntityId) => Promise<void>
+  formatOffsetForInput: OffsetFormatter
+  convertMonthInputToOffset: MonthOffsetConverter
+  getCalendarLabelForInput: CalendarLabelFormatter
+  getCalendarLabelsForListInput: CalendarListFormatter
+}
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 export function SoftCostsSection({
   project,
@@ -17,17 +49,17 @@ export function SoftCostsSection({
   convertMonthInputToOffset,
   getCalendarLabelForInput,
   getCalendarLabelsForListInput,
-}) {
-  const [softCostForm, setSoftCostForm] = useState(createDefaultSoftCostForm)
-  const [softCostStatus, setSoftCostStatus] = useState('idle')
+}: SoftCostsSectionProps) {
+  const [softCostForm, setSoftCostForm] = useState<SoftCostFormState>(createDefaultSoftCostForm() as SoftCostFormState)
+  const [softCostStatus, setSoftCostStatus] = useState<RequestStatus>('idle')
   const [softCostModalError, setSoftCostModalError] = useState('')
   const [isSoftCostModalOpen, setIsSoftCostModalOpen] = useState(false)
-  const [editingSoftCostId, setEditingSoftCostId] = useState(null)
-  const [pendingSoftCostDeleteId, setPendingSoftCostDeleteId] = useState(null)
-  const [softCostDeleteStatus, setSoftCostDeleteStatus] = useState('idle')
+  const [editingSoftCostId, setEditingSoftCostId] = useState<EntityId | null>(null)
+  const [pendingSoftCostDeleteId, setPendingSoftCostDeleteId] = useState<EntityId | null>(null)
+  const [softCostDeleteStatus, setSoftCostDeleteStatus] = useState<RequestStatus>('idle')
   const [softCostDeleteError, setSoftCostDeleteError] = useState('')
 
-  const softRows = project?.softCosts || []
+  const softRows: SoftCostRow[] = project?.softCosts ?? []
 
   const totalSoftCosts = useMemo(() => {
     return softRows.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
@@ -41,7 +73,7 @@ export function SoftCostsSection({
   const openSoftCostModal = () => {
     if (!projectId) return
     setSoftCostModalError('')
-    setSoftCostForm(createDefaultSoftCostForm())
+    setSoftCostForm(createDefaultSoftCostForm() as SoftCostFormState)
     setEditingSoftCostId(null)
     setIsSoftCostModalOpen(true)
   }
@@ -51,24 +83,29 @@ export function SoftCostsSection({
     setIsSoftCostModalOpen(false)
     setSoftCostModalError('')
     setEditingSoftCostId(null)
-    setSoftCostForm(createDefaultSoftCostForm())
+    setSoftCostForm(createDefaultSoftCostForm() as SoftCostFormState)
   }
 
-  const startEditSoftCost = (row) => {
+  const startEditSoftCost = (row: SoftCostRow) => {
     setSoftCostModalError('')
     setSoftCostForm(
-      buildCostFormFromRow(row, 'softCategory', softCostCategories[0]?.id || 'other', formatOffsetForInput),
+      buildCostFormFromRow(
+        row,
+        'softCategory',
+        softCostCategories[0]?.id || 'other',
+        formatOffsetForInput,
+      ) as SoftCostFormState,
     )
     setEditingSoftCostId(row.id)
     setIsSoftCostModalOpen(true)
   }
 
-  const handleSoftCostSubmit = async (event) => {
+  const handleSoftCostSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!projectId) return
     setSoftCostStatus('saving')
     setSoftCostModalError('')
-    const payload = buildScheduledCostPayload(softCostForm, 'softCategory', convertMonthInputToOffset)
+    const payload = buildScheduledCostPayload(softCostForm, 'softCategory', convertMonthInputToOffset) as any
 
     try {
       if (editingSoftCostId) {
@@ -81,11 +118,11 @@ export function SoftCostsSection({
       await refreshProject()
     } catch (err) {
       setSoftCostStatus('error')
-      setSoftCostModalError(err.message)
+      setSoftCostModalError(getErrorMessage(err))
     }
   }
 
-  const handleDeleteSoftCost = (costId) => {
+  const handleDeleteSoftCost = (costId: EntityId) => {
     if (!projectId) return
     setSoftCostDeleteError('')
     setPendingSoftCostDeleteId(costId)
@@ -102,7 +139,7 @@ export function SoftCostsSection({
       await refreshProject()
     } catch (err) {
       setSoftCostDeleteStatus('error')
-      setSoftCostDeleteError(err.message)
+      setSoftCostDeleteError(getErrorMessage(err))
     }
   }
 
@@ -242,7 +279,12 @@ export function SoftCostsSection({
                 Payment mode
                 <select
                   value={softCostForm.paymentMode}
-                  onChange={(e) => setSoftCostForm((prev) => ({ ...prev, paymentMode: e.target.value }))}
+                  onChange={(e) =>
+                    setSoftCostForm((prev) => ({
+                      ...prev,
+                      paymentMode: e.target.value as SoftCostFormState['paymentMode'],
+                    }))
+                  }
                   disabled={softCostStatus === 'saving'}
                 >
                   <option value="single">Single month</option>

@@ -1,3 +1,5 @@
+import { apartmentRevenueInputSchema, parkingRevenueInputSchema, gpContributionInputSchema } from '@ds-proforma/types'
+
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 const baseUrl = (API_BASE || '').replace(/\/$/, '')
@@ -23,7 +25,8 @@ export function stageLabels() {
   return [
     { id: 'new', label: 'New' },
     { id: 'offer_submitted', label: 'Offer Submitted' },
-    { id: 'in_progress', label: 'In Progress' },
+    { id: 'under_contract', label: 'Under Contract' },
+    { id: 'in_development', label: 'In Development' },
     { id: 'stabilized', label: 'Stabilized' },
   ]
 }
@@ -77,10 +80,11 @@ export async function updateProjectStage(id, stage) {
 }
 
 export async function createRevenueItem(projectId, payload) {
+  const parsed = apartmentRevenueInputSchema.parse(payload)
   const res = await fetch(`${baseUrl}/api/projects/${projectId}/revenue`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(parsed),
   })
   return handleJsonResponse(res, 'Failed to add revenue item')
 }
@@ -177,10 +181,11 @@ export async function deleteCarryingCost(projectId, costId) {
 }
 
 export async function createParkingRevenue(projectId, payload) {
+  const parsed = parkingRevenueInputSchema.parse(payload)
   const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(parsed),
   })
   return handleJsonResponse(res, 'Failed to add parking revenue')
 }
@@ -202,19 +207,21 @@ export async function deleteParkingRevenue(projectId, parkingId) {
 }
 
 export async function createGpContribution(projectId, payload) {
+  const parsed = gpContributionInputSchema.parse(payload)
   const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(parsed),
   })
   return handleJsonResponse(res, 'Failed to add GP contribution')
 }
 
 export async function updateGpContribution(projectId, contributionId, payload) {
+  const parsed = gpContributionInputSchema.partial().parse(payload)
   const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions/${contributionId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(parsed),
   })
   return handleJsonResponse(res, 'Failed to update GP contribution')
 }

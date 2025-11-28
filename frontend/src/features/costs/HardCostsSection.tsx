@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { FormEvent, Fragment, useMemo, useState } from 'react'
 import { createHardCost, deleteHardCost, updateHardCost } from '../../api.js'
 import {
   buildCostFormFromRow,
@@ -13,6 +13,41 @@ import {
   recomputeHardCostAmount,
   requiresMeasurementDetails,
 } from './costHelpers.js'
+import type { EntityId, HardCostRow, ProjectDetail } from '../../types'
+
+type RequestStatus = 'idle' | 'saving' | 'error'
+
+type OffsetFormatter = (offset?: number | null) => string
+type CalendarLabelFormatter = (value: string | number | null | undefined) => string
+type CalendarListFormatter = (value: string | number | null | undefined) => string
+type MonthOffsetConverter = (value: string | number | null | undefined) => number
+
+type HardCostFormState = {
+  hardCategory: string
+  measurementUnit: 'none' | 'sqft' | 'linear_feet' | 'apartment' | 'building'
+  costName: string
+  amountUsd: string
+  pricePerUnit: string
+  unitsCount: string
+  paymentMode: 'single' | 'range' | 'multi'
+  paymentMonth: string
+  rangeStartMonth: string
+  rangeEndMonth: string
+  monthsInput: string
+  monthPercentagesInput: string
+}
+
+type HardCostsSectionProps = {
+  project: ProjectDetail | null
+  projectId: EntityId | null
+  onProjectRefresh?: (projectId: EntityId) => Promise<void>
+  formatOffsetForInput: OffsetFormatter
+  convertMonthInputToOffset: MonthOffsetConverter
+  getCalendarLabelForInput: CalendarLabelFormatter
+  getCalendarLabelsForListInput: CalendarListFormatter
+}
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 export function HardCostsSection({
   project,
@@ -22,17 +57,17 @@ export function HardCostsSection({
   convertMonthInputToOffset,
   getCalendarLabelForInput,
   getCalendarLabelsForListInput,
-}) {
-  const [hardCostForm, setHardCostForm] = useState(createDefaultHardCostForm)
-  const [hardCostStatus, setHardCostStatus] = useState('idle')
+}: HardCostsSectionProps) {
+  const [hardCostForm, setHardCostForm] = useState<HardCostFormState>(createDefaultHardCostForm() as HardCostFormState)
+  const [hardCostStatus, setHardCostStatus] = useState<RequestStatus>('idle')
   const [hardCostModalError, setHardCostModalError] = useState('')
   const [isHardCostModalOpen, setIsHardCostModalOpen] = useState(false)
-  const [editingHardCostId, setEditingHardCostId] = useState(null)
-  const [pendingHardCostDeleteId, setPendingHardCostDeleteId] = useState(null)
-  const [hardCostDeleteStatus, setHardCostDeleteStatus] = useState('idle')
+  const [editingHardCostId, setEditingHardCostId] = useState<EntityId | null>(null)
+  const [pendingHardCostDeleteId, setPendingHardCostDeleteId] = useState<EntityId | null>(null)
+  const [hardCostDeleteStatus, setHardCostDeleteStatus] = useState<RequestStatus>('idle')
   const [hardCostDeleteError, setHardCostDeleteError] = useState('')
 
-  const hardRows = project?.hardCosts || []
+  const hardRows: HardCostRow[] = project?.hardCosts ?? []
 
   const totalHardCosts = useMemo(() => {
     return hardRows.reduce((sum, row) => sum + (row.amountUsd || 0), 0)
@@ -46,7 +81,7 @@ export function HardCostsSection({
   const openHardCostModal = () => {
     if (!projectId) return
     setHardCostModalError('')
-    setHardCostForm(createDefaultHardCostForm())
+    setHardCostForm(createDefaultHardCostForm() as HardCostFormState)
     setEditingHardCostId(null)
     setIsHardCostModalOpen(true)
   }
@@ -56,10 +91,10 @@ export function HardCostsSection({
     setIsHardCostModalOpen(false)
     setHardCostModalError('')
     setEditingHardCostId(null)
-    setHardCostForm(createDefaultHardCostForm())
+    setHardCostForm(createDefaultHardCostForm() as HardCostFormState)
   }
 
-  const startEditHardCost = (row) => {
+  const startEditHardCost = (row: HardCostRow) => {
     setHardCostModalError('')
     const form = buildCostFormFromRow(
       row,
@@ -70,13 +105,13 @@ export function HardCostsSection({
         includeMeasurement: true,
         defaultMeasurement: getDefaultMeasurementForCategory(row.costGroup || hardCostCategories[0]?.id || 'structure'),
       },
-    )
-    setHardCostForm(recomputeHardCostAmount(form))
+    ) as HardCostFormState
+    setHardCostForm(recomputeHardCostAmount(form) as HardCostFormState)
     setEditingHardCostId(row.id)
     setIsHardCostModalOpen(true)
   }
 
-  const handleHardCategoryChange = (value) => {
+  const handleHardCategoryChange = (value: string) => {
     setHardCostForm((prev) => {
       const measurementUnit = getDefaultMeasurementForCategory(value)
       const next = {
@@ -92,11 +127,11 @@ export function HardCostsSection({
         next.pricePerUnit = ''
         next.unitsCount = ''
       }
-      return recomputeHardCostAmount(next)
+      return recomputeHardCostAmount(next) as HardCostFormState
     })
   }
 
-  const handleHardMeasurementChange = (value) => {
+  const handleHardMeasurementChange = (value: HardCostFormState['measurementUnit']) => {
     setHardCostForm((prev) => {
       const next = {
         ...prev,
@@ -110,11 +145,11 @@ export function HardCostsSection({
         next.pricePerUnit = ''
         next.unitsCount = ''
       }
-      return recomputeHardCostAmount(next)
+      return recomputeHardCostAmount(next) as HardCostFormState
     })
   }
 
-  const handleHardCostSubmit = async (event) => {
+  const handleHardCostSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!projectId) return
     setHardCostStatus('saving')
@@ -133,7 +168,7 @@ export function HardCostsSection({
       return
     }
 
-    const payload = buildScheduledCostPayload(hardCostForm, 'hardCategory', convertMonthInputToOffset)
+    const payload = buildScheduledCostPayload(hardCostForm, 'hardCategory', convertMonthInputToOffset) as any
     payload.measurementUnit = hardCostForm.measurementUnit
 
     if (needsUnits) {
@@ -157,11 +192,11 @@ export function HardCostsSection({
       await refreshProject()
     } catch (err) {
       setHardCostStatus('error')
-      setHardCostModalError(err.message)
+      setHardCostModalError(getErrorMessage(err))
     }
   }
 
-  const handleDeleteHardCost = (costId) => {
+  const handleDeleteHardCost = (costId: EntityId) => {
     if (!projectId) return
     setHardCostDeleteError('')
     setPendingHardCostDeleteId(costId)
@@ -178,7 +213,7 @@ export function HardCostsSection({
       await refreshProject()
     } catch (err) {
       setHardCostDeleteStatus('error')
-      setHardCostDeleteError(err.message)
+      setHardCostDeleteError(getErrorMessage(err))
     }
   }
 
@@ -352,7 +387,7 @@ export function HardCostsSection({
                 Measurement unit
                 <select
                   value={hardCostForm.measurementUnit}
-                  onChange={(e) => handleHardMeasurementChange(e.target.value)}
+                  onChange={(e) => handleHardMeasurementChange(e.target.value as HardCostFormState['measurementUnit'])}
                   disabled={hardCostStatus === 'saving'}
                 >
                   {measurementUnitOptions.map((option) => (
@@ -366,7 +401,12 @@ export function HardCostsSection({
                 Payment mode
                 <select
                   value={hardCostForm.paymentMode}
-                  onChange={(e) => setHardCostForm((prev) => ({ ...prev, paymentMode: e.target.value }))}
+                  onChange={(e) =>
+                    setHardCostForm((prev) => ({
+                      ...prev,
+                      paymentMode: e.target.value as HardCostFormState['paymentMode'],
+                    }))
+                  }
                   disabled={hardCostStatus === 'saving'}
                 >
                   <option value="single">Single month</option>

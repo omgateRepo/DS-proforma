@@ -3,11 +3,13 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "allowJs": true,
+    "checkJs": false,
     "noEmit": true,
     "isolatedModules": true,
+    "moduleResolution": "bundler",
     "types": ["vite/client"]
   },
-  "include": ["src", "vite.config.js"],
+  "include": ["src", "vite.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
 

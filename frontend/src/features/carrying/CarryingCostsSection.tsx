@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createCarryingCost, deleteCarryingCost, updateCarryingCost } from '../../api.js'
 import {
   buildLoanFormFromRow,
@@ -14,8 +14,42 @@ import {
   loanModeLabels,
   loanModeOptions,
 } from './carryingHelpers.js'
+import type { CarryingCostRow, CarryingType, EntityId, IntervalUnit, LoanMode, ProjectDetail } from '../../types'
 
-const toNumberOrNull = (value) => {
+type RequestStatus = 'idle' | 'saving' | 'error'
+
+type OffsetFormatter = (offset?: number | null) => string
+type MonthOffsetConverter = (value: string | number | null | undefined) => number
+type CalendarLabelFormatter = (value: string | number | null | undefined) => string
+
+type LoanFormState = {
+  costName: string
+  loanMode: LoanMode
+  loanAmountUsd: string
+  interestRatePct: string
+  loanTermMonths: string
+  fundingMonth: string
+  repaymentStartMonth: string
+}
+
+type RecurringFormState = {
+  costName: string
+  amountUsd: string
+  intervalUnit: IntervalUnit
+  startMonth: string
+  endMonth: string
+}
+
+type CarryingCostsSectionProps = {
+  project: ProjectDetail | null
+  projectId: EntityId | null
+  onProjectRefresh?: (projectId: EntityId) => Promise<void>
+  formatOffsetForInput: OffsetFormatter
+  convertMonthInputToOffset: MonthOffsetConverter
+  getCalendarLabelForInput: CalendarLabelFormatter
+}
+
+const toNumberOrNull = (value: string | number | null | undefined) => {
   if (value === null || value === undefined) return null
   const trimmed = String(value).trim()
   if (!trimmed) return null
@@ -24,6 +58,10 @@ const toNumberOrNull = (value) => {
   return parsed
 }
 
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const loanLabelMap = loanModeLabels as Record<LoanMode, string>
+const intervalLabelMap = intervalLabels as Record<IntervalUnit, string>
+
 export function CarryingCostsSection({
   project,
   projectId,
@@ -31,31 +69,37 @@ export function CarryingCostsSection({
   formatOffsetForInput,
   convertMonthInputToOffset,
   getCalendarLabelForInput,
-}) {
+}: CarryingCostsSectionProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [activeModal, setActiveModal] = useState(null)
+  const [activeModal, setActiveModal] = useState<CarryingType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [loanForm, setLoanForm] = useState(createDefaultLoanForm)
-  const [propertyForm, setPropertyForm] = useState(() => createDefaultRecurringForm('property_tax'))
-  const [managementForm, setManagementForm] = useState(() => createDefaultRecurringForm('management'))
-  const [editingId, setEditingId] = useState(null)
-  const [status, setStatus] = useState('idle')
+  const [loanForm, setLoanForm] = useState<LoanFormState>(createDefaultLoanForm() as LoanFormState)
+  const [propertyForm, setPropertyForm] = useState<RecurringFormState>(
+    () => createDefaultRecurringForm('property_tax') as RecurringFormState,
+  )
+  const [managementForm, setManagementForm] = useState<RecurringFormState>(
+    () => createDefaultRecurringForm('management') as RecurringFormState,
+  )
+  const [editingId, setEditingId] = useState<EntityId | null>(null)
+  const [status, setStatus] = useState<RequestStatus>('idle')
   const [modalError, setModalError] = useState('')
-  const [pendingDelete, setPendingDelete] = useState(null)
-  const [deleteStatus, setDeleteStatus] = useState('idle')
+  const [pendingDelete, setPendingDelete] = useState<CarryingCostRow | null>(null)
+  const [deleteStatus, setDeleteStatus] = useState<RequestStatus>('idle')
   const [deleteError, setDeleteError] = useState('')
-  const addMenuRef = useRef(null)
+  const addMenuRef = useRef<HTMLDivElement | null>(null)
 
-  const carryingRows = project?.carryingCosts || []
-  const loanRows = useMemo(() => carryingRows.filter((row) => row.carryingType === 'loan'), [carryingRows])
-  const propertyRows = useMemo(
-    () => carryingRows.filter((row) => row.carryingType === 'property_tax'),
-    [carryingRows],
-  )
-  const managementRows = useMemo(
-    () => carryingRows.filter((row) => row.carryingType === 'management'),
-    [carryingRows],
-  )
+  const carryingRows: CarryingCostRow[] = project?.carryingCosts ?? []
+
+  const isLoanRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'loan' } =>
+    row.carryingType === 'loan'
+  const isPropertyRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'property_tax' } =>
+    row.carryingType === 'property_tax'
+  const isManagementRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'management' } =>
+    row.carryingType === 'management'
+
+  const loanRows = useMemo(() => carryingRows.filter(isLoanRow), [carryingRows])
+  const propertyRows = useMemo(() => carryingRows.filter(isPropertyRow), [carryingRows])
+  const managementRows = useMemo(() => carryingRows.filter(isManagementRow), [carryingRows])
 
   const totalMonthlyLoans = useMemo(() => {
     return loanRows.reduce((sum, row) => sum + Math.max(calculateLoanPreview(row).monthlyPayment || 0, 0), 0)
@@ -68,9 +112,9 @@ export function CarryingCostsSection({
   const totalMonthlyCarrying = totalMonthlyLoans + totalMonthlyRecurring
 
   const resetForms = useCallback(() => {
-    setLoanForm(createDefaultLoanForm())
-    setPropertyForm(createDefaultRecurringForm('property_tax'))
-    setManagementForm(createDefaultRecurringForm('management'))
+    setLoanForm(createDefaultLoanForm() as LoanFormState)
+    setPropertyForm(createDefaultRecurringForm('property_tax') as RecurringFormState)
+    setManagementForm(createDefaultRecurringForm('management') as RecurringFormState)
     setEditingId(null)
     setModalError('')
     setStatus('idle')
@@ -78,9 +122,9 @@ export function CarryingCostsSection({
 
   useEffect(() => {
     if (!menuOpen) return
-    const handleClick = (event) => {
+    const handleClick = (event: MouseEvent) => {
       if (!addMenuRef.current) return
-      if (addMenuRef.current.contains(event.target)) return
+      if (event.target instanceof Node && addMenuRef.current.contains(event.target)) return
       setMenuOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
@@ -110,17 +154,29 @@ export function CarryingCostsSection({
     await onProjectRefresh(projectId)
   }
 
-  const openModal = (type, row = null) => {
+  const openModal = (type: CarryingType, row: CarryingCostRow | null = null) => {
     setActiveModal(type)
     setIsModalOpen(true)
     setModalError('')
     setStatus('idle')
     if (type === 'loan') {
-      setLoanForm(row ? buildLoanFormFromRow(row, formatOffsetForInput) : createDefaultLoanForm())
+      setLoanForm(
+        row
+          ? (buildLoanFormFromRow(row, formatOffsetForInput) as LoanFormState)
+          : (createDefaultLoanForm() as LoanFormState),
+      )
     } else if (type === 'property_tax') {
-      setPropertyForm(row ? buildRecurringFormFromRow(row, formatOffsetForInput) : createDefaultRecurringForm('property_tax'))
+      setPropertyForm(
+        row
+          ? (buildRecurringFormFromRow(row, formatOffsetForInput) as RecurringFormState)
+          : (createDefaultRecurringForm('property_tax') as RecurringFormState),
+      )
     } else {
-      setManagementForm(row ? buildRecurringFormFromRow(row, formatOffsetForInput) : createDefaultRecurringForm('management'))
+      setManagementForm(
+        row
+          ? (buildRecurringFormFromRow(row, formatOffsetForInput) as RecurringFormState)
+          : (createDefaultRecurringForm('management') as RecurringFormState),
+      )
     }
     setEditingId(row?.id || null)
   }
@@ -132,7 +188,7 @@ export function CarryingCostsSection({
     resetForms()
   }
 
-  const requireMonth = (value, message) => {
+  const requireMonth = (value: string, message: string) => {
     if (!value) throw new Error(message)
     return convertMonthInputToOffset(value)
   }
@@ -165,7 +221,7 @@ export function CarryingCostsSection({
     }
   }
 
-  const buildRecurringPayload = (type) => {
+  const buildRecurringPayload = (type: CarryingType) => {
     const form = type === 'property_tax' ? propertyForm : managementForm
     const amount = toNumberOrNull(form.amountUsd)
     if (amount === null) throw new Error('Amount is required.')
@@ -184,7 +240,7 @@ export function CarryingCostsSection({
     return payload
   }
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!projectId || !activeModal) return
     setStatus('saving')
@@ -204,11 +260,11 @@ export function CarryingCostsSection({
       resetForms()
     } catch (err) {
       setStatus('error')
-      setModalError(err.message)
+      setModalError(getErrorMessage(err))
     }
   }
 
-  const handleDelete = (row) => {
+  const handleDelete = (row: CarryingCostRow) => {
     setPendingDelete(row)
     setDeleteError('')
     setDeleteStatus('idle')
@@ -225,7 +281,7 @@ export function CarryingCostsSection({
       setDeleteStatus('idle')
     } catch (err) {
       setDeleteStatus('error')
-      setDeleteError(err.message)
+      setDeleteError(getErrorMessage(err))
     }
   }
 
@@ -235,16 +291,21 @@ export function CarryingCostsSection({
     setDeleteError('')
   }
 
-  const startEdit = (row) => {
+  const startEdit = (row: CarryingCostRow) => {
     openModal(row.carryingType, row)
   }
 
-  const formatMonthDisplay = (offset) => (
-    <div className="month-label">
-      <span>{`Month ${formatOffsetForInput(offset ?? 0)}`}</span>
-      <span className="month-calendar">{getCalendarLabelForInput(formatOffsetForInput(offset ?? 0))}</span>
-    </div>
-  )
+  const formatMonthDisplay = (offset?: number | null) => {
+    const normalized = offset ?? 0
+    const monthLabel = formatOffsetForInput(normalized)
+    const calendarHint = getCalendarLabelForInput(normalized)
+    return (
+      <div className="month-label">
+        <span>{`Month ${monthLabel}`}</span>
+        <span className="month-calendar">{calendarHint}</span>
+      </div>
+    )
+  }
 
   const renderLoanTable = () => (
     <section className="carrying-section">
@@ -278,7 +339,7 @@ export function CarryingCostsSection({
               return (
                 <tr key={row.id}>
                   <td>{row.costName || 'Loan'}</td>
-                  <td>{loanModeLabels[row.loanMode] || row.loanMode || '—'}</td>
+                  <td>{row.loanMode ? loanLabelMap[row.loanMode] || row.loanMode : '—'}</td>
                   <td>{row.loanAmountUsd ? `$${row.loanAmountUsd.toLocaleString()}` : '—'}</td>
                   <td>{row.interestRatePct ? `${row.interestRatePct}%` : '—'}</td>
                   <td>{row.loanTermMonths || '—'}</td>
@@ -304,7 +365,7 @@ export function CarryingCostsSection({
     </section>
   )
 
-  const renderRecurringTable = (rows, title) => (
+  const renderRecurringTable = (rows: CarryingCostRow[], title: string) => (
     <section className="carrying-section">
       <div className="section-header">
         <h4>{title}</h4>
@@ -328,11 +389,13 @@ export function CarryingCostsSection({
                 <td colSpan={6}>No items yet.</td>
               </tr>
             )}
-            {rows.map((row) => (
+            {rows.map((row) => {
+              const intervalLabel = row.intervalUnit ? intervalLabelMap[row.intervalUnit] : null
+              return (
               <tr key={row.id}>
                 <td>{row.costName || title}</td>
                 <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
-                <td>{intervalLabels[row.intervalUnit] || row.intervalUnit || '—'}</td>
+                  <td>{intervalLabel || row.intervalUnit || '—'}</td>
                 <td>{formatMonthDisplay(row.startMonth)}</td>
                 <td>{row.endMonth !== null && row.endMonth !== undefined ? formatMonthDisplay(row.endMonth) : 'Ongoing'}</td>
                 <td>
@@ -346,7 +409,8 @@ export function CarryingCostsSection({
                   </div>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -363,7 +427,10 @@ export function CarryingCostsSection({
           </label>
           <label>
             Loan Type
-            <select value={loanForm.loanMode} onChange={(e) => setLoanForm((prev) => ({ ...prev, loanMode: e.target.value }))}>
+            <select
+              value={loanForm.loanMode}
+              onChange={(e) => setLoanForm((prev) => ({ ...prev, loanMode: e.target.value as LoanMode }))}
+            >
               {loanModeOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -439,7 +506,10 @@ export function CarryingCostsSection({
         </label>
         <label>
           Interval
-          <select value={form.intervalUnit} onChange={(e) => setter((prev) => ({ ...prev, intervalUnit: e.target.value }))}>
+          <select
+            value={form.intervalUnit}
+            onChange={(e) => setter((prev) => ({ ...prev, intervalUnit: e.target.value as IntervalUnit }))}
+          >
             {intervalUnitOptions.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.label}
@@ -488,7 +558,7 @@ export function CarryingCostsSection({
                     key={option.id}
                     onClick={() => {
                       setMenuOpen(false)
-                      openModal(option.id)
+                      openModal(option.id as CarryingType)
                     }}
                   >
                     {option.label}

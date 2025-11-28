@@ -1,3 +1,24 @@
+import type { FormEventHandler } from 'react'
+import type { AddressSuggestion, GeneralFormState } from '../../types'
+
+type SelectedCoords = { lat: number; lon: number } | null
+
+type GeneralTabProps = {
+  form: GeneralFormState
+  generalStatus: 'idle' | 'saving' | 'error'
+  onSubmit: FormEventHandler<HTMLFormElement>
+  onFieldChange: (field: keyof GeneralFormState, value: string) => void
+  addressQuery: string
+  onAddressQueryChange: (value: string) => void
+  addressSuggestions: AddressSuggestion[]
+  addressSearchStatus: 'idle' | 'loading' | 'loaded' | 'error'
+  addressSearchError: string
+  onAddressInputFocus: () => void
+  onAddressSelect: (suggestion: AddressSuggestion) => void
+  selectedCoords: SelectedCoords
+  apiOrigin: string
+}
+
 export function GeneralTab({
   form,
   generalStatus,
@@ -12,7 +33,7 @@ export function GeneralTab({
   onAddressSelect,
   selectedCoords,
   apiOrigin,
-}) {
+}: GeneralTabProps) {
   return (
     <form className="general-form" onSubmit={onSubmit}>
       <div className="form-grid">

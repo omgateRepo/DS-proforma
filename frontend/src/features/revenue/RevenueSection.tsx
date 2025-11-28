@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  apartmentRevenueInputSchema,
+  parkingRevenueInputSchema,
+  gpContributionInputSchema,
+  formatZodErrors,
+} from '@ds-proforma/types'
 import {
   createGpContribution,
   createParkingRevenue,
@@ -11,8 +17,70 @@ import {
   updateRevenueItem,
 } from '../../api.js'
 import { calculateNetParking, calculateNetRevenue, gpPartners } from './revenueHelpers.js'
+import type {
+  ApartmentRevenueRow,
+  CarryingCostRow,
+  EntityId,
+  GpContributionRow,
+  ParkingRevenueRow,
+  ProjectDetail,
+} from '../../types'
+type RequestStatus = 'idle' | 'saving' | 'error'
+type RevenueModalType = 'apartment' | 'parking' | 'gp'
 
-const createDefaultRevenueForm = () => ({
+type OffsetFormatter = (offset?: number | null) => string
+type CalendarLabelFormatter = (offset: number) => string
+type CalendarInputFormatter = (value: string | number | null | undefined) => string
+type MonthInputConverter = (value: string | number | null | undefined) => number
+
+type RevenueProjectSlice = Pick<ProjectDetail, 'id' | 'revenue' | 'parkingRevenue' | 'gpContributions'>
+
+type RevenueSectionProps = {
+  project: RevenueProjectSlice | null
+  projectId: EntityId | null
+  onProjectRefresh?: (projectId: EntityId) => Promise<void>
+  formatOffsetForInput: OffsetFormatter
+  getCalendarLabelForOffset: CalendarLabelFormatter
+  getCalendarLabelForInput: CalendarInputFormatter
+  convertMonthInputToOffset: MonthInputConverter
+}
+
+type ApartmentFormState = {
+  typeLabel: string
+  unitSqft: string
+  unitCount: string
+  rentBudget: string
+  vacancyPct: string
+  startMonth: string
+}
+
+type ParkingFormState = {
+  typeLabel: string
+  spaceCount: string
+  monthlyRentUsd: string
+  vacancyPct: string
+  startMonth: string
+}
+
+type GpContributionFormState = {
+  partner: string
+  amountUsd: string
+  contributionMonth: string
+}
+
+const parseOptionalNumber = (value: string) => {
+  if (value.trim() === '') return null
+  return Number(value)
+}
+
+const parseNumberWithDefault = (value: string, fallback: number) => {
+  if (value.trim() === '') return fallback
+  return Number(value)
+}
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+const createDefaultRevenueForm = (): ApartmentFormState => ({
   typeLabel: '',
   unitSqft: '',
   unitCount: '',
@@ -21,7 +89,7 @@ const createDefaultRevenueForm = () => ({
   startMonth: '1',
 })
 
-const createDefaultParkingForm = () => ({
+const createDefaultParkingForm = (): ParkingFormState => ({
   typeLabel: '',
   spaceCount: '',
   monthlyRentUsd: '',
@@ -29,7 +97,7 @@ const createDefaultParkingForm = () => ({
   startMonth: '1',
 })
 
-const createDefaultGpForm = () => ({
+const createDefaultGpForm = (): GpContributionFormState => ({
   partner: gpPartners[0].id,
   amountUsd: '',
   contributionMonth: '1',
@@ -43,30 +111,30 @@ export function RevenueSection({
   getCalendarLabelForOffset,
   getCalendarLabelForInput,
   convertMonthInputToOffset,
-}) {
-  const [revenueModalType, setRevenueModalType] = useState('apartment')
+}: RevenueSectionProps) {
+  const [revenueModalType, setRevenueModalType] = useState<RevenueModalType>('apartment')
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
   const [revenueModalError, setRevenueModalError] = useState('')
-  const [revenueStatus, setRevenueStatus] = useState('idle')
-  const [revenueForm, setRevenueForm] = useState(createDefaultRevenueForm)
-  const [parkingForm, setParkingForm] = useState(createDefaultParkingForm)
-  const [gpContributionForm, setGpContributionForm] = useState(createDefaultGpForm)
-  const [editingRevenueId, setEditingRevenueId] = useState(null)
-  const [editingParkingId, setEditingParkingId] = useState(null)
-  const [editingGpId, setEditingGpId] = useState(null)
-  const [pendingRevenueDeleteId, setPendingRevenueDeleteId] = useState(null)
-  const [pendingParkingDeleteId, setPendingParkingDeleteId] = useState(null)
-  const [pendingGpDeleteId, setPendingGpDeleteId] = useState(null)
-  const [parkingDeleteStatus, setParkingDeleteStatus] = useState('idle')
+  const [revenueStatus, setRevenueStatus] = useState<RequestStatus>('idle')
+  const [revenueForm, setRevenueForm] = useState<ApartmentFormState>(() => createDefaultRevenueForm())
+  const [parkingForm, setParkingForm] = useState<ParkingFormState>(() => createDefaultParkingForm())
+  const [gpContributionForm, setGpContributionForm] = useState<GpContributionFormState>(() => createDefaultGpForm())
+  const [editingRevenueId, setEditingRevenueId] = useState<EntityId | null>(null)
+  const [editingParkingId, setEditingParkingId] = useState<EntityId | null>(null)
+  const [editingGpId, setEditingGpId] = useState<EntityId | null>(null)
+  const [pendingRevenueDeleteId, setPendingRevenueDeleteId] = useState<EntityId | null>(null)
+  const [pendingParkingDeleteId, setPendingParkingDeleteId] = useState<EntityId | null>(null)
+  const [pendingGpDeleteId, setPendingGpDeleteId] = useState<EntityId | null>(null)
+  const [parkingDeleteStatus, setParkingDeleteStatus] = useState<RequestStatus>('idle')
   const [parkingDeleteError, setParkingDeleteError] = useState('')
-  const [gpDeleteStatus, setGpDeleteStatus] = useState('idle')
+  const [gpDeleteStatus, setGpDeleteStatus] = useState<RequestStatus>('idle')
   const [gpDeleteError, setGpDeleteError] = useState('')
   const [revenueMenuOpen, setRevenueMenuOpen] = useState(false)
-  const revenueMenuRef = useRef(null)
+  const revenueMenuRef = useRef<HTMLDivElement | null>(null)
 
-  const apartmentRows = project?.revenue || []
-  const parkingRows = project?.parkingRevenue || []
-  const gpRows = project?.gpContributions || []
+  const apartmentRows: ApartmentRevenueRow[] = project?.revenue ?? []
+  const parkingRows: ParkingRevenueRow[] = project?.parkingRevenue ?? []
+  const gpRows: GpContributionRow[] = project?.gpContributions ?? []
 
   const isEditingApartment = Boolean(editingRevenueId)
   const isEditingParking = Boolean(editingParkingId)
@@ -90,9 +158,9 @@ export function RevenueSection({
 
   useEffect(() => {
     if (!revenueMenuOpen) return
-    const handleClick = (event) => {
+    const handleClick = (event: MouseEvent) => {
       if (!revenueMenuRef.current) return
-      if (revenueMenuRef.current.contains(event.target)) return
+      if (event.target instanceof Node && revenueMenuRef.current.contains(event.target)) return
       setRevenueMenuOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
@@ -111,7 +179,7 @@ export function RevenueSection({
     setGpDeleteStatus('idle')
   }, [projectId, resetRevenueForms])
 
-  const openRevenueModal = (type) => {
+  const openRevenueModal = (type: RevenueModalType) => {
     if (!projectId) return
     setRevenueModalError('')
     resetRevenueForms()
@@ -127,7 +195,7 @@ export function RevenueSection({
     resetRevenueForms()
   }
 
-  const startEditApartment = (row) => {
+  const startEditApartment = (row: ApartmentRevenueRow) => {
     setRevenueModalError('')
     setRevenueForm({
       typeLabel: row.typeLabel || '',
@@ -144,7 +212,7 @@ export function RevenueSection({
     setIsRevenueModalOpen(true)
   }
 
-  const startEditParking = (row) => {
+  const startEditParking = (row: ParkingRevenueRow) => {
     setRevenueModalError('')
     setParkingForm({
       typeLabel: row.typeLabel || '',
@@ -161,7 +229,7 @@ export function RevenueSection({
     setIsRevenueModalOpen(true)
   }
 
-  const startEditGpContribution = (row) => {
+  const startEditGpContribution = (row: GpContributionRow) => {
     setRevenueModalError('')
     setGpContributionForm({
       partner: row.partner || gpPartners[0].id,
@@ -176,25 +244,25 @@ export function RevenueSection({
   }
 
   const buildApartmentPayload = () => ({
-    typeLabel: revenueForm.typeLabel,
-    unitSqft: revenueForm.unitSqft ? Number(revenueForm.unitSqft) : null,
-    unitCount: revenueForm.unitCount ? Number(revenueForm.unitCount) : null,
-    rentBudget: revenueForm.rentBudget ? Number(revenueForm.rentBudget) : null,
-    vacancyPct: revenueForm.vacancyPct ? Number(revenueForm.vacancyPct) : 5,
+    typeLabel: revenueForm.typeLabel.trim(),
+    unitSqft: parseOptionalNumber(revenueForm.unitSqft),
+    unitCount: parseOptionalNumber(revenueForm.unitCount),
+    rentBudget: parseOptionalNumber(revenueForm.rentBudget),
+    vacancyPct: parseNumberWithDefault(revenueForm.vacancyPct, 5),
     startMonth: convertMonthInputToOffset(revenueForm.startMonth),
   })
 
   const buildParkingPayload = () => ({
-    typeLabel: parkingForm.typeLabel,
-    spaceCount: parkingForm.spaceCount ? Number(parkingForm.spaceCount) : null,
-    monthlyRentUsd: parkingForm.monthlyRentUsd ? Number(parkingForm.monthlyRentUsd) : null,
-    vacancyPct: parkingForm.vacancyPct ? Number(parkingForm.vacancyPct) : 5,
+    typeLabel: parkingForm.typeLabel.trim(),
+    spaceCount: parseOptionalNumber(parkingForm.spaceCount),
+    monthlyRentUsd: parseOptionalNumber(parkingForm.monthlyRentUsd),
+    vacancyPct: parseNumberWithDefault(parkingForm.vacancyPct, 5),
     startMonth: convertMonthInputToOffset(parkingForm.startMonth),
   })
 
   const buildGpPayload = () => ({
     partner: gpContributionForm.partner,
-    amountUsd: gpContributionForm.amountUsd ? Number(gpContributionForm.amountUsd) : null,
+    amountUsd: parseOptionalNumber(gpContributionForm.amountUsd),
     contributionMonth: convertMonthInputToOffset(gpContributionForm.contributionMonth),
   })
 
@@ -203,7 +271,7 @@ export function RevenueSection({
     await onProjectRefresh(projectId)
   }
 
-  const handleAddRevenue = async (event) => {
+  const handleAddRevenue = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!projectId) return
     setRevenueStatus('saving')
@@ -212,31 +280,36 @@ export function RevenueSection({
     try {
       if (revenueModalType === 'apartment') {
         const payload = buildApartmentPayload()
-        if (!payload.typeLabel.trim()) throw new Error('Apartment type name is required.')
-        if (!payload.unitCount) throw new Error('Number of units is required.')
-        if (payload.rentBudget === null) throw new Error('Monthly rent is required.')
+        const validation = apartmentRevenueInputSchema.safeParse(payload)
+        if (!validation.success) {
+          throw new Error(formatZodErrors(validation.error))
+        }
         if (editingRevenueId) {
-          await updateRevenueItem(projectId, editingRevenueId, payload)
+          await updateRevenueItem(projectId, editingRevenueId, validation.data)
         } else {
-          await createRevenueItem(projectId, payload)
+          await createRevenueItem(projectId, validation.data)
         }
       } else if (revenueModalType === 'parking') {
         const payload = buildParkingPayload()
-        if (!payload.typeLabel.trim()) throw new Error('Parking type name is required.')
-        if (!payload.spaceCount) throw new Error('Number of spaces is required.')
-        if (payload.monthlyRentUsd === null) throw new Error('Monthly rent per space is required.')
+        const validation = parkingRevenueInputSchema.safeParse(payload)
+        if (!validation.success) {
+          throw new Error(formatZodErrors(validation.error))
+        }
         if (editingParkingId) {
-          await updateParkingRevenue(projectId, editingParkingId, payload)
+          await updateParkingRevenue(projectId, editingParkingId, validation.data)
         } else {
-          await createParkingRevenue(projectId, payload)
+          await createParkingRevenue(projectId, validation.data)
         }
       } else {
         const payload = buildGpPayload()
-        if (payload.amountUsd === null) throw new Error('Contribution amount is required.')
+        const validation = gpContributionInputSchema.safeParse(payload)
+        if (!validation.success) {
+          throw new Error(formatZodErrors(validation.error))
+        }
         if (editingGpId) {
-          await updateGpContribution(projectId, editingGpId, payload)
+          await updateGpContribution(projectId, editingGpId, validation.data)
         } else {
-          await createGpContribution(projectId, payload)
+          await createGpContribution(projectId, validation.data)
         }
       }
       setRevenueStatus('idle')
@@ -245,11 +318,11 @@ export function RevenueSection({
       await refreshProject()
     } catch (err) {
       setRevenueStatus('error')
-      setRevenueModalError(err.message)
+      setRevenueModalError(getErrorMessage(err))
     }
   }
 
-  const handleDeleteRevenue = (id) => {
+  const handleDeleteRevenue = (id: EntityId) => {
     if (!projectId) return
     setPendingRevenueDeleteId(id)
   }
@@ -264,7 +337,7 @@ export function RevenueSection({
       await refreshProject()
     } catch (err) {
       setRevenueStatus('error')
-      setRevenueModalError(err.message)
+      setRevenueModalError(getErrorMessage(err))
     }
   }
 
@@ -276,7 +349,7 @@ export function RevenueSection({
     }
   }
 
-  const handleDeleteParking = (id) => {
+  const handleDeleteParking = (id: EntityId) => {
     if (!projectId) return
     setParkingDeleteError('')
     setPendingParkingDeleteId(id)
@@ -292,7 +365,7 @@ export function RevenueSection({
       await refreshProject()
     } catch (err) {
       setParkingDeleteStatus('error')
-      setParkingDeleteError(err.message)
+      setParkingDeleteError(getErrorMessage(err))
     }
   }
 
@@ -303,7 +376,7 @@ export function RevenueSection({
     setParkingDeleteStatus('idle')
   }
 
-  const handleDeleteGpContribution = (id) => {
+  const handleDeleteGpContribution = (id: EntityId) => {
     if (!projectId) return
     setGpDeleteError('')
     setPendingGpDeleteId(id)
@@ -319,7 +392,7 @@ export function RevenueSection({
       await refreshProject()
     } catch (err) {
       setGpDeleteStatus('error')
-      setGpDeleteError(err.message)
+      setGpDeleteError(getErrorMessage(err))
     }
   }
 
@@ -395,8 +468,8 @@ export function RevenueSection({
                         <td>{row.vacancyPct ?? 5}%</td>
                         <td>
                           <div className="month-label">
-                            <span>{`Month ${formatOffsetForInput(row.startMonth)}`}</span>
-                            <span className="month-calendar">{getCalendarLabelForOffset(row.startMonth)}</span>
+                            <span>{`Month ${formatOffsetForInput(row.startMonth ?? 0)}`}</span>
+                            <span className="month-calendar">{getCalendarLabelForOffset(row.startMonth ?? 0)}</span>
                           </div>
                         </td>
                         <td>
@@ -456,8 +529,8 @@ export function RevenueSection({
                         <td>{row.vacancyPct ?? 5}%</td>
                         <td>
                           <div className="month-label">
-                            <span>{`Month ${formatOffsetForInput(row.startMonth)}`}</span>
-                            <span className="month-calendar">{getCalendarLabelForOffset(row.startMonth)}</span>
+                            <span>{`Month ${formatOffsetForInput(row.startMonth ?? 0)}`}</span>
+                            <span className="month-calendar">{getCalendarLabelForOffset(row.startMonth ?? 0)}</span>
                           </div>
                         </td>
                         <td>

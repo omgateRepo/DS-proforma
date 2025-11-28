@@ -1,3 +1,23 @@
+import type { KeyboardEvent } from 'react'
+import type { EntityId, ProjectStage, ProjectSummary, WeatherReading } from '../../types'
+
+type StageOption = {
+  id: ProjectStage
+  label: string
+}
+
+type KanbanBoardProps = {
+  stageOptions: StageOption[]
+  projectsByStage: Record<ProjectStage, ProjectSummary[]>
+  onSelectProject: (projectId: EntityId) => void
+  onStageChange: (projectId: EntityId, stage: ProjectStage) => void
+  stageUpdatingFor: EntityId | null
+  onAddProject: () => void
+  weather: WeatherReading | null
+  weatherStatus: 'idle' | 'loading' | 'loaded' | 'error'
+  weatherError: string
+}
+
 export function KanbanBoard({
   stageOptions,
   projectsByStage,
@@ -8,7 +28,14 @@ export function KanbanBoard({
   weather,
   weatherStatus,
   weatherError,
-}) {
+}: KanbanBoardProps) {
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>, projectId: EntityId) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onSelectProject(projectId)
+    }
+  }
+
   return (
     <>
       <header className="app-header">
@@ -51,7 +78,7 @@ export function KanbanBoard({
                           onClick={() => onSelectProject(project.id)}
                           role="button"
                           tabIndex={0}
-                          onKeyDown={(e) => e.key === 'Enter' && onSelectProject(project.id)}
+                          onKeyDown={(e) => handleCardKeyDown(e, project.id)}
                         >
                           <h4>{project.name}</h4>
                           <p className="muted">
@@ -64,7 +91,7 @@ export function KanbanBoard({
                         </div>
                         <select
                           value={project.stage}
-                          onChange={(e) => onStageChange(project.id, e.target.value)}
+                          onChange={(e) => onStageChange(project.id, e.target.value as ProjectStage)}
                           disabled={stageUpdatingFor === project.id}
                         >
                           {stageOptions.map((option) => (

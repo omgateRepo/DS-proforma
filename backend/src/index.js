@@ -2,7 +2,6 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import routes from './routes.js'
-import { ensureSchema } from './setupDb.js'
 
 const app = express()
 const port = process.env.PORT || 8080
@@ -15,15 +14,7 @@ app.use(express.json())
 app.use('/api', routes)
 
 async function startServer() {
-  if (mode === 'db') {
-    try {
-      await ensureSchema()
-      console.log('Database is ready (schema ensured)')
-    } catch (err) {
-      console.error('Failed to prepare database schema', err)
-      process.exit(1)
-    }
-  } else {
+  if (mode !== 'db') {
     console.log('SKIP_DB=true -> running in stub mode')
   }
 

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import './App.css'
 import {
   API_BASE,
@@ -12,12 +13,12 @@ import {
   updateProjectGeneral,
   updateProjectStage,
 } from './api.js'
-import { RevenueSection } from './features/revenue/RevenueSection.jsx'
-import { HardCostsSection } from './features/costs/HardCostsSection.jsx'
-import { SoftCostsSection } from './features/costs/SoftCostsSection.jsx'
-import { GeneralTab } from './features/general/GeneralTab.jsx'
-import { KanbanBoard } from './features/kanban/KanbanBoard.jsx'
-import { CashflowBoard } from './features/cashflow/CashflowBoard.jsx'
+import { RevenueSection } from './features/revenue/RevenueSection'
+import { HardCostsSection } from './features/costs/HardCostsSection'
+import { SoftCostsSection } from './features/costs/SoftCostsSection'
+import { GeneralTab } from './features/general/GeneralTab'
+import { KanbanBoard } from './features/kanban/KanbanBoard'
+import { CashflowBoard } from './features/cashflow/CashflowBoard'
 import { calculateNetParking, calculateNetRevenue, gpPartners } from './features/revenue/revenueHelpers.js'
 import {
   buildContributionValues,
@@ -26,7 +27,20 @@ import {
   buildExpenseSeries,
   buildCarryingSeries,
 } from './features/cashflow/cashflowHelpers.js'
-import { CarryingCostsSection } from './features/carrying/CarryingCostsSection.jsx'
+import { CarryingCostsSection } from './features/carrying/CarryingCostsSection'
+import type {
+  AddressSuggestion,
+  ApartmentRevenueRow,
+  CarryingCostRow,
+  EntityId,
+  GeneralFormState,
+  GpContributionRow,
+  ParkingRevenueRow,
+  ProjectDetail,
+  ProjectStage,
+  ProjectSummary,
+  WeatherReading,
+} from './types'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -35,18 +49,23 @@ const TABS = [
   { id: 'soft', label: 'Soft Costs' },
   { id: 'carrying', label: 'Carrying Costs' },
   { id: 'cashflow', label: 'Cashflow' },
-]
+] as const
+
+type TabId = (typeof TABS)[number]['id']
+type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
+type RequestStatus = 'idle' | 'saving' | 'error'
+type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
+type SelectedCoords = { lat: number; lon: number } | null
+type CashflowMonthMeta = { index: number; label: string; calendarLabel: string }
 
 const CASHFLOW_MONTHS = 60
-
-const defaultGeneralForm = {
+const defaultGeneralForm: GeneralFormState = {
   name: '',
   addressLine1: '',
   addressLine2: '',
   city: '',
   state: '',
   zip: '',
-  propertyType: '',
   purchasePriceUsd: '',
   closingDate: '',
   latitude: '',
@@ -56,38 +75,41 @@ const defaultGeneralForm = {
   description: '',
 }
 
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+const getCoordKey = (id: EntityId) => String(id)
+
 function App() {
-  const [projects, setProjects] = useState([])
-  const [projectsStatus, setProjectsStatus] = useState('loading')
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [projectsStatus, setProjectsStatus] = useState<LoadStatus>('loading')
   const [projectsError, setProjectsError] = useState('')
-  const [selectedProjectId, setSelectedProjectId] = useState(null)
-  const [selectedProject, setSelectedProject] = useState(null)
-  const [detailStatus, setDetailStatus] = useState('idle')
+  const [selectedProjectId, setSelectedProjectId] = useState<EntityId | null>(null)
+  const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null)
+  const [detailStatus, setDetailStatus] = useState<LoadStatus>('idle')
   const [detailError, setDetailError] = useState('')
-  const [activeTab, setActiveTab] = useState('general')
-  const [generalForm, setGeneralForm] = useState(defaultGeneralForm)
-  const [generalStatus, setGeneralStatus] = useState('idle')
+  const [activeTab, setActiveTab] = useState<TabId>('general')
+  const [generalForm, setGeneralForm] = useState<GeneralFormState>(defaultGeneralForm)
+  const [generalStatus, setGeneralStatus] = useState<RequestStatus>('idle')
   const [newProjectName, setNewProjectName] = useState('')
-  const [createStatus, setCreateStatus] = useState('idle')
+  const [createStatus, setCreateStatus] = useState<RequestStatus>('idle')
   const [createError, setCreateError] = useState('')
   const [deleteError, setDeleteError] = useState('')
-  const [weather, setWeather] = useState(null)
-  const [weatherStatus, setWeatherStatus] = useState('loading')
+  const [weather, setWeather] = useState<WeatherReading | null>(null)
+  const [weatherStatus, setWeatherStatus] = useState<LoadStatus>('loading')
   const [weatherError, setWeatherError] = useState('')
-  const [stageUpdatingFor, setStageUpdatingFor] = useState(null)
+  const [stageUpdatingFor, setStageUpdatingFor] = useState<EntityId | null>(null)
   const [addressQuery, setAddressQuery] = useState('')
-  const [addressSuggestions, setAddressSuggestions] = useState([])
-  const [addressSearchStatus, setAddressSearchStatus] = useState('idle')
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([])
+  const [addressSearchStatus, setAddressSearchStatus] = useState<AddressSearchStatus>('idle')
   const [addressSearchError, setAddressSearchError] = useState('')
   const [addressInputTouched, setAddressInputTouched] = useState(false)
-  const [selectedCoords, setSelectedCoords] = useState(null)
-  const [projectCoords, setProjectCoords] = useState({})
+  const [selectedCoords, setSelectedCoords] = useState<SelectedCoords>(null)
+  const [projectCoords, setProjectCoords] = useState<Record<string, { lat: number; lon: number }>>({})
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState(null)
-  const [deleteStatus, setDeleteStatus] = useState('idle')
-  const [expandedCashflowRows, setExpandedCashflowRows] = useState(() => new Set())
+  const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<EntityId | null>(null)
+  const [deleteStatus, setDeleteStatus] = useState<RequestStatus>('idle')
+  const [expandedCashflowRows, setExpandedCashflowRows] = useState<Set<string>>(() => new Set<string>())
 
-  const stageOptions = stageLabels()
+  const stageOptions = stageLabels() as Array<{ id: ProjectStage; label: string }>
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
   const baseDate = useMemo(() => {
     const closingDate = selectedProject?.general?.closingDate
@@ -96,41 +118,44 @@ function App() {
     return new Date(parsed.getFullYear(), parsed.getMonth(), 1)
   }, [selectedProject?.general?.closingDate])
 
-  const normalizeMonthInputValue = (value, fallback = 1) => {
+  const normalizeMonthInputValue = (value: string | number, fallback = 1) => {
     const num = Number(value)
     if (Number.isNaN(num)) return fallback
     return Math.max(1, Math.min(CASHFLOW_MONTHS, Math.trunc(num)))
   }
 
-  const clampInputToCashflowMonth = (value) => {
+  const clampInputToCashflowMonth = (value: string | number | null | undefined) => {
     if (value === null || value === undefined || value === '') return null
     const parsed = Number(value)
     if (Number.isNaN(parsed)) return null
     return Math.min(CASHFLOW_MONTHS - 1, Math.max(0, Math.trunc(parsed)))
   }
 
-  const convertMonthInputToOffset = (value) => {
-    const normalized = normalizeMonthInputValue(value) - 1
+  const convertMonthInputToOffset = (value: string | number | null | undefined) => {
+    const normalized = normalizeMonthInputValue(value ?? 1) - 1
     return Math.max(0, Math.min(CASHFLOW_MONTHS - 1, normalized))
   }
 
-  const formatOffsetForInput = (offset) => String((offset ?? 0) + 1)
+  const formatOffsetForInput = (offset?: number | null) => String((offset ?? 0) + 1)
 
-  const getCalendarLabelForOffset = (offset) => {
+  const getCalendarLabelForOffset = (offset: number | null) => {
     const clamped = clampInputToCashflowMonth(offset)
+    if (clamped === null) return ''
     const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + clamped, 1)
     return date.toLocaleString('default', { month: 'short', year: 'numeric' })
   }
 
-  const getCalendarLabelForInput = (value) => {
+  const getCalendarLabelForInput = (value: string | number | null | undefined) => {
     if (value === '' || value === null || value === undefined) return ''
     const display = normalizeMonthInputValue(value)
     return `Month ${display} • ${getCalendarLabelForOffset(display - 1)}`
   }
 
-  const getCalendarLabelsForListInput = (value) => {
-    if (!value) return ''
-    const entries = value
+  const getCalendarLabelsForListInput = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined) return ''
+    const normalized = typeof value === 'number' ? String(value) : value
+    if (!normalized) return ''
+    const entries = normalized
       .split(',')
       .map((segment) => segment.trim())
       .filter(Boolean)
@@ -138,20 +163,21 @@ function App() {
     return entries.map((segment) => getCalendarLabelForInput(segment)).filter(Boolean).join(', ')
   }
 
-  const formatDateForInput = (value) => {
+  const formatDateForInput = (value: string | null | undefined) => {
     if (!value) return ''
     return value.split('T')[0]
   }
 
-  const formatNumberForInput = (value) => (value === null || value === undefined ? '' : String(value))
+  const formatNumberForInput = (value: number | string | null | undefined) =>
+    value === null || value === undefined ? '' : String(value)
 
-  const parseFloatOrNull = (value) => {
+  const parseFloatOrNull = (value: string | number | null | undefined) => {
     if (value === '' || value === null || value === undefined) return null
     const parsed = Number(value)
     return Number.isNaN(parsed) ? null : parsed
   }
 
-  const toggleCashflowRow = (rowId) => {
+  const toggleCashflowRow = (rowId: string) => {
     setExpandedCashflowRows((prev) => {
       const next = new Set(prev)
       if (next.has(rowId)) {
@@ -163,14 +189,14 @@ function App() {
     })
   }
 
-  const handleGeneralFieldChange = (field, value) => {
+  const handleGeneralFieldChange = (field: keyof GeneralFormState, value: string) => {
     setGeneralForm((prev) => ({
       ...prev,
       [field]: value,
     }))
   }
 
-  const handleAddressInputChange = (value) => {
+  const handleAddressInputChange = (value: string) => {
     setAddressQuery(value)
     setGeneralForm((prev) => ({
       ...prev,
@@ -182,12 +208,12 @@ function App() {
     setAddressInputTouched(true)
   }
 
-  const apartmentRevenueRows = selectedProject?.revenue || []
-  const parkingRevenueRows = selectedProject?.parkingRevenue || []
-  const gpContributionRows = selectedProject?.gpContributions || []
-  const carryingCostRows = selectedProject?.carryingCosts || []
+  const apartmentRevenueRows: ApartmentRevenueRow[] = selectedProject?.revenue ?? []
+  const parkingRevenueRows: ParkingRevenueRow[] = selectedProject?.parkingRevenue ?? []
+  const gpContributionRows: GpContributionRow[] = selectedProject?.gpContributions ?? []
+  const carryingCostRows: CarryingCostRow[] = selectedProject?.carryingCosts ?? []
 
-  const cashflowMonths = useMemo(() => {
+  const cashflowMonths = useMemo<CashflowMonthMeta[]>(() => {
     return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
       const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + index, 1)
       return {
@@ -269,11 +295,11 @@ function App() {
     return parsed.toLocaleString('default', { month: 'long', year: 'numeric' })
   }, [selectedProject])
 
-  const projectsByStage = useMemo(() => {
+  const projectsByStage = useMemo<Record<ProjectStage, ProjectSummary[]>>(() => {
     return stageOptions.reduce((acc, stage) => {
       acc[stage.id] = projects.filter((project) => project.stage === stage.id)
       return acc
-    }, {})
+    }, {} as Record<ProjectStage, ProjectSummary[]>)
   }, [projects, stageOptions])
   const isKanbanView = !selectedProjectId
 
@@ -281,38 +307,43 @@ function App() {
     setProjectsStatus('loading')
     setProjectsError('')
     try {
-      const rows = await fetchProjects()
-        setProjects(rows)
+      const rows = (await fetchProjects()) as ProjectSummary[]
+      setProjects(rows)
       if (selectedProjectId && !rows.some((row) => row.id === selectedProjectId)) {
         setSelectedProjectId(null)
         setSelectedProject(null)
       }
       setProjectsStatus('loaded')
     } catch (err) {
-      setProjectsError(err.message)
+      setProjectsError(getErrorMessage(err))
       setProjectsStatus('error')
     }
   }
 
-  const loadProjectDetail = async (projectId) => {
+  const loadProjectDetail = async (projectId: EntityId) => {
     if (!projectId) return
     setDetailStatus('loading')
     setDetailError('')
     try {
-      const detail = await fetchProjectDetail(projectId)
+      const detail = (await fetchProjectDetail(projectId)) as ProjectDetail
       detail.parkingRevenue = detail.parkingRevenue || []
       detail.gpContributions = detail.gpContributions || []
       setSelectedProject(detail)
       setGeneralForm({
         ...defaultGeneralForm,
         name: detail.name,
-        ...detail.general,
-        purchasePriceUsd: detail.general.purchasePriceUsd || '',
+        addressLine1: detail.general.addressLine1 ?? '',
+        addressLine2: detail.general.addressLine2 ?? '',
+        city: detail.general.city ?? '',
+        state: detail.general.state ?? '',
+        zip: detail.general.zip ?? '',
+        purchasePriceUsd: formatNumberForInput(detail.general.purchasePriceUsd),
         closingDate: formatDateForInput(detail.general.closingDate),
         latitude: formatNumberForInput(detail.general.latitude),
         longitude: formatNumberForInput(detail.general.longitude),
-        targetUnits: detail.general.targetUnits || '',
-        targetSqft: detail.general.targetSqft || '',
+        targetUnits: formatNumberForInput(detail.general.targetUnits),
+        targetSqft: formatNumberForInput(detail.general.targetSqft),
+        description: detail.general.description ?? '',
       })
       setAddressQuery(detail.general.addressLine1 || '')
       setAddressInputTouched(false)
@@ -321,14 +352,15 @@ function App() {
         detail.general.latitude !== null && detail.general.longitude !== null
           ? { lat: detail.general.latitude, lon: detail.general.longitude }
           : null
-      const savedCoords = coordsFromDetail || projectCoords[projectId] || null
+      const coordKey = getCoordKey(projectId)
+      const savedCoords = coordsFromDetail || projectCoords[coordKey] || null
       setSelectedCoords(savedCoords || null)
       if (coordsFromDetail) {
-        setProjectCoords((prev) => ({ ...prev, [projectId]: coordsFromDetail }))
+        setProjectCoords((prev) => ({ ...prev, [coordKey]: coordsFromDetail }))
       }
       setDetailStatus('loaded')
     } catch (err) {
-      setDetailError(err.message)
+      setDetailError(getErrorMessage(err))
       setDetailStatus('error')
     }
   }
@@ -337,11 +369,11 @@ function App() {
     loadProjects()
     fetchPhiladelphiaWeather()
       .then((reading) => {
-        setWeather(reading)
+        setWeather(reading as WeatherReading)
         setWeatherStatus('loaded')
       })
       .catch((err) => {
-        setWeatherError(err.message)
+        setWeatherError(getErrorMessage(err))
         setWeatherStatus('error')
       })
   }, [])
@@ -366,19 +398,19 @@ function App() {
     setAddressSearchError('')
     const timeout = setTimeout(async () => {
       try {
-        const results = await searchAddresses(addressQuery)
+        const results = (await searchAddresses(addressQuery)) as AddressSuggestion[]
         setAddressSuggestions(results)
         setAddressSearchStatus('loaded')
       } catch (err) {
         setAddressSearchStatus('error')
-        setAddressSearchError(err.message)
+        setAddressSearchError(getErrorMessage(err))
         setAddressSuggestions([])
       }
     }, 400)
     return () => clearTimeout(timeout)
   }, [addressQuery, addressInputTouched])
 
-  async function handleCreateProject(event) {
+  async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setCreateError('')
     if (!newProjectName.trim()) {
@@ -395,7 +427,7 @@ function App() {
       setIsCreateModalOpen(false)
       setCreateStatus('idle')
     } catch (err) {
-      setCreateError(err.message)
+      setCreateError(getErrorMessage(err))
       setCreateStatus('error')
     }
   }
@@ -411,7 +443,7 @@ function App() {
     setIsCreateModalOpen(false)
   }
 
-  function requestDeleteProject(id) {
+  function requestDeleteProject(id: EntityId) {
     setDeleteError('')
     setPendingDeleteProjectId(id)
   }
@@ -425,15 +457,16 @@ function App() {
         handleBackToKanban()
       }
       setProjectCoords((prev) => {
-        if (!prev[pendingDeleteProjectId]) return prev
+        const coordKey = getCoordKey(pendingDeleteProjectId)
+        if (!prev[coordKey]) return prev
         const next = { ...prev }
-        delete next[pendingDeleteProjectId]
+        delete next[coordKey]
         return next
       })
       await loadProjects()
       setPendingDeleteProjectId(null)
     } catch (err) {
-      setDeleteError(err.message)
+      setDeleteError(getErrorMessage(err))
     } finally {
       setDeleteStatus('idle')
     }
@@ -450,7 +483,7 @@ function App() {
     setDeleteError('')
   }
 
-  async function handleStageChange(projectId, stage) {
+  async function handleStageChange(projectId: EntityId, stage: ProjectStage) {
     setStageUpdatingFor(projectId)
     try {
       await updateProjectStage(projectId, stage)
@@ -459,19 +492,26 @@ function App() {
         setSelectedProject((prev) => (prev ? { ...prev, stage } : prev))
       }
     } catch (err) {
-      alert(err.message)
+      alert(getErrorMessage(err))
     } finally {
       setStageUpdatingFor(null)
     }
   }
 
-  async function handleGeneralSave(event) {
+  const normalizeOptionalField = (value: string) => {
+    if (!value) return null
+    const trimmed = value.trim()
+    return trimmed.length ? trimmed : null
+  }
+
+  async function handleGeneralSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedProjectId) return
     setGeneralStatus('saving')
     try {
-      const payload = {
-        ...generalForm,
+      const payload: Record<string, unknown> = {
+        name: generalForm.name.trim(),
+        addressLine1: generalForm.addressLine1.trim(),
         purchasePriceUsd: generalForm.purchasePriceUsd ? Number(generalForm.purchasePriceUsd) : null,
         closingDate: generalForm.closingDate || null,
         latitude: parseFloatOrNull(generalForm.latitude),
@@ -479,7 +519,10 @@ function App() {
         targetUnits: generalForm.targetUnits ? Number(generalForm.targetUnits) : null,
         targetSqft: generalForm.targetSqft ? Number(generalForm.targetSqft) : null,
       }
-      const updated = await updateProjectGeneral(selectedProjectId, payload)
+      ;['addressLine2', 'city', 'state', 'zip', 'description'].forEach((field) => {
+        payload[field] = normalizeOptionalField(generalForm[field as keyof GeneralFormState])
+      })
+      const updated = (await updateProjectGeneral(selectedProjectId, payload)) as ProjectDetail
       setSelectedProject((prev) => (prev ? { ...prev, name: updated.name, general: updated.general } : prev))
       setAddressQuery(updated.general.addressLine1 || '')
       setGeneralForm((prev) => ({
@@ -488,15 +531,16 @@ function App() {
         latitude: formatNumberForInput(updated.general.latitude),
         longitude: formatNumberForInput(updated.general.longitude),
       }))
+      const coordKey = getCoordKey(selectedProjectId)
       if (updated.general.latitude !== null && updated.general.longitude !== null) {
         const coords = { lat: updated.general.latitude, lon: updated.general.longitude }
         setSelectedCoords(coords)
-        setProjectCoords((prev) => ({ ...prev, [selectedProjectId]: coords }))
+        setProjectCoords((prev) => ({ ...prev, [coordKey]: coords }))
       } else {
         setProjectCoords((prev) => {
-          if (!prev[selectedProjectId]) return prev
+          if (!prev[coordKey]) return prev
           const next = { ...prev }
-          delete next[selectedProjectId]
+          delete next[coordKey]
           return next
         })
         setSelectedCoords(null)
@@ -505,11 +549,11 @@ function App() {
       await loadProjects()
     } catch (err) {
       setGeneralStatus('error')
-      alert(err.message)
+      alert(getErrorMessage(err))
     }
   }
 
-  function handleAddressSelect(suggestion) {
+  function handleAddressSelect(suggestion: AddressSuggestion) {
     setGeneralForm((prev) => ({
       ...prev,
       addressLine1: suggestion.addressLine1 || '',
@@ -526,7 +570,8 @@ function App() {
       const coords = { lat: suggestion.latitude, lon: suggestion.longitude }
       setSelectedCoords(coords)
       if (selectedProjectId) {
-        setProjectCoords((prev) => ({ ...prev, [selectedProjectId]: coords }))
+        const coordKey = getCoordKey(selectedProjectId)
+        setProjectCoords((prev) => ({ ...prev, [coordKey]: coords }))
       }
     }
   }

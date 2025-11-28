@@ -1,0 +1,48 @@
+export type {
+  Nullable,
+  EntityId,
+  ProjectStage,
+  ProjectSummary,
+  ProjectGeneral,
+  ProjectDetail,
+  ApartmentRevenue as ApartmentRevenueRow,
+  ParkingRevenue as ParkingRevenueRow,
+  GpContribution as GpContributionRow,
+  SoftCostRow,
+  HardCostRow,
+  CarryingCostRow,
+  CashflowRow,
+  AddressSuggestion,
+  WeatherReading,
+  CostPaymentMode,
+  MeasurementUnit,
+  CarryingType,
+  LoanMode,
+  IntervalUnit,
+} from '@ds-proforma/types'
+
+export {
+  SOFT_COST_CATEGORY_IDS,
+  HARD_COST_CATEGORY_IDS,
+  MEASUREMENT_UNITS,
+  COST_PAYMENT_MODES,
+  CARRYING_TYPES,
+  LOAN_MODES,
+  INTERVAL_UNITS,
+} from '@ds-proforma/types'
+
+export type GeneralFormState = {
+  name: string
+  addressLine1: string
+  addressLine2: string
+  city: string
+  state: string
+  zip: string
+  purchasePriceUsd: string
+  closingDate: string
+  latitude: string
+  longitude: string
+  targetUnits: string
+  targetSqft: string
+  description: string
+}
