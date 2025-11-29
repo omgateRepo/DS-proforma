@@ -8,11 +8,12 @@
     "build": "cross-env ROLLUP_SKIP_NATIVE=1 ROLLUP_WASM=1 tsc --project tsconfig.json --noEmit && cross-env ROLLUP_SKIP_NATIVE=1 ROLLUP_WASM=1 vite build",
     "lint": "eslint .",
     "typecheck": "tsc --project tsconfig.json --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "node scripts/ensure-rollup-shim.cjs"
   },
   "dependencies": {
     "@ds-proforma/types": "file:../packages/types",
-    "@rollup/rollup-linux-x64-gnu": "npm:@rollup/wasm-node@^4.53.3",
+    "@rollup/wasm-node": "^4.53.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
