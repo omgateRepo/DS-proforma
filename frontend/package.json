@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ds-proforma/types": "file:../packages/types",
+    "@rollup/wasm-node": "^4.18.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
