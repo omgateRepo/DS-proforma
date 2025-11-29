@@ -792,7 +792,11 @@ export function RevenueSection({
                 </>
               )}
 
-              {revenueModalError && <p className="error">{revenueModalError}</p>}
+              {revenueModalError && (
+                <p className="error" role="alert">
+                  {revenueModalError}
+                </p>
+              )}
               <div className="modal-actions">
                 <button type="button" className="ghost" onClick={closeRevenueModal} disabled={revenueStatus === 'saving'}>
                   Cancel

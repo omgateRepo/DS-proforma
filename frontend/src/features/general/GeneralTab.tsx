@@ -118,6 +118,8 @@ export function GeneralTab({
           <img
             src={`${apiOrigin || ''}/api/geocode/satellite?lat=${selectedCoords.lat}&lon=${selectedCoords.lon}&zoom=18`}
             alt="Satellite preview"
+            role="img"
+            aria-label="satellite preview"
           />
         </div>
       )}
