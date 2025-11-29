@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "cross-env ROLLUP_SKIP_NATIVE=true tsc --project tsconfig.json --noEmit && cross-env ROLLUP_SKIP_NATIVE=true vite build",
+    "build": "cross-env ROLLUP_SKIP_NATIVE=1 ROLLUP_WASM=1 tsc --project tsconfig.json --noEmit && cross-env ROLLUP_SKIP_NATIVE=1 ROLLUP_WASM=1 vite build",
     "lint": "eslint .",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "preview": "vite preview"
