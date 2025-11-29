@@ -49,6 +49,7 @@ const basicAuth = createBasicAuthMiddleware({
   username: authUser,
   password: authPassword,
   enabled: !skipAuth,
+  bypass: ['/api/geocode/satellite'],
 })
 
 if (!authUser || !authPassword) {

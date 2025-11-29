@@ -21,12 +21,22 @@ export default function createBasicAuthMiddleware({
   username,
   password,
   enabled = true,
+  bypass = [],
 }) {
   if (!enabled || !username || !password) {
     return (_req, _res, next) => next()
   }
 
+  const normalizedBypass = bypass
+    .filter(Boolean)
+    .map((item) => item.toLowerCase())
+
   return function basicAuth(req, res, next) {
+    const requestPath = `${req.baseUrl || ''}${req.path || ''}`.toLowerCase()
+    if (normalizedBypass.some((path) => requestPath.startsWith(path))) {
+      return next()
+    }
+
     const credentials = parseBasic(req.headers.authorization)
     if (!credentials || credentials.username !== username || credentials.password !== password) {
       res.setHeader('WWW-Authenticate', `Basic realm="${realm}", charset="UTF-8"`)
