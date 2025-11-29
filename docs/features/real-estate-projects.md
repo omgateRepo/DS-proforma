@@ -323,3 +323,16 @@ All new work should reference this plan so the codebase trends toward smaller co
 
 These measures make sure only the two intended users can access the environment while keeping the entry point lightweight (no database-backed accounts yet). Future stages can replace the Basic Auth credentials with a richer auth system without touching the tab flows described above.
 
+### 10.2 Testing & Continuous Integration (Stage 5)
+- **Frontend Suite (Vitest + React Testing Library)**  
+  - `GeneralTab` spec covers form submissions and satellite preview rendering.  
+  - `RevenueSection` exercises the apartment modal validations and error paths.  
+  - `costHelpers` lock down single/range/multi-month scheduling and measurement math.  
+  - `App` auth overlay tests verify the Basic Auth flow (login persistence, 401 handling, and sign-out).  
+  - `npm run test` executes all Vitest files; `npm run lint`/`npm run typecheck` ensure JSX/TS stay clean.
+- **Backend Suite (Vitest)**  
+  - `tests/carryingPayload.test` validates `normalizeCarryingPayload` across loan/property-tax/management scenarios.
+- **Shared Tooling & CI**  
+  - New flat ESLint configs for both workspaces plus root scripts (`npm run lint`, `npm run typecheck`, `npm run test`) orchestrate frontend + backend.  
+  - `.github/workflows/ci.yml` runs install → lint → typecheck → test on every push/PR to keep the Render deploys green.
+

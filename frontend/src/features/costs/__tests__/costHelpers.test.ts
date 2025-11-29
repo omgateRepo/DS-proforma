@@ -5,8 +5,8 @@ import {
   getDefaultMeasurementForCategory,
 } from '../costHelpers'
 
-const convertMonthInputToOffset = (value) => Number(value) - 1
-const formatOffsetForInput = (offset) => String(offset + 1)
+const convertMonthInputToOffset = (value: string | number) => Number(value) - 1
+const formatOffsetForInput = (offset: number) => String(offset + 1)
 
 describe('costHelpers', () => {
   it('builds payload for single payment mode', () => {

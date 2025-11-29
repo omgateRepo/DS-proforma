@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderWithProviders } from '../../../../test/setup/renderWithProviders'
 import { GeneralTab } from '../GeneralTab'
-import type { GeneralFormState } from '../../types'
+import type { GeneralFormState } from '../../../types'
 
 const baseForm: GeneralFormState = {
   name: 'Test Project',

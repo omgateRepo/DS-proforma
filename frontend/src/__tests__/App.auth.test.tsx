@@ -2,6 +2,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import userEvent from '@testing-library/user-event'
 import { act, render, screen, waitFor } from '@testing-library/react'
 
+type ApiModule = typeof import('../api.js')
+
+type UnauthorizedRef = { current: null | (() => void) }
+type MockApi = {
+  mockFetchProjects: ReturnType<typeof vi.fn>
+  mockFetchPhiladelphiaWeather: ReturnType<typeof vi.fn>
+  mockSetAuthCredentials: ReturnType<typeof vi.fn>
+  mockGetAuthCredentials: ReturnType<typeof vi.fn>
+  mockClearAuthCredentials: ReturnType<typeof vi.fn>
+  unauthorizedRef: UnauthorizedRef
+}
+
+const mockApi = vi.hoisted<MockApi>(() => ({
+  mockFetchProjects: vi.fn(),
+  mockFetchPhiladelphiaWeather: vi.fn(),
+  mockSetAuthCredentials: vi.fn(),
+  mockGetAuthCredentials: vi.fn(),
+  mockClearAuthCredentials: vi.fn(),
+  unauthorizedRef: { current: null },
+}))
+
 const {
   mockFetchProjects,
   mockFetchPhiladelphiaWeather,
@@ -9,24 +30,17 @@ const {
   mockGetAuthCredentials,
   mockClearAuthCredentials,
   unauthorizedRef,
-} = vi.hoisted(() => ({
-  mockFetchProjects: vi.fn(),
-  mockFetchPhiladelphiaWeather: vi.fn(),
-  mockSetAuthCredentials: vi.fn(),
-  mockGetAuthCredentials: vi.fn(),
-  mockClearAuthCredentials: vi.fn(),
-  unauthorizedRef: { current: null as null | (() => void) },
-}))
+} = mockApi
 
 vi.mock('../api.js', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = (await importOriginal()) as ApiModule
   return {
     ...actual,
-    fetchProjects: mockFetchProjects,
-    fetchPhiladelphiaWeather: mockFetchPhiladelphiaWeather,
-    getAuthCredentials: mockGetAuthCredentials,
-    setAuthCredentials: mockSetAuthCredentials,
-    clearAuthCredentials: mockClearAuthCredentials,
+    fetchProjects: mockApi.mockFetchProjects,
+    fetchPhiladelphiaWeather: mockApi.mockFetchPhiladelphiaWeather,
+    getAuthCredentials: mockApi.mockGetAuthCredentials,
+    setAuthCredentials: mockApi.mockSetAuthCredentials,
+    clearAuthCredentials: mockApi.mockClearAuthCredentials,
     onUnauthorized: vi.fn((handler) => {
       unauthorizedRef.current = handler
       return () => {
