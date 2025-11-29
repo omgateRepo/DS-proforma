@@ -3,12 +3,16 @@ import type { FormEvent } from 'react'
 import './App.css'
 import {
   API_BASE,
+  clearAuthCredentials,
   createProject,
   deleteProject,
   fetchPhiladelphiaWeather,
   fetchProjectDetail,
   fetchProjects,
+  getAuthCredentials,
+  onUnauthorized,
   searchAddresses,
+  setAuthCredentials,
   stageLabels,
   updateProjectGeneral,
   updateProjectStage,
@@ -57,6 +61,7 @@ type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
 type CashflowMonthMeta = { index: number; label: string; calendarLabel: string }
+type AuthFormState = { username: string; password: string }
 
 const CASHFLOW_MONTHS = 60
 const defaultGeneralForm: GeneralFormState = {
@@ -79,8 +84,11 @@ const getErrorMessage = (error: unknown) => (error instanceof Error ? error.mess
 const getCoordKey = (id: EntityId) => String(id)
 
 function App() {
+  const initialAuth = getAuthCredentials()
+  const initialProjectsStatus: LoadStatus = initialAuth ? 'loading' : 'idle'
+  const initialWeatherStatus: LoadStatus = initialAuth ? 'loading' : 'idle'
   const [projects, setProjects] = useState<ProjectSummary[]>([])
-  const [projectsStatus, setProjectsStatus] = useState<LoadStatus>('loading')
+  const [projectsStatus, setProjectsStatus] = useState<LoadStatus>(initialProjectsStatus)
   const [projectsError, setProjectsError] = useState('')
   const [selectedProjectId, setSelectedProjectId] = useState<EntityId | null>(null)
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null)
@@ -94,7 +102,7 @@ function App() {
   const [createError, setCreateError] = useState('')
   const [deleteError, setDeleteError] = useState('')
   const [weather, setWeather] = useState<WeatherReading | null>(null)
-  const [weatherStatus, setWeatherStatus] = useState<LoadStatus>('loading')
+  const [weatherStatus, setWeatherStatus] = useState<LoadStatus>(initialWeatherStatus)
   const [weatherError, setWeatherError] = useState('')
   const [stageUpdatingFor, setStageUpdatingFor] = useState<EntityId | null>(null)
   const [addressQuery, setAddressQuery] = useState('')
@@ -108,6 +116,14 @@ function App() {
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<EntityId | null>(null)
   const [deleteStatus, setDeleteStatus] = useState<RequestStatus>('idle')
   const [expandedCashflowRows, setExpandedCashflowRows] = useState<Set<string>>(() => new Set<string>())
+  const [authForm, setAuthForm] = useState<AuthFormState>({
+    username: initialAuth?.username ?? '',
+    password: initialAuth?.password ?? '',
+  })
+  const [authStatus, setAuthStatus] = useState<RequestStatus>('idle')
+  const [authError, setAuthError] = useState('')
+  const [isAuthReady, setIsAuthReady] = useState(Boolean(initialAuth))
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(!initialAuth)
 
   const stageOptions = stageLabels() as Array<{ id: ProjectStage; label: string }>
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
@@ -302,6 +318,7 @@ function App() {
     }, {} as Record<ProjectStage, ProjectSummary[]>)
   }, [projects, stageOptions])
   const isKanbanView = !selectedProjectId
+  const showSignOut = isAuthReady && !isAuthModalOpen
 
   const loadProjects = async () => {
     setProjectsStatus('loading')
@@ -317,6 +334,19 @@ function App() {
     } catch (err) {
       setProjectsError(getErrorMessage(err))
       setProjectsStatus('error')
+    }
+  }
+
+  const loadWeather = async () => {
+    setWeatherStatus('loading')
+    setWeatherError('')
+    try {
+      const reading = (await fetchPhiladelphiaWeather()) as WeatherReading
+      setWeather(reading)
+      setWeatherStatus('loaded')
+    } catch (err) {
+      setWeatherError(getErrorMessage(err))
+      setWeatherStatus('error')
     }
   }
 
@@ -366,21 +396,26 @@ function App() {
   }
 
   useEffect(() => {
+    if (!isAuthReady) return
     loadProjects()
-    fetchPhiladelphiaWeather()
-      .then((reading) => {
-        setWeather(reading as WeatherReading)
-        setWeatherStatus('loaded')
-      })
-      .catch((err) => {
-        setWeatherError(getErrorMessage(err))
-        setWeatherStatus('error')
-      })
-  }, [])
+    loadWeather()
+  }, [isAuthReady])
 
   useEffect(() => {
     setExpandedCashflowRows(new Set())
   }, [selectedProjectId])
+
+  useEffect(() => {
+    const unsubscribe = onUnauthorized(() => {
+      clearAuthCredentials()
+      setIsAuthReady(false)
+      setIsAuthModalOpen(true)
+      setAuthStatus('error')
+      setAuthError('Authentication required. Please sign in again.')
+      setAuthForm((prev) => ({ ...prev, password: '' }))
+    })
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -409,6 +444,40 @@ function App() {
     }, 400)
     return () => clearTimeout(timeout)
   }, [addressQuery, addressInputTouched])
+
+  async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!authForm.username.trim() || !authForm.password) {
+      setAuthError('Username and password are required')
+      return
+    }
+    setAuthStatus('saving')
+    setAuthError('')
+    try {
+      setAuthCredentials({
+        username: authForm.username.trim(),
+        password: authForm.password,
+      })
+      await fetchProjects()
+      setIsAuthReady(true)
+      setIsAuthModalOpen(false)
+      setAuthStatus('idle')
+      await loadProjects()
+      await loadWeather()
+    } catch (err) {
+      clearAuthCredentials()
+      setAuthStatus('error')
+      setAuthError(getErrorMessage(err))
+    }
+  }
+
+  function handleLogout() {
+    clearAuthCredentials()
+    setIsAuthReady(false)
+    setIsAuthModalOpen(true)
+    setAuthForm({ username: '', password: '' })
+    setAuthError('')
+  }
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -578,6 +647,13 @@ function App() {
 
   return (
     <div className="app-shell">
+      <div className="session-actions">
+        {showSignOut && (
+          <button type="button" className="ghost tiny" onClick={handleLogout}>
+            Sign out
+          </button>
+        )}
+      </div>
       {isKanbanView ? (
         <KanbanBoard
           stageOptions={stageOptions}
@@ -749,6 +825,57 @@ function App() {
                 {deleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isAuthModalOpen && (
+        <div className="auth-overlay">
+          <div className="auth-panel">
+            <h2>Sign in to continue</h2>
+            <p className="muted">Environment protected with HTTP Basic Auth.</p>
+            <form onSubmit={handleAuthSubmit}>
+              <label>
+                <span>Username</span>
+                <input
+                  type="text"
+                  value={authForm.username}
+                  onChange={(e) => {
+                    setAuthForm((prev) => ({
+                      ...prev,
+                      username: e.target.value,
+                    }))
+                    if (authStatus !== 'idle') setAuthStatus('idle')
+                    if (authError) setAuthError('')
+                  }}
+                  autoComplete="username"
+                  placeholder="Username"
+                  disabled={authStatus === 'saving'}
+                />
+              </label>
+              <label>
+                <span>Password</span>
+                <input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(e) => {
+                    setAuthForm((prev) => ({
+                      ...prev,
+                      password: e.target.value,
+                    }))
+                    if (authStatus !== 'idle') setAuthStatus('idle')
+                    if (authError) setAuthError('')
+                  }}
+                  autoComplete="current-password"
+                  placeholder="Password"
+                  disabled={authStatus === 'saving'}
+                />
+              </label>
+              {authError && <p className="error auth-error">{authError}</p>}
+              <button type="submit" className="primary" disabled={authStatus === 'saving'}>
+                {authStatus === 'saving' ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
           </div>
         </div>
       )}

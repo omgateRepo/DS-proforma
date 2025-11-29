@@ -306,3 +306,20 @@ To keep delivery predictable as the app grows, follow these coding practices bef
 
 All new work should reference this plan so the codebase trends toward smaller components, consistent data handling, and easier maintenance.
 
+### 10.1 Runtime Security & Access Control (Stage 4)
+- **API Protection**  
+  - Every `/api/*` request is authenticated with HTTP Basic Auth. Credentials come from `RENDER_AUTH_USER` / `RENDER_AUTH_PASSWORD` (Render) or `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` for local dev.  
+  - Opt-out flags: `SKIP_AUTH=true` (local only) disables the guard; `SKIP_RATE_LIMIT=true` bypasses throttling.
+  - Rate limiting defaults: `RATE_LIMIT_WINDOW_MS=60000` and `RATE_LIMIT_MAX=300`. Both can be tuned per environment.
+  - Helmet is enabled with relaxed CORP (`cross-origin`) so the satellite preview continues to embed images fetched from `/api/geocode/satellite`.
+- **Frontend Session Flow**  
+  - A blocking “Sign in” overlay appears until credentials are supplied. The UI stores the Basic Auth pair in `localStorage` so page refreshes keep the session alive.  
+  - All API helpers automatically inject the `Authorization` header and listen for `401` responses; when the backend rejects a request, the store is cleared and the login modal reopens.
+  - Users can click “Sign out” (top-right) to wipe stored credentials and return to the login screen.
+- **Environment Checklist**  
+  - Backend: set `RENDER_AUTH_USER`, `RENDER_AUTH_PASSWORD`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, and `FRONTEND_ORIGIN`.  
+  - Frontend: ensure `VITE_API_BASE_URL` points at the authenticated backend. No additional env vars are needed—the login overlay captures ds/ds1 at runtime.  
+  - Deployment order: ship the backend first (so auth middleware is live), then ship the frontend (so the login modal can collect credentials instead of failing silently).
+
+These measures make sure only the two intended users can access the environment while keeping the entry point lightweight (no database-backed accounts yet). Future stages can replace the Basic Auth credentials with a richer auth system without touching the tab flows described above.
+

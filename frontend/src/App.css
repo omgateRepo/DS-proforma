@@ -706,3 +706,63 @@ td {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
 }
+
+.session-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.session-actions .ghost {
+  font-size: 0.85rem;
+}
+
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1.5rem;
+}
+
+.auth-panel {
+  background: var(--card-bg);
+  border-radius: 20px;
+  padding: 2rem;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 35px 65px rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--border);
+}
+
+.auth-panel h2 {
+  margin-top: 0;
+  margin-bottom: 0.35rem;
+}
+
+.auth-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.auth-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.auth-panel input {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+}
+
+.auth-error {
+  margin: 0;
+}

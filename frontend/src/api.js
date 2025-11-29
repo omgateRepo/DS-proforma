@@ -3,8 +3,59 @@ import { apartmentRevenueInputSchema, parkingRevenueInputSchema, gpContributionI
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 const baseUrl = (API_BASE || '').replace(/\/$/, '')
+const AUTH_STORAGE_KEY = 'ds-proforma-basic-auth'
+const unauthorizedListeners = new Set()
+let cachedCredentials = null
+let authLoaded = false
+
+const isBrowser = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+
+const notifyUnauthorized = () => {
+  unauthorizedListeners.forEach((handler) => {
+    try {
+      handler()
+    } catch (err) {
+      console.error('Auth handler failed', err)
+    }
+  })
+}
+
+function ensureAuthLoaded() {
+  if (authLoaded || !isBrowser) return
+  authLoaded = true
+  try {
+    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (parsed?.username && parsed?.password) {
+      cachedCredentials = { username: parsed.username, password: parsed.password }
+    }
+  } catch (err) {
+    console.warn('Failed to read auth credentials', err)
+    cachedCredentials = null
+  }
+}
+
+function getAuthHeader() {
+  ensureAuthLoaded()
+  if (!cachedCredentials?.username || !cachedCredentials?.password) return null
+  const token = btoa(`${cachedCredentials.username}:${cachedCredentials.password}`)
+  return `Basic ${token}`
+}
+
+function request(path, options = {}) {
+  const headers = new Headers(options.headers || {})
+  const authHeader = getAuthHeader()
+  if (authHeader) headers.set('Authorization', authHeader)
+  return fetch(`${baseUrl}${path}`, { ...options, headers })
+}
 
 async function handleJsonResponse(res, errorMessage) {
+  if (res.status === 401) {
+    notifyUnauthorized()
+    throw new Error('Authentication required')
+  }
+
   if (!res.ok) {
     let details = {}
     try {
@@ -18,7 +69,34 @@ async function handleJsonResponse(res, errorMessage) {
     if (details.id) parts.push(`ID: ${details.id}`)
     throw new Error(parts.join(' - ') || errorMessage)
   }
+  if (res.status === 204) return null
   return res.json()
+}
+
+export function getAuthCredentials() {
+  ensureAuthLoaded()
+  return cachedCredentials
+}
+
+export function setAuthCredentials(credentials) {
+  cachedCredentials = credentials
+  if (isBrowser) {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(credentials))
+  }
+}
+
+export function clearAuthCredentials() {
+  cachedCredentials = null
+  if (isBrowser) {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY)
+  }
+}
+
+export function onUnauthorized(handler) {
+  unauthorizedListeners.add(handler)
+  return () => {
+    unauthorizedListeners.delete(handler)
+  }
 }
 
 export function stageLabels() {
@@ -32,23 +110,23 @@ export function stageLabels() {
 }
 
 export async function fetchProjects() {
-  const res = await fetch(`${baseUrl}/api/projects`)
+  const res = await request('/api/projects')
   return handleJsonResponse(res, 'Failed to load projects')
 }
 
 export async function fetchProjectDetail(id) {
-  const res = await fetch(`${baseUrl}/api/projects/${id}`)
+  const res = await request(`/api/projects/${id}`)
   return handleJsonResponse(res, 'Failed to load project detail')
 }
 
 export async function fetchPhiladelphiaWeather() {
-  const res = await fetch(`${baseUrl}/api/weather`)
+  const res = await request('/api/weather')
   return handleJsonResponse(res, 'Failed to load Philadelphia weather')
 }
 
 export async function createProject(name) {
   if (!name) throw new Error('Project name is required')
-  const res = await fetch(`${baseUrl}/api/projects`, {
+  const res = await request('/api/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
@@ -57,12 +135,12 @@ export async function createProject(name) {
 }
 
 export async function deleteProject(id) {
-  const res = await fetch(`${baseUrl}/api/projects/${id}`, { method: 'DELETE' })
+  const res = await request(`/api/projects/${id}`, { method: 'DELETE' })
   return handleJsonResponse(res, 'Failed to delete project')
 }
 
 export async function updateProjectGeneral(id, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${id}`, {
+  const res = await request(`/api/projects/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -71,7 +149,7 @@ export async function updateProjectGeneral(id, payload) {
 }
 
 export async function updateProjectStage(id, stage) {
-  const res = await fetch(`${baseUrl}/api/projects/${id}/stage`, {
+  const res = await request(`/api/projects/${id}/stage`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stage }),
@@ -81,7 +159,7 @@ export async function updateProjectStage(id, stage) {
 
 export async function createRevenueItem(projectId, payload) {
   const parsed = apartmentRevenueInputSchema.parse(payload)
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/revenue`, {
+  const res = await request(`/api/projects/${projectId}/revenue`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(parsed),
@@ -90,7 +168,7 @@ export async function createRevenueItem(projectId, payload) {
 }
 
 export async function updateRevenueItem(projectId, revenueId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/revenue/${revenueId}`, {
+  const res = await request(`/api/projects/${projectId}/revenue/${revenueId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -99,14 +177,14 @@ export async function updateRevenueItem(projectId, revenueId, payload) {
 }
 
 export async function deleteRevenueItem(projectId, revenueId) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/revenue/${revenueId}`, {
+  const res = await request(`/api/projects/${projectId}/revenue/${revenueId}`, {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete revenue item')
 }
 
 export async function createSoftCost(projectId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/soft-costs`, {
+  const res = await request(`/api/projects/${projectId}/soft-costs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -115,7 +193,7 @@ export async function createSoftCost(projectId, payload) {
 }
 
 export async function updateSoftCost(projectId, costId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/soft-costs/${costId}`, {
+  const res = await request(`/api/projects/${projectId}/soft-costs/${costId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -124,14 +202,14 @@ export async function updateSoftCost(projectId, costId, payload) {
 }
 
 export async function deleteSoftCost(projectId, costId) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/soft-costs/${costId}`, {
+  const res = await request(`/api/projects/${projectId}/soft-costs/${costId}`, {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete soft cost')
 }
 
 export async function createHardCost(projectId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/hard-costs`, {
+  const res = await request(`/api/projects/${projectId}/hard-costs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -140,7 +218,7 @@ export async function createHardCost(projectId, payload) {
 }
 
 export async function updateHardCost(projectId, costId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/hard-costs/${costId}`, {
+  const res = await request(`/api/projects/${projectId}/hard-costs/${costId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -149,14 +227,14 @@ export async function updateHardCost(projectId, costId, payload) {
 }
 
 export async function deleteHardCost(projectId, costId) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/hard-costs/${costId}`, {
+  const res = await request(`/api/projects/${projectId}/hard-costs/${costId}`, {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete hard cost')
 }
 
 export async function createCarryingCost(projectId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/carrying-costs`, {
+  const res = await request(`/api/projects/${projectId}/carrying-costs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -165,7 +243,7 @@ export async function createCarryingCost(projectId, payload) {
 }
 
 export async function updateCarryingCost(projectId, costId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/carrying-costs/${costId}`, {
+  const res = await request(`/api/projects/${projectId}/carrying-costs/${costId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -174,7 +252,7 @@ export async function updateCarryingCost(projectId, costId, payload) {
 }
 
 export async function deleteCarryingCost(projectId, costId) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/carrying-costs/${costId}`, {
+  const res = await request(`/api/projects/${projectId}/carrying-costs/${costId}`, {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete carrying cost')
@@ -182,7 +260,7 @@ export async function deleteCarryingCost(projectId, costId) {
 
 export async function createParkingRevenue(projectId, payload) {
   const parsed = parkingRevenueInputSchema.parse(payload)
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking`, {
+  const res = await request(`/api/projects/${projectId}/parking`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(parsed),
@@ -191,7 +269,7 @@ export async function createParkingRevenue(projectId, payload) {
 }
 
 export async function updateParkingRevenue(projectId, parkingId, payload) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking/${parkingId}`, {
+  const res = await request(`/api/projects/${projectId}/parking/${parkingId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -200,7 +278,7 @@ export async function updateParkingRevenue(projectId, parkingId, payload) {
 }
 
 export async function deleteParkingRevenue(projectId, parkingId) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/parking/${parkingId}`, {
+  const res = await request(`/api/projects/${projectId}/parking/${parkingId}`, {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete parking revenue')
@@ -208,7 +286,7 @@ export async function deleteParkingRevenue(projectId, parkingId) {
 
 export async function createGpContribution(projectId, payload) {
   const parsed = gpContributionInputSchema.parse(payload)
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions`, {
+  const res = await request(`/api/projects/${projectId}/gp-contributions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(parsed),
@@ -218,7 +296,7 @@ export async function createGpContribution(projectId, payload) {
 
 export async function updateGpContribution(projectId, contributionId, payload) {
   const parsed = gpContributionInputSchema.partial().parse(payload)
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions/${contributionId}`, {
+  const res = await request(`/api/projects/${projectId}/gp-contributions/${contributionId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(parsed),
@@ -227,7 +305,7 @@ export async function updateGpContribution(projectId, contributionId, payload) {
 }
 
 export async function deleteGpContribution(projectId, contributionId) {
-  const res = await fetch(`${baseUrl}/api/projects/${projectId}/gp-contributions/${contributionId}`, {
+  const res = await request(`/api/projects/${projectId}/gp-contributions/${contributionId}`, {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete GP contribution')
@@ -235,6 +313,6 @@ export async function deleteGpContribution(projectId, contributionId) {
 
 export async function searchAddresses(query) {
   if (!query.trim()) return []
-  const res = await fetch(`${baseUrl}/api/geocode/search?q=${encodeURIComponent(query)}`)
+  const res = await request(`/api/geocode/search?q=${encodeURIComponent(query)}`)
   return handleJsonResponse(res, 'Failed to search addresses')
 }
