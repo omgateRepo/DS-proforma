@@ -6,6 +6,8 @@
     "backend",
     "packages/types"
   ],
-  "scripts": {}
+  "scripts": {
+    "postinstall": "npm --workspace frontend run postinstall"
+  }
 }
 

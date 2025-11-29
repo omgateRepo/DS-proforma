@@ -10,6 +10,12 @@
 const fs = require('node:fs')
 const path = require('node:path')
 
+const isMac = process.platform === 'darwin'
+if (isMac) {
+  console.log('[rollup-shim] macOS detected — keeping native binding.')
+  process.exit(0)
+}
+
 const projectRoot = path.resolve(__dirname, '..')
 const nodeModulesDir = path.join(projectRoot, 'node_modules')
 const shimDir = path.join(nodeModulesDir, '@rollup', 'rollup-linux-x64-gnu')
@@ -24,11 +30,7 @@ function writeFile(filePath, contents) {
 }
 
 try {
-  // If the official native binding (or a previous shim) already exists, skip.
-  if (fs.existsSync(nativeFile)) {
-    console.log('[rollup-shim] Native binding found — skipping shim.')
-    process.exit(0)
-  }
+  fs.rmSync(shimDir, { recursive: true, force: true })
 
   const wasmPackageJson = require('@rollup/wasm-node/package.json')
 
@@ -65,7 +67,7 @@ export const xxhashBase16: typeof Wasm.xxhashBase16;
 `
   )
 
-  console.log('[rollup-shim] Created wasm shim for @rollup/rollup-linux-x64-gnu.')
+  console.log('[rollup-shim] Created / refreshed wasm shim for @rollup/rollup-linux-x64-gnu.')
 } catch (error) {
   console.warn('[rollup-shim] Failed to create shim:', error)
   process.exit(0) // continue without blocking install
