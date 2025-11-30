@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
+    "postinstall": "npm run prisma:generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio"
@@ -22,6 +23,7 @@
     "@ds-proforma/types": "file:../packages/types",
     "@prisma/adapter-pg": "^7.0.1",
     "@prisma/client": "^7.0.1",
+    "prisma": "^7.0.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
@@ -40,7 +42,6 @@
     "eslint": "^9.39.1",
     "globals": "^16.5.0",
     "nodemon": "^3.1.11",
-    "prisma": "^7.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.5"
