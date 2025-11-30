@@ -24,6 +24,8 @@ import {
   CARRYING_TYPES,
   INTERVAL_UNITS,
   LOAN_MODES,
+  encodePropertyTaxGroup,
+  decodePropertyTaxPhase,
   normalizeCarryingPayload,
 } from './utils/carrying.js'
 
@@ -364,6 +366,8 @@ const mapCostRow = (row) => ({
   fundingMonth: toInt(row.funding_month),
   repaymentStartMonth: toInt(row.repayment_start_month),
   intervalUnit: row.interval_unit || row.interval || null,
+  propertyTaxPhase:
+    row.carrying_type === 'property_tax' ? decodePropertyTaxPhase(row.cost_group) : null,
 })
 
 const mapCashflowRow = (row) => ({
@@ -969,13 +973,17 @@ router.delete('/projects/:id/hard-costs/:costId', async (req, res) => {
 router.post('/projects/:id/carrying-costs', async (req, res) => {
   const normalized = normalizeCarryingPayload(req.body)
   if (normalized.error) return res.status(400).json({ error: normalized.error })
+  const costGroup =
+    normalized.carryingType === 'property_tax'
+      ? encodePropertyTaxGroup(normalized.propertyTaxPhase || 'construction')
+      : normalized.carryingType
 
   if (SKIP_DB) {
     return res.status(201).json({
       id: `carry-${Date.now()}`,
       category: 'carrying',
       costName: normalized.costName,
-      costGroup: normalized.carryingType,
+      costGroup,
       carryingType: normalized.carryingType,
       amountUsd: normalized.amountUsd,
       startMonth: normalized.startMonth,
@@ -987,6 +995,7 @@ router.post('/projects/:id/carrying-costs', async (req, res) => {
       loanTermMonths: normalized.loanTermMonths,
       fundingMonth: normalized.fundingMonth,
       repaymentStartMonth: normalized.repaymentStartMonth,
+      propertyTaxPhase: normalized.propertyTaxPhase || null,
     })
   }
 
@@ -996,7 +1005,7 @@ router.post('/projects/:id/carrying-costs', async (req, res) => {
         project_id: req.params.id,
         category: 'carrying',
         cost_name: normalized.costName,
-        cost_group: normalized.carryingType,
+        cost_group: costGroup,
         amount_usd: normalized.amountUsd,
         start_month: normalized.startMonth,
         end_month: normalized.endMonth,
@@ -1019,13 +1028,17 @@ router.post('/projects/:id/carrying-costs', async (req, res) => {
 router.patch('/projects/:id/carrying-costs/:costId', async (req, res) => {
   const normalized = normalizeCarryingPayload(req.body)
   if (normalized.error) return res.status(400).json({ error: normalized.error })
+  const costGroup =
+    normalized.carryingType === 'property_tax'
+      ? encodePropertyTaxGroup(normalized.propertyTaxPhase || 'construction')
+      : normalized.carryingType
 
   if (SKIP_DB) {
     return res.json({
       id: req.params.costId,
       category: 'carrying',
       costName: normalized.costName,
-      costGroup: normalized.carryingType,
+      costGroup,
       carryingType: normalized.carryingType,
       amountUsd: normalized.amountUsd,
       startMonth: normalized.startMonth,
@@ -1037,6 +1050,7 @@ router.patch('/projects/:id/carrying-costs/:costId', async (req, res) => {
       loanTermMonths: normalized.loanTermMonths,
       fundingMonth: normalized.fundingMonth,
       repaymentStartMonth: normalized.repaymentStartMonth,
+      propertyTaxPhase: normalized.propertyTaxPhase || null,
     })
   }
 
@@ -1045,7 +1059,7 @@ router.patch('/projects/:id/carrying-costs/:costId', async (req, res) => {
       where: { id: req.params.costId },
       data: {
         cost_name: normalized.costName,
-        cost_group: normalized.carryingType,
+        cost_group: costGroup,
         amount_usd: normalized.amountUsd,
         start_month: normalized.startMonth,
         end_month: normalized.endMonth,

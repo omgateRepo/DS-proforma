@@ -27,6 +27,7 @@ describe('normalizeCarryingPayload', () => {
       intervalUnit: null,
       startMonth: null,
       endMonth: null,
+      propertyTaxPhase: null,
     })
   })
 
@@ -52,6 +53,7 @@ describe('normalizeCarryingPayload', () => {
       startMonth: '3',
       endMonth: '15',
       intervalUnit: 'quarterly',
+      taxPhase: 'construction',
     })
 
     expect(result).toEqual({
@@ -67,7 +69,19 @@ describe('normalizeCarryingPayload', () => {
       loanTermMonths: null,
       fundingMonth: null,
       repaymentStartMonth: null,
+      propertyTaxPhase: 'construction',
     })
+  })
+
+  it('requires taxPhase for property tax rows', () => {
+    const result = normalizeCarryingPayload({
+      carryingType: 'property_tax',
+      amountUsd: '1000',
+      startMonth: '1',
+      intervalUnit: 'monthly',
+    })
+
+    expect(result).toEqual({ error: 'taxPhase is required for property tax rows' })
   })
 
   it('rejects invalid interval unit', () => {

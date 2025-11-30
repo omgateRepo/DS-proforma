@@ -91,12 +91,14 @@ export const COST_PAYMENT_MODES: readonly ['single', 'range', 'multi']
 export const CARRYING_TYPES: readonly ['loan', 'property_tax', 'management']
 export const LOAN_MODES: readonly ['interest_only', 'amortizing']
 export const INTERVAL_UNITS: readonly ['monthly', 'quarterly', 'yearly']
+export const PROPERTY_TAX_PHASES: readonly ['construction', 'stabilized']
 
 export type CostPaymentMode = typeof COST_PAYMENT_MODES[number]
 export type MeasurementUnit = typeof MEASUREMENT_UNITS[number]
 export type CarryingType = typeof CARRYING_TYPES[number]
 export type LoanMode = typeof LOAN_MODES[number]
 export type IntervalUnit = typeof INTERVAL_UNITS[number]
+export type PropertyTaxPhase = typeof PROPERTY_TAX_PHASES[number]
 
 export interface ApartmentRevenueInput {
   typeLabel: string
@@ -180,6 +182,7 @@ export interface RecurringCarryingInput {
   intervalUnit: IntervalUnit
   startMonth: number
   endMonth?: number | null
+  propertyTaxPhase?: PropertyTaxPhase
 }
 
 export type CarryingCostInput = LoanCarryingInput | RecurringCarryingInput
@@ -188,6 +191,7 @@ export interface CarryingCostRow {
   id: EntityId
   carryingType: CarryingType
   costName?: string | null
+  costGroup?: string | null
   amountUsd?: number | null
   intervalUnit?: IntervalUnit | null
   startMonth?: number | null
@@ -198,6 +202,7 @@ export interface CarryingCostRow {
   loanTermMonths?: number | null
   fundingMonth?: number | null
   repaymentStartMonth?: number | null
+  propertyTaxPhase?: PropertyTaxPhase | null
 }
 
 export interface CashflowRow {

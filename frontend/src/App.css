@@ -327,6 +327,99 @@
   font-size: 1.25rem;
 }
 
+.metrics-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.metrics-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.metrics-header h3 {
+  margin: 0;
+  flex: 1;
+}
+
+.metrics-table-wrapper {
+  overflow-x: auto;
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.metrics-table th,
+.metrics-table td {
+  padding: 8px;
+  border-bottom: 1px solid #e4e4e4;
+  text-align: left;
+}
+
+.metrics-table tfoot td {
+  font-weight: 600;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.metrics-grid .label {
+  font-size: 0.8rem;
+  color: #6b6b6b;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metrics-tab input[type='number'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.scenario-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+}
+
+.override-card {
+  border: 1px solid #e4e4e4;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.scenario-inputs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.loan-badge {
+  border: 1px solid #e4e4e4;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.loan-badge.warning {
+  border-color: #d35400;
+  background: #fdf4ec;
+}
+
+.loan-badge span {
+  display: inline-block;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
 .soft-header {
   display: flex;
   justify-content: space-between;

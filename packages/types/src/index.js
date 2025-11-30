@@ -41,6 +41,7 @@ const measurementUnits = ['none', 'sqft', 'linear_feet', 'apartment', 'building'
 const carryingTypes = ['loan', 'property_tax', 'management']
 const loanModes = ['interest_only', 'amortizing']
 const intervalUnits = ['monthly', 'quarterly', 'yearly']
+const propertyTaxPhases = ['construction', 'stabilized']
 
 export const SOFT_COST_CATEGORY_IDS = [...softCostCategories]
 export const HARD_COST_CATEGORY_IDS = [...hardCostCategories]
@@ -49,6 +50,7 @@ export const COST_PAYMENT_MODES = [...costPaymentModes]
 export const CARRYING_TYPES = [...carryingTypes]
 export const LOAN_MODES = [...loanModes]
 export const INTERVAL_UNITS = [...intervalUnits]
+export const PROPERTY_TAX_PHASES = [...propertyTaxPhases]
 
 const costScheduleBaseFields = {
   costName: nonEmptyString,
@@ -151,8 +153,24 @@ export const recurringCarryingInputSchema = z
     intervalUnit: z.enum(intervalUnits),
     startMonth: positiveInt,
     endMonth: optionalPositiveInt.nullable(),
+    propertyTaxPhase: z.enum(propertyTaxPhases).optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.carryingType === 'property_tax') {
+      if (!data.propertyTaxPhase) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['propertyTaxPhase'],
+          message: 'taxPhase is required for property tax rows',
+        })
+      }
+    } else if (data.propertyTaxPhase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['propertyTaxPhase'],
+        message: 'taxPhase can only be set for property tax rows',
+      })
+    }
     if (data.endMonth !== null && data.endMonth !== undefined && data.endMonth < data.startMonth) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

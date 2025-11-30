@@ -32,6 +32,7 @@ import {
   buildCarryingSeries,
 } from './features/cashflow/cashflowHelpers.js'
 import { CarryingCostsSection } from './features/carrying/CarryingCostsSection'
+import { MetricsTab } from './features/metrics/MetricsTab'
 import type {
   AddressSuggestion,
   ApartmentRevenueRow,
@@ -53,6 +54,7 @@ const TABS = [
   { id: 'soft', label: 'Soft Costs' },
   { id: 'carrying', label: 'Carrying Costs' },
   { id: 'cashflow', label: 'Cashflow' },
+  { id: 'metrics', label: 'Metrics & Sensitivities' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -769,6 +771,10 @@ function App() {
                   expandedRows={expandedCashflowRows}
                   onToggleRow={toggleCashflowRow}
                 />
+              )}
+
+              {activeTab === 'metrics' && (
+                <MetricsTab project={selectedProject} projectId={selectedProjectId} />
               )}
 
               {activeTab === 'general' && (

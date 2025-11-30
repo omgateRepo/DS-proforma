@@ -165,19 +165,27 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
     - Monthly outflow = `loan_amount_usd * rate / 12` (still rendered as the `Loan – Interest` sub-line).
     - During the month immediately **before** the term ends, insert a lump-sum outflow equal to the original principal labeled `Loan – Principal Payoff`.
 
-#### 6.5.2 Property Tax
-- **Fields**
-  - `title` (optional helper text, defaults to “Property Tax” if blank).
+#### 6.5.2 Property Tax (Construction vs Stabilized)
+- **Dual-line model**
+  - The Add → Property Tax modal now includes a required `tax_phase` selector with two options: **Construction RE Tax** and **Stabilized RE Tax**.
+  - Each project should capture **exactly two** property-tax rows (one per phase). The UI pre-labels the row title accordingly (`Construction RE Tax` / `Stabilized RE Tax`), though users can append context in parentheses if needed.
+  - Both rows behave like normal carrying items in the cashflow grid; the distinction only drives how downstream metrics treat the values.
+- **Fields (shared by both phases)**
   - `amount_usd` (per interval).
   - `start_month`.
   - `end_month` (optional; if omitted the item continues through the 60-month grid).
   - `interval_unit`: `monthly`, `quarterly`, or `yearly`.
+  - Optional helper `title` for extra labeling (defaults to the selected phase label).
 - **Cashflow Behavior**
   - Normalize the amount to a monthly series based on the interval.
     - Monthly = amount every month.
     - Quarterly = amount every 3 months.
     - Yearly = amount every 12 months.
   - Respect start/end months when plotting to the grid.
+  - Construction RE Tax typically stops once stabilization is achieved; Stabilized RE Tax often continues indefinitely. Both still surface under the Carrying Costs → Property Tax grouping.
+- **Metrics tie-in**
+  - Construction RE Tax is consumed by the Metrics tab’s loan-sizing calculation (§11.4) so the debt budget accounts for taxes during the build.
+  - Stabilized RE Tax flows into the NOI calculation (§11.5) alongside Building Management, mirroring the steady-state view of operations.
 
 #### 6.5.3 Management Fees
 - **Fields**
@@ -323,7 +331,7 @@ All new work should reference this plan so the codebase trends toward smaller co
 
 These measures make sure only the two intended users can access the environment while keeping the entry point lightweight (no database-backed accounts yet). Future stages can replace the Basic Auth credentials with a richer auth system without touching the tab flows described above.
 
-### 10.2 Testing & Continuous Integration (Stage 5)
+### 10.2 Testing & Continuous Integration Refinement (Stage 5)
 - **Frontend Suite (Vitest + React Testing Library)**  
   - `GeneralTab` spec covers form submissions and satellite preview rendering.  
   - `RevenueSection` exercises the apartment modal validations and error paths.  
@@ -335,4 +343,55 @@ These measures make sure only the two intended users can access the environment 
 - **Shared Tooling & CI**  
   - New flat ESLint configs for both workspaces plus root scripts (`npm run lint`, `npm run typecheck`, `npm run test`) orchestrate frontend + backend.  
   - `.github/workflows/ci.yml` runs install → lint → typecheck → test on every push/PR to keep the Render deploys green.
+
+### 10.3 Deployment Polish & Future Hardening (Stage 6 Agenda)
+- **Wrap the SPA behind Express (security + parity)**  
+  - Implement a small Express server in `frontend/` that serves the built assets and proxies `/api` so the existing Basic Auth + rate limiting protect both frontend and backend.  
+  - Update the current Render “frontend” service to run as a web service (e.g., `npm run build && node dist/server.js`) and provide the same `RENDER_AUTH_*` env vars used on the backend.  
+  - Flip the Render service from static site to web service only after validating the wrapper locally and in staging, so the transition doesn’t break access.
+- **CI as a deploy gate (future enhancement)**  
+  - Today CI runs but does not block auto-deploys; once the pipeline has a clean track record we can enable GitHub required checks or switch the Render services to “manual deploy” so failed builds never ship.
+- **Ongoing lint/test debt**  
+  - As future tickets touch existing files, spend a few minutes clearing the lingering warnings (unused vars, hook deps, `any` escapes) so we can ratchet ESLint back to stricter settings without a massive cleanup effort.
+
+## 11. Metrics & Sensitivities Tab (Stabilized CAP Rate Dashboard)
+A new tab translates the entire proforma into a single reproducible CAP Rate while letting the user stress different assumptions (Best Case / Worst Case). All values are read-only snapshots from other tabs unless explicitly marked editable; edits in this tab do **not** write back to the source data and have **zero impact on the Cashflow tab**. Every derived figure shows a tooltip (hover on a `?` icon) that explains the calculation.
+
+### 11.1 Revenues (Stabilized View)
+- Table lists **every apartment type** pulled from the Revenue tab: Type Label, # Units, SqFt, Base Monthly Rent (read-only).  
+- Inline inputs allow overriding **Monthly Rent – BC** and **Monthly Rent – WC**. Above the rent cells a radio group (WC / Default / BC) chooses which column feeds the calculations.  
+- Vacancy/Occupancy% is displayed from the Revenue tab but can be temporarily edited here (per type).  
+- Repeat the exact structure for **Parking Types** (type, space count, rent).  
+- Totals update instantly based on the active scenario (WC/Default/BC + occupancy overrides).
+
+### 11.2 Development Costs
+- **Purchase Price** – read-only, from General tab.  
+- **Hard Costs Total** – sum of Hard Costs tab (read-only).  
+- **Soft Costs Total** – sum of Soft Costs tab (read-only).  
+- **Buildable SqFt** – from General tab (read-only).  
+- **Build Cost / SqFt (default)** = (Hard + Soft) / Buildable SqFt (read-only) but accompanied by editable WC and BC override inputs plus a radio selector (WC / Default / BC) that decides the number used downstream.
+
+### 11.3 Carrying Costs
+- Rows:
+  - **Building Management** – pull the annualized amount from the Carrying Costs tab, then offer WC/Default/BC overrides + selector.
+  - **Stabilized RE Tax** – specifically reference the “Stabilized RE Tax” entry from the Carrying Costs tab. Construction RE Tax is excluded here so NOI reflects steady-state operations.
+- Both rows present inline WC/BC override inputs and a radio selector per row to choose which assumption drives the calculations.
+
+### 11.4 Loan Assumptions
+- Editable **Construction Period (months)** (default 24).  
+- Editable **Interest Rate (%)** (default 6.25) – interest-only during construction.  
+- **Founders Equity (GP Contribution)** – sum of GP contributions from Revenue tab (read-only).  
+- **Construction Loan Amount** =  
+  ```
+  (Purchase Price + Selected Hard Cost + Selected Soft Cost)
+  – GP Contributions
+  + Construction RE Tax (annualized draw during construction period)
+  + Interest accrued on loan during construction
+  ```
+  - Show a `% Loan-to-Project-Cost` badge calculated as (Loan Amount) / (Loan Amount + GP Contribution). Highlight in red if > 75%.
+
+### 11.5 Metrics
+- **NOI (Stabilized)** = Selected Revenue Total – Selected Property Tax (Stabilized) – Selected Management Fee.  
+- **CAP Rate** = NOI / Total Project Cost (Loan Amount + GP Contribution).  
+- Display the active scenario (WC / Default / BC) near the metrics. Each computed field includes the hover tooltip describing its formula.
 

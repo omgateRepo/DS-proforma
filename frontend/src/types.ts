@@ -19,6 +19,7 @@ export type {
   CarryingType,
   LoanMode,
   IntervalUnit,
+  PropertyTaxPhase,
 } from '@ds-proforma/types'
 
 export {
@@ -29,6 +30,7 @@ export {
   CARRYING_TYPES,
   LOAN_MODES,
   INTERVAL_UNITS,
+  PROPERTY_TAX_PHASES,
 } from '@ds-proforma/types'
 
 export type GeneralFormState = {

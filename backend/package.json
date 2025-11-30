@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/index.js",
-    "start": "node src/index.js",
+    "dev": "npm run prisma:generate && nodemon src/index.js",
+    "start": "npm run prisma:generate && node src/index.js",
     "typecheck": "tsc --project tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",

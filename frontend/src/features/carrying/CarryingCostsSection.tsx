@@ -13,8 +13,18 @@ import {
   intervalUnitOptions,
   loanModeLabels,
   loanModeOptions,
+  propertyTaxPhaseLabels,
+  propertyTaxPhaseOptions,
 } from './carryingHelpers.js'
-import type { CarryingCostRow, CarryingType, EntityId, IntervalUnit, LoanMode, ProjectDetail } from '../../types'
+import type {
+  CarryingCostRow,
+  CarryingType,
+  EntityId,
+  IntervalUnit,
+  LoanMode,
+  ProjectDetail,
+  PropertyTaxPhase,
+} from '../../types'
 
 type RequestStatus = 'idle' | 'saving' | 'error'
 
@@ -38,6 +48,17 @@ type RecurringFormState = {
   intervalUnit: IntervalUnit
   startMonth: string
   endMonth: string
+  propertyTaxPhase?: PropertyTaxPhase
+}
+
+type RecurringPayload = {
+  carryingType: CarryingType
+  costName: string
+  amountUsd: number
+  intervalUnit: IntervalUnit
+  startMonth: number
+  endMonth: number | null
+  propertyTaxPhase?: PropertyTaxPhase
 }
 
 type CarryingCostsSectionProps = {
@@ -61,6 +82,8 @@ const toNumberOrNull = (value: string | number | null | undefined) => {
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const loanLabelMap = loanModeLabels as Record<LoanMode, string>
 const intervalLabelMap = intervalLabels as Record<IntervalUnit, string>
+const propertyPhaseLabelMap = propertyTaxPhaseLabels as Record<PropertyTaxPhase, string>
+const DEFAULT_PROPERTY_TAX_PHASE: PropertyTaxPhase = 'construction'
 
 export function CarryingCostsSection({
   project,
@@ -74,8 +97,10 @@ export function CarryingCostsSection({
   const [activeModal, setActiveModal] = useState<CarryingType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loanForm, setLoanForm] = useState<LoanFormState>(createDefaultLoanForm() as LoanFormState)
-  const [propertyForm, setPropertyForm] = useState<RecurringFormState>(
-    () => createDefaultRecurringForm('property_tax') as RecurringFormState,
+  const [propertyForm, setPropertyForm] = useState<RecurringFormState>(() =>
+    createDefaultRecurringForm('property_tax', {
+      propertyTaxPhase: DEFAULT_PROPERTY_TAX_PHASE,
+    }) as RecurringFormState,
   )
   const [managementForm, setManagementForm] = useState<RecurringFormState>(
     () => createDefaultRecurringForm('management') as RecurringFormState,
@@ -100,6 +125,17 @@ export function CarryingCostsSection({
   const loanRows = useMemo(() => carryingRows.filter(isLoanRow), [carryingRows])
   const propertyRows = useMemo(() => carryingRows.filter(isPropertyRow), [carryingRows])
   const managementRows = useMemo(() => carryingRows.filter(isManagementRow), [carryingRows])
+  const { missingPropertyPhases, nextPropertyPhase } = useMemo(() => {
+    const used = new Set<PropertyTaxPhase>()
+    propertyRows.forEach((row) => {
+      if (row.propertyTaxPhase) {
+        used.add(row.propertyTaxPhase as PropertyTaxPhase)
+      }
+    })
+    const missing = propertyTaxPhaseOptions.filter((option) => !used.has(option.id as PropertyTaxPhase))
+    const nextPhase = (missing[0]?.id ?? DEFAULT_PROPERTY_TAX_PHASE) as PropertyTaxPhase
+    return { missingPropertyPhases: missing, nextPropertyPhase: nextPhase }
+  }, [propertyRows])
 
   const totalMonthlyLoans = useMemo(() => {
     return loanRows.reduce((sum, row) => sum + Math.max(calculateLoanPreview(row).monthlyPayment || 0, 0), 0)
@@ -113,12 +149,14 @@ export function CarryingCostsSection({
 
   const resetForms = useCallback(() => {
     setLoanForm(createDefaultLoanForm() as LoanFormState)
-    setPropertyForm(createDefaultRecurringForm('property_tax') as RecurringFormState)
+    setPropertyForm(
+      createDefaultRecurringForm('property_tax', { propertyTaxPhase: nextPropertyPhase }) as RecurringFormState,
+    )
     setManagementForm(createDefaultRecurringForm('management') as RecurringFormState)
     setEditingId(null)
     setModalError('')
     setStatus('idle')
-  }, [])
+  }, [nextPropertyPhase])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -169,7 +207,7 @@ export function CarryingCostsSection({
       setPropertyForm(
         row
           ? (buildRecurringFormFromRow(row, formatOffsetForInput) as RecurringFormState)
-          : (createDefaultRecurringForm('property_tax') as RecurringFormState),
+          : (createDefaultRecurringForm('property_tax', { propertyTaxPhase: nextPropertyPhase }) as RecurringFormState),
       )
     } else {
       setManagementForm(
@@ -226,7 +264,7 @@ export function CarryingCostsSection({
     const amount = toNumberOrNull(form.amountUsd)
     if (amount === null) throw new Error('Amount is required.')
     const startMonth = requireMonth(form.startMonth, 'Start month is required.')
-    const payload = {
+    const payload: RecurringPayload = {
       carryingType: type,
       costName: form.costName.trim() || (type === 'property_tax' ? 'Property Tax' : 'Management Fee'),
       amountUsd: amount,
@@ -236,6 +274,10 @@ export function CarryingCostsSection({
     }
     if (payload.endMonth !== null && payload.endMonth < startMonth) {
       throw new Error('End month cannot be earlier than start month.')
+    }
+    if (type === 'property_tax') {
+      const propertyTaxPhase = form.propertyTaxPhase || nextPropertyPhase
+      payload.propertyTaxPhase = propertyTaxPhase
     }
     return payload
   }
@@ -346,6 +388,69 @@ export function CarryingCostsSection({
                   <td>{formatMonthDisplay(row.fundingMonth)}</td>
                   <td>{formatMonthDisplay(row.repaymentStartMonth)}</td>
                   <td>{preview.monthlyPayment ? formatCurrency(preview.monthlyPayment) : '—'}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button type="button" className="icon-button" onClick={() => startEdit(row)}>
+                        ✏️
+                      </button>
+                      <button type="button" className="icon-delete" onClick={() => handleDelete(row)}>
+                        🗑
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+
+  const renderPropertyTaxTable = () => (
+    <section className="carrying-section">
+      <div className="section-header">
+        <h4>Property Tax</h4>
+        <p className="muted tiny">
+          Track Construction vs Stabilized separately. Construction feeds loan sizing; Stabilized flows into metrics/NOI.
+        </p>
+        {missingPropertyPhases.length > 0 && (
+          <p className="muted tiny">
+            Missing phases: {missingPropertyPhases.map((phase) => phase.label).join(' & ')}.
+          </p>
+        )}
+      </div>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>Title</th>
+              <th>Amount</th>
+              <th>Interval</th>
+              <th>Start Month</th>
+              <th>End Month</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {propertyRows.length === 0 && (
+              <tr>
+                <td colSpan={7}>No property tax items yet.</td>
+              </tr>
+            )}
+            {propertyRows.map((row) => {
+              const phase = (row.propertyTaxPhase as PropertyTaxPhase | undefined) ?? null
+              const phaseLabel = phase ? propertyPhaseLabelMap[phase] : 'Unassigned'
+              const intervalLabel = row.intervalUnit ? intervalLabelMap[row.intervalUnit] : null
+              return (
+                <tr key={row.id}>
+                  <td>{phaseLabel}</td>
+                  <td>{row.costName || phaseLabel}</td>
+                  <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
+                  <td>{intervalLabel || row.intervalUnit || '—'}</td>
+                  <td>{formatMonthDisplay(row.startMonth)}</td>
+                  <td>{row.endMonth !== null && row.endMonth !== undefined ? formatMonthDisplay(row.endMonth) : 'Ongoing'}</td>
                   <td>
                     <div className="row-actions">
                       <button type="button" className="icon-button" onClick={() => startEdit(row)}>
@@ -487,11 +592,41 @@ export function CarryingCostsSection({
       )
     }
 
-    const form = activeModal === 'property_tax' ? propertyForm : managementForm
-    const setter = activeModal === 'property_tax' ? setPropertyForm : setManagementForm
+    const isPropertyModal = activeModal === 'property_tax'
+    const form = isPropertyModal ? propertyForm : managementForm
+    const setter = isPropertyModal ? setPropertyForm : setManagementForm
+    const selectedPhase = (form.propertyTaxPhase as PropertyTaxPhase | undefined) ?? nextPropertyPhase
 
     return (
       <>
+        {isPropertyModal && (
+          <label>
+            Tax Phase
+            <select
+              value={selectedPhase}
+              onChange={(e) => {
+                const phase = e.target.value as PropertyTaxPhase
+                setter((prev) => {
+                  const prevPhase = prev.propertyTaxPhase as PropertyTaxPhase | undefined
+                  const prevDefault = prevPhase ? propertyPhaseLabelMap[prevPhase] : ''
+                  const nextDefault = propertyPhaseLabelMap[phase]
+                  const shouldResetTitle = !prev.costName || prev.costName === prevDefault
+                  return {
+                    ...prev,
+                    propertyTaxPhase: phase,
+                    costName: shouldResetTitle ? nextDefault : prev.costName,
+                  }
+                })
+              }}
+            >
+              {propertyTaxPhaseOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Title
           <input type="text" value={form.costName} onChange={(e) => setter((prev) => ({ ...prev, costName: e.target.value }))} />
@@ -570,7 +705,7 @@ export function CarryingCostsSection({
         </div>
 
         {renderLoanTable()}
-        {renderRecurringTable(propertyRows, 'Property Tax')}
+        {renderPropertyTaxTable()}
         {renderRecurringTable(managementRows, 'Management Fees')}
 
         <div className="carrying-summary">

@@ -25,6 +25,16 @@ export const loanModeLabels = loanModeOptions.reduce((acc, option) => {
   return acc
 }, {})
 
+export const propertyTaxPhaseOptions = [
+  { id: 'construction', label: 'Construction RE Tax' },
+  { id: 'stabilized', label: 'Stabilized RE Tax' },
+]
+
+export const propertyTaxPhaseLabels = propertyTaxPhaseOptions.reduce((acc, option) => {
+  acc[option.id] = option.label
+  return acc
+}, {})
+
 export const createDefaultLoanForm = () => ({
   costName: '',
   loanMode: 'interest_only',
@@ -35,13 +45,24 @@ export const createDefaultLoanForm = () => ({
   repaymentStartMonth: '1',
 })
 
-export const createDefaultRecurringForm = (type) => ({
-  costName: type === 'management' ? '' : 'Property Tax',
-  amountUsd: '',
-  intervalUnit: 'monthly',
-  startMonth: '1',
-  endMonth: '',
-})
+export const createDefaultRecurringForm = (type, options = {}) => {
+  const base = {
+    costName: type === 'management' ? '' : (options.defaultTitle || 'Property Tax'),
+    amountUsd: '',
+    intervalUnit: 'monthly',
+    startMonth: '1',
+    endMonth: '',
+  }
+  if (type === 'property_tax') {
+    const phase = options.propertyTaxPhase || 'construction'
+    return {
+      ...base,
+      costName: propertyTaxPhaseLabels[phase] || base.costName,
+      propertyTaxPhase: phase,
+    }
+  }
+  return base
+}
 
 export const buildLoanFormFromRow = (row, formatOffsetForInput) => ({
   costName: row.costName || '',
@@ -59,6 +80,7 @@ export const buildRecurringFormFromRow = (row, formatOffsetForInput) => ({
   intervalUnit: row.intervalUnit || 'monthly',
   startMonth: formatOffsetForInput(row.startMonth ?? 0),
   endMonth: row.endMonth !== null && row.endMonth !== undefined ? formatOffsetForInput(row.endMonth) : '',
+  propertyTaxPhase: row.carryingType === 'property_tax' ? row.propertyTaxPhase || 'construction' : undefined,
 })
 
 const toNumber = (value) => {
