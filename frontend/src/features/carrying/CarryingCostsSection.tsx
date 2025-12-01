@@ -119,11 +119,9 @@ export function CarryingCostsSection({
     return { missingPropertyPhases: missing, nextPropertyPhase: nextPhase }
   }, [propertyRows])
 
-  const totalMonthlyRecurring = useMemo(() => {
-    return [...propertyRows, ...managementRows].reduce((sum, row) => sum + (calculateRecurringAverage(row) || 0), 0)
-  }, [propertyRows, managementRows])
-
-  const totalMonthlyCarrying = totalMonthlyRecurring
+  const managementMonthlyTotal = useMemo(() => {
+    return managementRows.reduce((sum, row) => sum + (calculateRecurringAverage(row) || 0), 0)
+  }, [managementRows])
 
   const resetForms = useCallback(() => {
     setPropertyForm(
@@ -525,9 +523,15 @@ export function CarryingCostsSection({
         {renderPropertyTaxTable()}
         {renderRecurringTable(managementRows, 'Management Fees')}
 
-        <div className="carrying-summary">
-          <span>Estimated recurring monthly carrying costs</span>
-          <strong>{formatCurrency(totalMonthlyCarrying)}</strong>
+        <div className="management-summary">
+          <div>
+            <span>Management Monthly</span>
+            <strong>{formatCurrency(managementMonthlyTotal)}</strong>
+          </div>
+          <div>
+            <span>Management Annualized</span>
+            <strong>{formatCurrency(managementMonthlyTotal * 12)}</strong>
+          </div>
         </div>
       </div>
 

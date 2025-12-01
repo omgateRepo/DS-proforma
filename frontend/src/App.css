@@ -360,16 +360,28 @@
   padding: 1rem 1.25rem;
 }
 
-.carrying-summary {
-  border: 1px dashed var(--border);
+.management-summary {
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 1rem 1.25rem;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.carrying-summary strong {
+.management-summary div {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.management-summary span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.management-summary strong {
   font-size: 1.25rem;
 }
 
