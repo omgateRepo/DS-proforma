@@ -1,46 +1,23 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createCarryingCost, deleteCarryingCost, updateCarryingCost } from '../../api.js'
 import {
-  buildLoanFormFromRow,
   buildRecurringFormFromRow,
-  calculateLoanPreview,
   calculateRecurringAverage,
   carryingMenuOptions,
-  createDefaultLoanForm,
   createDefaultRecurringForm,
   formatCurrency,
   intervalLabels,
   intervalUnitOptions,
-  loanModeLabels,
-  loanModeOptions,
   propertyTaxPhaseLabels,
   propertyTaxPhaseOptions,
 } from './carryingHelpers.js'
-import type {
-  CarryingCostRow,
-  CarryingType,
-  EntityId,
-  IntervalUnit,
-  LoanMode,
-  ProjectDetail,
-  PropertyTaxPhase,
-} from '../../types'
+import type { CarryingCostRow, CarryingType, EntityId, IntervalUnit, ProjectDetail, PropertyTaxPhase } from '../../types'
 
 type RequestStatus = 'idle' | 'saving' | 'error'
 
 type OffsetFormatter = (offset?: number | null) => string
 type MonthOffsetConverter = (value: string | number | null | undefined) => number
 type CalendarLabelFormatter = (value: string | number | null | undefined) => string
-
-type LoanFormState = {
-  costName: string
-  loanMode: LoanMode
-  loanAmountUsd: string
-  interestRatePct: string
-  loanTermMonths: string
-  fundingMonth: string
-  repaymentStartMonth: string
-}
 
 type RecurringFormState = {
   costName: string
@@ -61,6 +38,8 @@ type RecurringPayload = {
   propertyTaxPhase?: PropertyTaxPhase
 }
 
+type RecurringCarryingType = Extract<CarryingType, 'property_tax' | 'management'>
+
 type CarryingCostsSectionProps = {
   project: ProjectDetail | null
   projectId: EntityId | null
@@ -80,7 +59,6 @@ const toNumberOrNull = (value: string | number | null | undefined) => {
 }
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
-const loanLabelMap = loanModeLabels as Record<LoanMode, string>
 const intervalLabelMap = intervalLabels as Record<IntervalUnit, string>
 const propertyPhaseLabelMap = propertyTaxPhaseLabels as Record<PropertyTaxPhase, string>
 const DEFAULT_PROPERTY_TAX_PHASE: PropertyTaxPhase = 'construction'
@@ -94,9 +72,8 @@ export function CarryingCostsSection({
   getCalendarLabelForInput,
 }: CarryingCostsSectionProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [activeModal, setActiveModal] = useState<CarryingType | null>(null)
+  const [activeModal, setActiveModal] = useState<RecurringCarryingType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [loanForm, setLoanForm] = useState<LoanFormState>(createDefaultLoanForm() as LoanFormState)
   const [propertyForm, setPropertyForm] = useState<RecurringFormState>(() =>
     createDefaultRecurringForm('property_tax', {
       propertyTaxPhase: DEFAULT_PROPERTY_TAX_PHASE,
@@ -114,15 +91,20 @@ export function CarryingCostsSection({
   const addMenuRef = useRef<HTMLDivElement | null>(null)
 
   const carryingRows: CarryingCostRow[] = project?.carryingCosts ?? []
+  const recurringMenuOptions = useMemo(
+    () =>
+      carryingMenuOptions.filter(
+        (option): option is { id: RecurringCarryingType; label: string } =>
+          option.id === 'property_tax' || option.id === 'management',
+      ),
+    [],
+  )
 
-  const isLoanRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'loan' } =>
-    row.carryingType === 'loan'
   const isPropertyRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'property_tax' } =>
     row.carryingType === 'property_tax'
   const isManagementRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'management' } =>
     row.carryingType === 'management'
 
-  const loanRows = useMemo(() => carryingRows.filter(isLoanRow), [carryingRows])
   const propertyRows = useMemo(() => carryingRows.filter(isPropertyRow), [carryingRows])
   const managementRows = useMemo(() => carryingRows.filter(isManagementRow), [carryingRows])
   const { missingPropertyPhases, nextPropertyPhase } = useMemo(() => {
@@ -137,18 +119,13 @@ export function CarryingCostsSection({
     return { missingPropertyPhases: missing, nextPropertyPhase: nextPhase }
   }, [propertyRows])
 
-  const totalMonthlyLoans = useMemo(() => {
-    return loanRows.reduce((sum, row) => sum + Math.max(calculateLoanPreview(row).monthlyPayment || 0, 0), 0)
-  }, [loanRows])
-
   const totalMonthlyRecurring = useMemo(() => {
     return [...propertyRows, ...managementRows].reduce((sum, row) => sum + (calculateRecurringAverage(row) || 0), 0)
   }, [propertyRows, managementRows])
 
-  const totalMonthlyCarrying = totalMonthlyLoans + totalMonthlyRecurring
+  const totalMonthlyCarrying = totalMonthlyRecurring
 
   const resetForms = useCallback(() => {
-    setLoanForm(createDefaultLoanForm() as LoanFormState)
     setPropertyForm(
       createDefaultRecurringForm('property_tax', { propertyTaxPhase: nextPropertyPhase }) as RecurringFormState,
     )
@@ -192,18 +169,12 @@ export function CarryingCostsSection({
     await onProjectRefresh(projectId)
   }
 
-  const openModal = (type: CarryingType, row: CarryingCostRow | null = null) => {
+  const openModal = (type: RecurringCarryingType, row: CarryingCostRow | null = null) => {
     setActiveModal(type)
     setIsModalOpen(true)
     setModalError('')
     setStatus('idle')
-    if (type === 'loan') {
-      setLoanForm(
-        row
-          ? (buildLoanFormFromRow(row, formatOffsetForInput) as LoanFormState)
-          : (createDefaultLoanForm() as LoanFormState),
-      )
-    } else if (type === 'property_tax') {
+    if (type === 'property_tax') {
       setPropertyForm(
         row
           ? (buildRecurringFormFromRow(row, formatOffsetForInput) as RecurringFormState)
@@ -231,35 +202,7 @@ export function CarryingCostsSection({
     return convertMonthInputToOffset(value)
   }
 
-  const buildLoanPayload = () => {
-    const amount = toNumberOrNull(loanForm.loanAmountUsd)
-    if (amount === null) throw new Error('Loan amount is required.')
-
-    const rate = toNumberOrNull(loanForm.interestRatePct)
-    if (rate === null) throw new Error('Interest rate is required.')
-
-    const term = toNumberOrNull(loanForm.loanTermMonths)
-    if (term === null || term <= 0) throw new Error('Loan term (months) must be greater than 0.')
-
-    const fundingMonth = requireMonth(loanForm.fundingMonth, 'Funding month is required.')
-    const repaymentMonth = requireMonth(loanForm.repaymentStartMonth, 'First payment month is required.')
-    if (repaymentMonth < fundingMonth) {
-      throw new Error('First payment month cannot be before the funding month.')
-    }
-
-    return {
-      carryingType: 'loan',
-      costName: loanForm.costName.trim() || 'Loan',
-      loanMode: loanForm.loanMode,
-      loanAmountUsd: amount,
-      interestRatePct: rate,
-      loanTermMonths: Math.trunc(term),
-      fundingMonth,
-      repaymentStartMonth: repaymentMonth,
-    }
-  }
-
-  const buildRecurringPayload = (type: CarryingType) => {
+  const buildRecurringPayload = (type: RecurringCarryingType) => {
     const form = type === 'property_tax' ? propertyForm : managementForm
     const amount = toNumberOrNull(form.amountUsd)
     if (amount === null) throw new Error('Amount is required.')
@@ -288,7 +231,7 @@ export function CarryingCostsSection({
     setStatus('saving')
     setModalError('')
     try {
-      const payload = activeModal === 'loan' ? buildLoanPayload() : buildRecurringPayload(activeModal)
+      const payload = buildRecurringPayload(activeModal)
 
       if (editingId) {
         await updateCarryingCost(projectId, editingId, payload)
@@ -334,6 +277,7 @@ export function CarryingCostsSection({
   }
 
   const startEdit = (row: CarryingCostRow) => {
+    if (row.carryingType !== 'property_tax' && row.carryingType !== 'management') return
     openModal(row.carryingType, row)
   }
 
@@ -348,64 +292,6 @@ export function CarryingCostsSection({
       </div>
     )
   }
-
-  const renderLoanTable = () => (
-    <section className="carrying-section">
-      <div className="section-header">
-        <h4>Loans</h4>
-        <p className="muted tiny">Funding month injects the proceeds; cashflow shows interest and principal separately.</p>
-      </div>
-      <div className="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Rate</th>
-              <th>Term (mo)</th>
-              <th>Funding</th>
-              <th>First Payment</th>
-              <th>Monthly Payment</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loanRows.length === 0 && (
-              <tr>
-                <td colSpan={9}>No loans yet.</td>
-              </tr>
-            )}
-            {loanRows.map((row) => {
-              const preview = calculateLoanPreview(row)
-              return (
-                <tr key={row.id}>
-                  <td>{row.costName || 'Loan'}</td>
-                  <td>{row.loanMode ? loanLabelMap[row.loanMode] || row.loanMode : '—'}</td>
-                  <td>{row.loanAmountUsd ? `$${row.loanAmountUsd.toLocaleString()}` : '—'}</td>
-                  <td>{row.interestRatePct ? `${row.interestRatePct}%` : '—'}</td>
-                  <td>{row.loanTermMonths || '—'}</td>
-                  <td>{formatMonthDisplay(row.fundingMonth)}</td>
-                  <td>{formatMonthDisplay(row.repaymentStartMonth)}</td>
-                  <td>{preview.monthlyPayment ? formatCurrency(preview.monthlyPayment) : '—'}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button type="button" className="icon-button" onClick={() => startEdit(row)}>
-                        ✏️
-                      </button>
-                      <button type="button" className="icon-delete" onClick={() => handleDelete(row)}>
-                        🗑
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  )
 
   const renderPropertyTaxTable = () => (
     <section className="carrying-section">
@@ -523,75 +409,7 @@ export function CarryingCostsSection({
   )
 
   const renderModalBody = () => {
-    if (activeModal === 'loan') {
-      return (
-        <>
-          <label>
-            Loan Title
-            <input type="text" value={loanForm.costName} onChange={(e) => setLoanForm((prev) => ({ ...prev, costName: e.target.value }))} />
-          </label>
-          <label>
-            Loan Type
-            <select
-              value={loanForm.loanMode}
-              onChange={(e) => setLoanForm((prev) => ({ ...prev, loanMode: e.target.value as LoanMode }))}
-            >
-              {loanModeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Loan Amount (USD)
-            <input
-              type="number"
-              value={loanForm.loanAmountUsd}
-              onChange={(e) => setLoanForm((prev) => ({ ...prev, loanAmountUsd: e.target.value }))}
-            />
-          </label>
-          <label>
-            Interest Rate (%)
-            <input
-              type="number"
-              step="0.01"
-              value={loanForm.interestRatePct}
-              onChange={(e) => setLoanForm((prev) => ({ ...prev, interestRatePct: e.target.value }))}
-            />
-          </label>
-          <label>
-            Term (months)
-            <input
-              type="number"
-              value={loanForm.loanTermMonths}
-              onChange={(e) => setLoanForm((prev) => ({ ...prev, loanTermMonths: e.target.value }))}
-            />
-          </label>
-          <label>
-            Funding Month
-            <input
-              type="number"
-              min="1"
-              value={loanForm.fundingMonth}
-              onChange={(e) => setLoanForm((prev) => ({ ...prev, fundingMonth: e.target.value }))}
-            />
-            <span className="muted tiny">{getCalendarLabelForInput(loanForm.fundingMonth)}</span>
-          </label>
-          <label>
-            First Payment Month
-            <input
-              type="number"
-              min="1"
-              value={loanForm.repaymentStartMonth}
-              onChange={(e) => setLoanForm((prev) => ({ ...prev, repaymentStartMonth: e.target.value }))}
-            />
-            <span className="muted tiny">{getCalendarLabelForInput(loanForm.repaymentStartMonth)}</span>
-          </label>
-        </>
-      )
-    }
-
+    if (!activeModal) return null
     const isPropertyModal = activeModal === 'property_tax'
     const form = isPropertyModal ? propertyForm : managementForm
     const setter = isPropertyModal ? setPropertyForm : setManagementForm
@@ -687,13 +505,13 @@ export function CarryingCostsSection({
             </button>
             {menuOpen && (
               <div className="add-menu-dropdown">
-                {carryingMenuOptions.map((option) => (
+                {recurringMenuOptions.map((option) => (
                   <button
                     type="button"
                     key={option.id}
                     onClick={() => {
                       setMenuOpen(false)
-                      openModal(option.id as CarryingType)
+                      openModal(option.id)
                     }}
                   >
                     {option.label}
@@ -704,7 +522,6 @@ export function CarryingCostsSection({
           </div>
         </div>
 
-        {renderLoanTable()}
         {renderPropertyTaxTable()}
         {renderRecurringTable(managementRows, 'Management Fees')}
 
@@ -718,8 +535,7 @@ export function CarryingCostsSection({
         <div className="modal-backdrop">
           <div className="modal-panel">
             <h3>
-              {editingId ? 'Edit' : 'Add'}{' '}
-              {activeModal === 'loan' ? 'Loan' : activeModal === 'property_tax' ? 'Property Tax' : 'Management Fee'}
+              {editingId ? 'Edit' : 'Add'} {activeModal === 'property_tax' ? 'Property Tax' : 'Management Fee'}
             </h3>
             <form className="modal-form" onSubmit={handleSubmit}>
               {renderModalBody()}

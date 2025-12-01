@@ -73,10 +73,9 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 - These validations fire both when dragging cards across the Kanban board and when selecting a stage from the detail view dropdown. The UI should surface a clear error message listing the missing fields.
 
 ### 6.2 Revenue Tab
-- Clicking the **Add** button now presents three options:
+- Clicking the **Add** button now presents two options:
   1. **Apartment Type** (formerly “unit type”) – multi-unit rents (e.g., 1bd/1bth).
   2. **Parking Type** – structured like apartment types but for parking variations (garage, uncovered, etc.).
-  3. **GP Contribution** – one-time capital infusions from partners (Darmon or Sherman).
 - Apartment/Parking forms capture:
   - `type_label` (e.g., "1bd/1bth" or "Garage Parking").
   - `unit_sqft` (optional for apartments, still tracked for reference).
@@ -85,14 +84,10 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `vacancy_pct` (default 5%).
   - `start_month` (integer month offset; revenue hits cashflow starting that month). As the user types/selects a month number, the UI shows `Month N • Month/Year` so you always know which calendar month you’re targeting (closing month is Month 1).
 - Parking omits square footage by default but keeps the same scheduling semantics (start month + vacancy). Revenue is calculated the same way (`rent * count * (1 - vacancy)`).
-- GP contribution form captures:
-  - `partner` option (Darmon or Sherman).
-  - `amount_usd`.
-  - `contribution_month` (single month index when the cash comes in). Contributions only hit the cashflow once.
-- Listing UI is grouped by category (Apartments, Parking, GP Contributions) with per-section totals and the overall monthly revenue summary. All revenue modal fields are required before save so cashflow projections are always based on complete input.
+- Listing UI is grouped by category (Apartments, Parking) with per-section totals and the overall monthly revenue summary. All revenue modal fields are required before save so cashflow projections are always based on complete input.
 - Cashflow integration:
   - Apartment/Parking lines start at their configured month; before that they contribute zero.
-  - GP contributions inject a single-month inflow in the cashflow grid.
+- GP contributions and loan assumptions now live under the dedicated **Funding** tab (§6.5) so revenue stays focused on operating income.
 - Bulk actions: duplicate/delete still apply per category. Future enhancements (e.g., % increase) can respect the new structure.
 
 ### 6.3 Hard Costs Tab
@@ -137,35 +132,49 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - **Multiple months:** comma-separated month indexes (e.g., `0,1,2`). When multiple months are chosen, optionally specify the percentage of the total allocated per month (must add up to 100%).
 - These options let finance teams stage retainers, progress draws, or recurring soft costs without juggling separate entries, and all inputs in the modal are required to keep the cashflow in sync.
 
-### 6.5 Carrying Costs Tab
-The Carrying tab now mirrors the Revenue tab’s pattern: a single **Add** menu that lets users pick which cost bucket to add rows under. Supported buckets (MVP):
+### 6.5 Funding Tab
+- Centralizes sponsor equity (GP contributions) and construction/bridge loans while referencing other tabs for read-only context. Nothing here mutates Hard/Soft/Revenue data—it simply layers financing controls on top for modeling and Metrics.
+- Layout mirrors other tabs: each section gets a dedicated card, table, and scoped Add button.
 
-1. **Loans**
-2. **Property Tax**
-3. **Management Fees**
+#### 6.5.1 GP Contributions
+- **Purpose** – capture one-time capital infusions from GP partners. Values roll into the cashflow (single-month inflow) and power the Metrics tab’s Founders Equity calculation.
+- **Modal fields**
+  - `partner` dropdown (Darmon, Sherman; future list-driven).
+  - `amount_usd`.
+  - `contribution_month` (month index; renders Month N + calendar hint on input).
+- **Listing UI**
+  - Columns: Partner, Amount, Month (with helper), Actions.
+  - Empty-state messaging nudges users to add contributions.
+- **Behavior** – Save injects the inflow into cashflow, updates Metrics, and persists in the shared API payloads just like revenue/expense rows.
 
-Each bucket renders its own table with per-line totals plus a modal for add/edit (consistent UI with other tabs). Delete controls remain hidden (global rule) except within the modal confirmation step. Every carrying-cost modal field is required before save to avoid ambiguous cashflow rows.
-
-#### 6.5.1 Loans
+#### 6.5.2 Loans
 - **Item Structure**
   - `title` (freeform, e.g., “Bridge Loan A”).
   - `loan_mode`: `interest_only` or `amortizing`.
   - `loan_amount_usd`.
   - `loan_term_months` (integer).
   - `interest_rate_pct` (APR).
-  - `funding_month` (month offset when proceeds hit the cashflow; displays Month N + calendar hint like other inputs).
+  - `funding_month` (month offset when proceeds hit cashflow; Month N helper included).
   - `repayment_start_month` (first month debt service leaves the account).
 - **Cashflow Behavior**
-  - Funding month injects a positive inflow equal to `loan_amount_usd` (shown on the cashflow grid under Carrying Costs → Loans → `Funding` line so it still groups with the debt story).
+  - Funding month injects a positive inflow equal to `loan_amount_usd` (still grouped under Carrying Costs → Loans in the grid).
   - For **amortizing loans**:
-    - Compute a level monthly payment using the standard amortization formula.
-    - Split each month’s payment into two sub-lines in the Carrying Costs section: `Loan – Interest` and `Loan – Principal`.
-    - Continue until the term ends or the balance hits zero.
+    - Compute a level monthly payment via the amortization formula.
+    - Split each payment into `Loan – Interest` and `Loan – Principal` sub-lines in Carrying Costs.
+    - Continue until the term ends or the balance is zero.
   - For **interest-only loans**:
-    - Monthly outflow = `loan_amount_usd * rate / 12` (still rendered as the `Loan – Interest` sub-line).
-    - During the month immediately **before** the term ends, insert a lump-sum outflow equal to the original principal labeled `Loan – Principal Payoff`.
+    - Monthly outflow = `loan_amount_usd * rate / 12` (rendered as `Loan – Interest`).
+    - The month immediately **before** the term ends posts a lump-sum outflow equal to the original principal labeled `Loan – Principal Payoff`.
 
-#### 6.5.2 Property Tax (Construction vs Stabilized)
+### 6.6 Carrying Costs Tab
+The Carrying tab now mirrors the Revenue tab’s pattern: a single **Add** menu that lets users pick which cost bucket to add rows under. Supported buckets (MVP):
+
+1. **Property Tax**
+2. **Management Fees**
+
+Each bucket renders its own table with per-line totals plus a modal for add/edit (consistent UI with other tabs). Delete controls remain hidden (global rule) except within the modal confirmation step. Every carrying-cost modal field is required before save to avoid ambiguous cashflow rows.
+
+#### 6.6.1 Property Tax (Construction vs Stabilized)
 - **Dual-line model**
   - The Add → Property Tax modal now includes a required `tax_phase` selector with two options: **Construction RE Tax** and **Stabilized RE Tax**.
   - Each project should capture **exactly two** property-tax rows (one per phase). The UI pre-labels the row title accordingly (`Construction RE Tax` / `Stabilized RE Tax`), though users can append context in parentheses if needed.
@@ -187,7 +196,7 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
   - Construction RE Tax is consumed by the Metrics tab’s loan-sizing calculation (§11.4) so the debt budget accounts for taxes during the build.
   - Stabilized RE Tax flows into the NOI calculation (§11.5) alongside Building Management, mirroring the steady-state view of operations.
 
-#### 6.5.3 Management Fees
+#### 6.6.2 Management Fees
 - **Fields**
   - `title` (required; e.g., “Leasing Management”).
   - `amount_usd` (per interval).
@@ -198,14 +207,13 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
   - Same interval logic as Property Tax.
   - These rows appear under Carrying Costs → Management with per-line totals and flow into the aggregated Carrying Costs row.
 
-#### 6.5.4 UI & Validation Notes
+#### 6.6.3 UI & Validation Notes
 - All month-entry controls reuse the shared helpers so they show `Month N • Calendar Month`.
-- Loan modal validates that `funding_month <= repayment_start_month` and `loan_term_months > 0`.
 - Property Tax + Management modals ensure `start_month <= end_month` when an end month is provided.
 - Modals disclose how amounts map to the cashflow (e.g., “Quarterly • $45,000 posts every Month 3 starting Month 4”).
 - Carrying Costs table shows grouped totals per bucket plus the combined monthly impact.
 
-### 6.6 Cashflow Tab
+### 6.7 Cashflow Tab
 - 60-month horizontal grid starting at month 0 (closing month). Months run left-to-right as column headers (M0…M59) with friendly month/year labels in tooltips.  
 - Rows are grouped (and color-coded) by category: Revenues, Soft Costs, Hard Costs, Carrying Costs, and Total. Each header can expand to reveal the underlying line items.  
 - Soft & Hard cost modals feed their rows:
@@ -220,7 +228,7 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 - Allow manual adjustments (e.g., equity injection).  
 - Export to CSV later.
 
-### 6.7 Shared API Types (`@ds-proforma/types`)
+### 6.8 Shared API Types (`@ds-proforma/types`)
 - The repo now ships a dedicated workspace that exports Zod schemas for every major payload (project create/update, apartment/parking revenue, GP contributions, etc.).
 - The backend uses those schemas to validate incoming JSON before touching Prisma, while the frontend can import the same definitions (or their inferred TypeScript types) to keep forms and API clients aligned.
 - Whenever you introduce a new field or endpoint, update the shared schema first; both client and server should rely on it instead of duplicating validation logic.
@@ -380,7 +388,7 @@ A new tab translates the entire proforma into a single reproducible CAP Rate whi
 ### 11.4 Loan Assumptions
 - Editable **Construction Period (months)** (default 24).  
 - Editable **Interest Rate (%)** (default 6.25) – interest-only during construction.  
-- **Founders Equity (GP Contribution)** – sum of GP contributions from Revenue tab (read-only).  
+- **Founders Equity (GP Contribution)** – sum of GP contributions from the Funding tab (read-only).  
 - **Construction Loan Amount** =  
   ```
   (Purchase Price + Selected Hard Cost + Selected Soft Cost)

@@ -1,39 +1,29 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { apartmentRevenueInputSchema, parkingRevenueInputSchema, formatZodErrors } from '@ds-proforma/types'
 import {
-  apartmentRevenueInputSchema,
-  parkingRevenueInputSchema,
-  gpContributionInputSchema,
-  formatZodErrors,
-} from '@ds-proforma/types'
-import {
-  createGpContribution,
   createParkingRevenue,
   createRevenueItem,
-  deleteGpContribution,
   deleteParkingRevenue,
   deleteRevenueItem,
-  updateGpContribution,
   updateParkingRevenue,
   updateRevenueItem,
 } from '../../api.js'
-import { calculateNetParking, calculateNetRevenue, gpPartners } from './revenueHelpers.js'
+import { calculateNetParking, calculateNetRevenue } from './revenueHelpers.js'
 import type {
   ApartmentRevenueRow,
-  CarryingCostRow,
   EntityId,
-  GpContributionRow,
   ParkingRevenueRow,
   ProjectDetail,
 } from '../../types'
 type RequestStatus = 'idle' | 'saving' | 'error'
-type RevenueModalType = 'apartment' | 'parking' | 'gp'
+type RevenueModalType = 'apartment' | 'parking'
 
 type OffsetFormatter = (offset?: number | null) => string
 type CalendarLabelFormatter = (offset: number) => string
 type CalendarInputFormatter = (value: string | number | null | undefined) => string
 type MonthInputConverter = (value: string | number | null | undefined) => number
 
-type RevenueProjectSlice = Pick<ProjectDetail, 'id' | 'revenue' | 'parkingRevenue' | 'gpContributions'>
+type RevenueProjectSlice = Pick<ProjectDetail, 'id' | 'revenue' | 'parkingRevenue'>
 
 type RevenueSectionProps = {
   project: RevenueProjectSlice | null
@@ -60,12 +50,6 @@ type ParkingFormState = {
   monthlyRentUsd: string
   vacancyPct: string
   startMonth: string
-}
-
-type GpContributionFormState = {
-  partner: string
-  amountUsd: string
-  contributionMonth: string
 }
 
 const parseOptionalNumber = (value: string) => {
@@ -97,12 +81,6 @@ const createDefaultParkingForm = (): ParkingFormState => ({
   startMonth: '1',
 })
 
-const createDefaultGpForm = (): GpContributionFormState => ({
-  partner: gpPartners[0].id,
-  amountUsd: '',
-  contributionMonth: '1',
-})
-
 export function RevenueSection({
   project,
   projectId,
@@ -118,27 +96,19 @@ export function RevenueSection({
   const [revenueStatus, setRevenueStatus] = useState<RequestStatus>('idle')
   const [revenueForm, setRevenueForm] = useState<ApartmentFormState>(() => createDefaultRevenueForm())
   const [parkingForm, setParkingForm] = useState<ParkingFormState>(() => createDefaultParkingForm())
-  const [gpContributionForm, setGpContributionForm] = useState<GpContributionFormState>(() => createDefaultGpForm())
   const [editingRevenueId, setEditingRevenueId] = useState<EntityId | null>(null)
   const [editingParkingId, setEditingParkingId] = useState<EntityId | null>(null)
-  const [editingGpId, setEditingGpId] = useState<EntityId | null>(null)
   const [pendingRevenueDeleteId, setPendingRevenueDeleteId] = useState<EntityId | null>(null)
   const [pendingParkingDeleteId, setPendingParkingDeleteId] = useState<EntityId | null>(null)
-  const [pendingGpDeleteId, setPendingGpDeleteId] = useState<EntityId | null>(null)
   const [parkingDeleteStatus, setParkingDeleteStatus] = useState<RequestStatus>('idle')
   const [parkingDeleteError, setParkingDeleteError] = useState('')
-  const [gpDeleteStatus, setGpDeleteStatus] = useState<RequestStatus>('idle')
-  const [gpDeleteError, setGpDeleteError] = useState('')
   const [revenueMenuOpen, setRevenueMenuOpen] = useState(false)
   const revenueMenuRef = useRef<HTMLDivElement | null>(null)
 
   const apartmentRows: ApartmentRevenueRow[] = project?.revenue ?? []
   const parkingRows: ParkingRevenueRow[] = project?.parkingRevenue ?? []
-  const gpRows: GpContributionRow[] = project?.gpContributions ?? []
-
   const isEditingApartment = Boolean(editingRevenueId)
   const isEditingParking = Boolean(editingParkingId)
-  const isEditingGp = Boolean(editingGpId)
 
   const totalMonthlyRevenue = useMemo(() => {
     const apartments = apartmentRows.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
@@ -149,10 +119,8 @@ export function RevenueSection({
   const resetRevenueForms = useCallback(() => {
     setRevenueForm(createDefaultRevenueForm())
     setParkingForm(createDefaultParkingForm())
-    setGpContributionForm(createDefaultGpForm())
     setEditingRevenueId(null)
     setEditingParkingId(null)
-    setEditingGpId(null)
     setRevenueModalType('apartment')
   }, [])
 
@@ -172,11 +140,8 @@ export function RevenueSection({
     setRevenueMenuOpen(false)
     setPendingRevenueDeleteId(null)
     setPendingParkingDeleteId(null)
-    setPendingGpDeleteId(null)
     setParkingDeleteError('')
-    setGpDeleteError('')
     setParkingDeleteStatus('idle')
-    setGpDeleteStatus('idle')
   }, [projectId, resetRevenueForms])
 
   const openRevenueModal = (type: RevenueModalType) => {
@@ -208,7 +173,6 @@ export function RevenueSection({
     setRevenueModalType('apartment')
     setEditingRevenueId(row.id)
     setEditingParkingId(null)
-    setEditingGpId(null)
     setIsRevenueModalOpen(true)
   }
 
@@ -225,21 +189,6 @@ export function RevenueSection({
     setRevenueModalType('parking')
     setEditingParkingId(row.id)
     setEditingRevenueId(null)
-    setEditingGpId(null)
-    setIsRevenueModalOpen(true)
-  }
-
-  const startEditGpContribution = (row: GpContributionRow) => {
-    setRevenueModalError('')
-    setGpContributionForm({
-      partner: row.partner || gpPartners[0].id,
-      amountUsd: row.amountUsd !== null && row.amountUsd !== undefined ? String(row.amountUsd) : '',
-      contributionMonth: formatOffsetForInput(row.contributionMonth),
-    })
-    setRevenueModalType('gp')
-    setEditingGpId(row.id)
-    setEditingRevenueId(null)
-    setEditingParkingId(null)
     setIsRevenueModalOpen(true)
   }
 
@@ -258,12 +207,6 @@ export function RevenueSection({
     monthlyRentUsd: parseOptionalNumber(parkingForm.monthlyRentUsd),
     vacancyPct: parseNumberWithDefault(parkingForm.vacancyPct, 5),
     startMonth: convertMonthInputToOffset(parkingForm.startMonth),
-  })
-
-  const buildGpPayload = () => ({
-    partner: gpContributionForm.partner,
-    amountUsd: parseOptionalNumber(gpContributionForm.amountUsd),
-    contributionMonth: convertMonthInputToOffset(gpContributionForm.contributionMonth),
   })
 
   const refreshProject = async () => {
@@ -289,7 +232,7 @@ export function RevenueSection({
         } else {
           await createRevenueItem(projectId, validation.data)
         }
-      } else if (revenueModalType === 'parking') {
+      } else {
         const payload = buildParkingPayload()
         const validation = parkingRevenueInputSchema.safeParse(payload)
         if (!validation.success) {
@@ -300,17 +243,6 @@ export function RevenueSection({
         } else {
           await createParkingRevenue(projectId, validation.data)
         }
-      } else {
-        const payload = buildGpPayload()
-        const validation = gpContributionInputSchema.safeParse(payload)
-        if (!validation.success) {
-          throw new Error(formatZodErrors(validation.error))
-        }
-        if (editingGpId) {
-          await updateGpContribution(projectId, editingGpId, validation.data)
-        } else {
-          await createGpContribution(projectId, validation.data)
-        }
       }
       setRevenueStatus('idle')
       setIsRevenueModalOpen(false)
@@ -318,7 +250,7 @@ export function RevenueSection({
       await refreshProject()
     } catch (err) {
       setRevenueStatus('error')
-      setRevenueModalError(getErrorMessage(err))
+      setRevenueModalError(`Failed to add revenue item: ${getErrorMessage(err)}`)
     }
   }
 
@@ -376,33 +308,6 @@ export function RevenueSection({
     setParkingDeleteStatus('idle')
   }
 
-  const handleDeleteGpContribution = (id: EntityId) => {
-    if (!projectId) return
-    setGpDeleteError('')
-    setPendingGpDeleteId(id)
-  }
-
-  const confirmDeleteGpContribution = async () => {
-    if (!projectId || !pendingGpDeleteId) return
-    setGpDeleteStatus('saving')
-    try {
-      await deleteGpContribution(projectId, pendingGpDeleteId)
-      setPendingGpDeleteId(null)
-      setGpDeleteStatus('idle')
-      await refreshProject()
-    } catch (err) {
-      setGpDeleteStatus('error')
-      setGpDeleteError(getErrorMessage(err))
-    }
-  }
-
-  const cancelDeleteGpContribution = () => {
-    if (gpDeleteStatus === 'saving') return
-    setPendingGpDeleteId(null)
-    setGpDeleteError('')
-    setGpDeleteStatus('idle')
-  }
-
   if (!project || !projectId) {
     return (
       <div className="revenue-tab">
@@ -427,9 +332,6 @@ export function RevenueSection({
                 </button>
                 <button type="button" onClick={() => openRevenueModal('parking')}>
                   Parking Type
-                </button>
-                <button type="button" onClick={() => openRevenueModal('gp')}>
-                  GP Contribution
                 </button>
               </div>
             )}
@@ -561,54 +463,6 @@ export function RevenueSection({
             </div>
           </section>
 
-          <section className="revenue-section">
-            <div className="section-header">
-              <h4>GP Contributions</h4>
-              <p className="muted tiny">One-time capital infusions</p>
-            </div>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Partner</th>
-                    <th>Amount (USD)</th>
-                    <th>Month</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gpRows.map((row) => (
-                    <tr key={row.id}>
-                      <td>{gpPartners.find((p) => p.id === row.partner)?.label || row.partner}</td>
-                      <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
-                      <td>
-                        <div className="month-label">
-                          <span>{`Month ${formatOffsetForInput(row.contributionMonth)}`}</span>
-                          <span className="month-calendar">{getCalendarLabelForOffset(row.contributionMonth)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="row-actions">
-                          <button type="button" className="icon-button" onClick={() => startEditGpContribution(row)}>
-                            ✏️
-                          </button>
-                          <button type="button" className="icon-delete" onClick={() => handleDeleteGpContribution(row.id)}>
-                            🗑
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {gpRows.length === 0 && (
-                    <tr>
-                      <td colSpan={4}>No GP contributions yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
           <div className="revenue-summary">
             <span>Recurring monthly revenue (Apartments + Parking)</span>
             <strong>
@@ -630,13 +484,9 @@ export function RevenueSection({
                 ? isEditingApartment
                   ? 'Edit Apartment Type'
                   : 'Add Apartment Type'
-                : revenueModalType === 'parking'
-                  ? isEditingParking
-                    ? 'Edit Parking Type'
-                    : 'Add Parking Type'
-                  : isEditingGp
-                    ? 'Edit GP Contribution'
-                    : 'Add GP Contribution'}
+                : isEditingParking
+                  ? 'Edit Parking Type'
+                  : 'Add Parking Type'}
             </h3>
             <form className="modal-form" onSubmit={handleAddRevenue}>
               {revenueModalType === 'apartment' && (
@@ -752,45 +602,6 @@ export function RevenueSection({
                 </>
               )}
 
-              {revenueModalType === 'gp' && (
-                <>
-                  <label>
-                    Partner
-                    <select
-                      value={gpContributionForm.partner}
-                      onChange={(e) => setGpContributionForm((prev) => ({ ...prev, partner: e.target.value }))}
-                      disabled={revenueStatus === 'saving'}
-                    >
-                      {gpPartners.map((partner) => (
-                        <option key={partner.id} value={partner.id}>
-                          {partner.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Contribution amount (USD)
-                    <input
-                      type="number"
-                      value={gpContributionForm.amountUsd}
-                      onChange={(e) => setGpContributionForm((prev) => ({ ...prev, amountUsd: e.target.value }))}
-                      disabled={revenueStatus === 'saving'}
-                    />
-                  </label>
-                  <label>
-                    Contribution month
-                    <input
-                      type="number"
-                      value={gpContributionForm.contributionMonth}
-                      onChange={(e) =>
-                        setGpContributionForm((prev) => ({ ...prev, contributionMonth: e.target.value }))
-                      }
-                      disabled={revenueStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelForInput(gpContributionForm.contributionMonth)}</span>
-                  </label>
-                </>
-              )}
 
               {revenueModalError && (
                 <p className="error" role="alert">
@@ -808,13 +619,9 @@ export function RevenueSection({
                       ? isEditingApartment
                         ? 'Save Changes'
                         : 'Save Apartment Type'
-                      : revenueModalType === 'parking'
-                        ? isEditingParking
-                          ? 'Save Changes'
-                          : 'Save Parking Type'
-                        : isEditingGp
-                          ? 'Save Changes'
-                          : 'Save GP Contribution'}
+                      : isEditingParking
+                        ? 'Save Changes'
+                        : 'Save Parking Type'}
                 </button>
               </div>
             </form>
@@ -857,23 +664,6 @@ export function RevenueSection({
         </div>
       )}
 
-      {pendingGpDeleteId && (
-        <div className="modal-backdrop">
-          <div className="modal-panel">
-            <h3>Delete GP contribution?</h3>
-            <p>This will remove the one-time contribution entry.</p>
-            {gpDeleteError && <p className="error">{gpDeleteError}</p>}
-            <div className="modal-actions">
-              <button type="button" className="ghost" onClick={cancelDeleteGpContribution} disabled={gpDeleteStatus === 'saving'}>
-                Cancel
-              </button>
-              <button type="button" className="danger" onClick={confirmDeleteGpContribution} disabled={gpDeleteStatus === 'saving'}>
-                {gpDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

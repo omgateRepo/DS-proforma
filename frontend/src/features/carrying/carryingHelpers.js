@@ -1,5 +1,4 @@
 export const carryingMenuOptions = [
-  { id: 'loan', label: 'Loan' },
   { id: 'property_tax', label: 'Property Tax' },
   { id: 'management', label: 'Management Fee' },
 ]

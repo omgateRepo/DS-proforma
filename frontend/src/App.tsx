@@ -32,6 +32,7 @@ import {
   buildCarryingSeries,
 } from './features/cashflow/cashflowHelpers.js'
 import { CarryingCostsSection } from './features/carrying/CarryingCostsSection'
+import { FundingTab } from './features/funding/FundingTab'
 import { MetricsTab } from './features/metrics/MetricsTab'
 import type {
   AddressSuggestion,
@@ -52,6 +53,7 @@ const TABS = [
   { id: 'revenue', label: 'Revenue' },
   { id: 'hard', label: 'Hard Costs' },
   { id: 'soft', label: 'Soft Costs' },
+  { id: 'funding', label: 'Funding' },
   { id: 'carrying', label: 'Carrying Costs' },
   { id: 'cashflow', label: 'Cashflow' },
   { id: 'metrics', label: 'Metrics & Sensitivities' },
@@ -749,6 +751,18 @@ function App() {
                   convertMonthInputToOffset={convertMonthInputToOffset}
                   getCalendarLabelForInput={getCalendarLabelForInput}
                   getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                />
+              )}
+
+              {activeTab === 'funding' && (
+                <FundingTab
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                  formatOffsetForInput={formatOffsetForInput}
+                  getCalendarLabelForOffset={getCalendarLabelForOffset}
+                  getCalendarLabelForInput={getCalendarLabelForInput}
+                  convertMonthInputToOffset={convertMonthInputToOffset}
                 />
               )}
 
