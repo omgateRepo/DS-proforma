@@ -62,6 +62,15 @@ const parseNumberWithDefault = (value: string, fallback: number) => {
   return Number(value)
 }
 
+const formatCurrency = (value: number) => {
+  if (!Number.isFinite(value) || value === 0) return '$0'
+  const prefix = value < 0 ? '-' : ''
+  return `${prefix}$${Math.abs(value).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`
+}
+
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 const createDefaultRevenueForm = (): ApartmentFormState => ({
@@ -115,6 +124,14 @@ export function RevenueSection({
     const parking = parkingRows.reduce((sum, row) => sum + calculateNetParking(row), 0)
     return apartments + parking
   }, [apartmentRows, parkingRows])
+
+  const apartmentMonthlyTotal = useMemo(() => {
+    return apartmentRows.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
+  }, [apartmentRows])
+
+  const parkingMonthlyTotal = useMemo(() => {
+    return parkingRows.reduce((sum, row) => sum + calculateNetParking(row), 0)
+  }, [parkingRows])
 
   const resetRevenueForms = useCallback(() => {
     setRevenueForm(createDefaultRevenueForm())
@@ -344,6 +361,16 @@ export function RevenueSection({
               <h4>Apartments</h4>
               <p className="muted tiny">Start month controls when revenue begins</p>
             </div>
+            <div className="revenue-section-summary">
+              <div>
+                <span>Monthly</span>
+                <strong>{formatCurrency(apartmentMonthlyTotal)}</strong>
+              </div>
+              <div>
+                <span>Annualized</span>
+                <strong>{formatCurrency(apartmentMonthlyTotal * 12)}</strong>
+              </div>
+            </div>
             <div className="table-scroll">
               <table>
                 <thead>
@@ -407,6 +434,16 @@ export function RevenueSection({
               <h4>Parking</h4>
               <p className="muted tiny">Tracks garages, covered, uncovered, etc.</p>
             </div>
+            <div className="revenue-section-summary">
+              <div>
+                <span>Monthly</span>
+                <strong>{formatCurrency(parkingMonthlyTotal)}</strong>
+              </div>
+              <div>
+                <span>Annualized</span>
+                <strong>{formatCurrency(parkingMonthlyTotal * 12)}</strong>
+              </div>
+            </div>
             <div className="table-scroll">
               <table>
                 <thead>
@@ -464,14 +501,14 @@ export function RevenueSection({
           </section>
 
           <div className="revenue-summary">
-            <span>Recurring monthly revenue (Apartments + Parking)</span>
-            <strong>
-              $
-              {totalMonthlyRevenue.toLocaleString(undefined, {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-              })}
-            </strong>
+            <div>
+              <span>Total Monthly</span>
+              <strong>{formatCurrency(totalMonthlyRevenue)}</strong>
+            </div>
+            <div>
+              <span>Total Annualized</span>
+              <strong>{formatCurrency(totalMonthlyRevenue * 12)}</strong>
+            </div>
           </div>
         </div>
       </div>

@@ -771,16 +771,35 @@ td {
   margin-bottom: 1rem;
 }
 
+.revenue-section-summary,
 .revenue-summary {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  font-weight: 600;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
 }
 
+.revenue-section-summary div,
+.revenue-summary div {
+  flex: 1 1 200px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: #fff;
+}
+
+.revenue-section-summary span,
 .revenue-summary span {
   color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.revenue-section-summary strong,
+.revenue-summary strong {
+  font-size: 1.15rem;
 }
 
 .revenue-sections {
