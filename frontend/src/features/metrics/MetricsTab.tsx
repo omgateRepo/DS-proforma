@@ -517,6 +517,10 @@ const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionR
                 <td colSpan={7}>Overall Monthly Revenue</td>
                 <td>{formatCurrency(totalMonthlyRevenue)}</td>
               </tr>
+              <tr>
+                <td colSpan={7}>Overall Yearly Revenue</td>
+                <td>{formatCurrency(totalAnnualRevenue)}</td>
+              </tr>
             </tfoot>
           </table>
         </div>
