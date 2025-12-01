@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   ApartmentRevenueRow,
   CarryingCostRow,
@@ -145,38 +145,45 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
   const [constructionPeriodMonths, setConstructionPeriodMonths] = useState('24')
   const [interestRatePct, setInterestRatePct] = useState('6.25')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
+  const hydratingRef = useRef(false)
+  const markDirty = () => {
+    if (!hydratingRef.current) setSaveStatus('idle')
+  }
 
-  useEffect(() => {
-    if (!project || !projectId) {
-      setApartmentOverrides({})
-      setParkingOverrides({})
-      setBuildCostOverride({ wc: '', bc: '', scenario: defaultScenario })
-      setManagementOverride({ wc: '', bc: '', scenario: defaultScenario })
-      setStabilizedTaxOverride({ wc: '', bc: '', scenario: defaultScenario })
-      setConstructionPeriodMonths('24')
-      setInterestRatePct('6.25')
-      setSaveStatus('idle')
-      return
-    }
-
-    const stored = loadPreferences(projectId)
-    const nextApts: Record<string, RevenueOverride> = {}
-    project.revenue?.forEach((row) => {
-      nextApts[row.id] = stored?.apartments?.[row.id] ?? createDefaultOverride(row)
-    })
-    const nextParking: Record<string, RevenueOverride> = {}
-    project.parkingRevenue?.forEach((row) => {
-      nextParking[row.id] = stored?.parking?.[row.id] ?? createDefaultOverride(row)
-    })
-    setApartmentOverrides(nextApts)
-    setParkingOverrides(nextParking)
-    setBuildCostOverride(stored?.buildCostOverride ?? { wc: '', bc: '', scenario: defaultScenario })
-    setManagementOverride(stored?.managementOverride ?? { wc: '', bc: '', scenario: defaultScenario })
-    setStabilizedTaxOverride(stored?.stabilizedTaxOverride ?? { wc: '', bc: '', scenario: defaultScenario })
-    setConstructionPeriodMonths(stored?.constructionPeriodMonths ?? '24')
-    setInterestRatePct(stored?.interestRatePct ?? '6.25')
+useEffect(() => {
+  hydratingRef.current = true
+  if (!project || !projectId) {
+    setApartmentOverrides({})
+    setParkingOverrides({})
+    setBuildCostOverride({ wc: '', bc: '', scenario: defaultScenario })
+    setManagementOverride({ wc: '', bc: '', scenario: defaultScenario })
+    setStabilizedTaxOverride({ wc: '', bc: '', scenario: defaultScenario })
+    setConstructionPeriodMonths('24')
+    setInterestRatePct('6.25')
     setSaveStatus('idle')
-  }, [project?.id, projectId])
+    hydratingRef.current = false
+    return
+  }
+
+  const stored = loadPreferences(projectId)
+  const nextApts: Record<string, RevenueOverride> = {}
+  project.revenue?.forEach((row) => {
+    nextApts[row.id] = stored?.apartments?.[row.id] ?? createDefaultOverride(row)
+  })
+  const nextParking: Record<string, RevenueOverride> = {}
+  project.parkingRevenue?.forEach((row) => {
+    nextParking[row.id] = stored?.parking?.[row.id] ?? createDefaultOverride(row)
+  })
+  setApartmentOverrides(nextApts)
+  setParkingOverrides(nextParking)
+  setBuildCostOverride(stored?.buildCostOverride ?? { wc: '', bc: '', scenario: defaultScenario })
+  setManagementOverride(stored?.managementOverride ?? { wc: '', bc: '', scenario: defaultScenario })
+  setStabilizedTaxOverride(stored?.stabilizedTaxOverride ?? { wc: '', bc: '', scenario: defaultScenario })
+  setConstructionPeriodMonths(stored?.constructionPeriodMonths ?? '24')
+  setInterestRatePct(stored?.interestRatePct ?? '6.25')
+  setSaveStatus('idle')
+  hydratingRef.current = false
+}, [project?.id, projectId])
 
   const handleSavePreferences = () => {
     if (!projectId) return
@@ -246,10 +253,11 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
   const selectedManagementAnnual = selectScenarioValue(managementOverride, managementAnnualBase)
   const selectedStabilizedTaxAnnual = selectScenarioValue(stabilizedTaxOverride, stabilizedTaxAnnualBase)
 
-  const buildCostPerSqftDefault =
-    buildableSqft > 0 ? (hardCostsTotal + softCostsTotal) / buildableSqft : hardCostsTotal + softCostsTotal
-
-  const selectedBuildCostPerSqft = selectScenarioValue(buildCostOverride, buildCostPerSqftDefault)
+const hardSoftBaseTotal = hardCostsTotal + softCostsTotal
+const buildCostPerSqftDefault = buildableSqft > 0 ? hardSoftBaseTotal / buildableSqft : hardSoftBaseTotal
+const selectedBuildCostPerSqft = selectScenarioValue(buildCostOverride, buildCostPerSqftDefault)
+const selectedHardSoftTotal =
+  buildableSqft > 0 ? selectedBuildCostPerSqft * buildableSqft : hardSoftBaseTotal
 
   const computeRevenueLine = (
     row: ApartmentRevenueRow | ParkingRevenueRow,
@@ -280,8 +288,7 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
   const totalMonthlyRevenue = apartmentsMonthlyTotal + parkingMonthlyTotal
   const totalAnnualRevenue = totalMonthlyRevenue * 12
 
-  const loanBase =
-    purchasePrice + hardCostsTotal + softCostsTotal - gpTotal + constructionRealEstateForLoan
+const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionRealEstateForLoan
   const interestAccrued = loanBase * (interestRate / 100) * (constructionPeriod / 12)
   const constructionLoanAmount = Math.max(0, loanBase + interestAccrued)
   const loanToCostRatio = constructionLoanAmount + gpTotal === 0 ? 0 : constructionLoanAmount / (constructionLoanAmount + gpTotal)
@@ -336,36 +343,39 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                       <input
                         type="number"
                         value={override.monthlyRentWC}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setApartmentOverrides((prev) => ({
                             ...prev,
                             [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), monthlyRentWC: e.target.value },
                           }))
-                        }
+                          markDirty()
+                        }}
                       />
                     </td>
                     <td>
                       <input
                         type="number"
                         value={override.monthlyRentBC}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setApartmentOverrides((prev) => ({
                             ...prev,
                             [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), monthlyRentBC: e.target.value },
                           }))
-                        }
+                          markDirty()
+                        }}
                       />
                     </td>
                     <td>
                       <input
                         type="number"
                         value={override.occupancy}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setApartmentOverrides((prev) => ({
                             ...prev,
                             [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), occupancy: e.target.value },
                           }))
-                        }
+                          markDirty()
+                        }}
                       />
                     </td>
                     <td>
@@ -377,12 +387,13 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                               name={`apt-${row.id}`}
                               value={option.id}
                               checked={override.scenario === option.id}
-                              onChange={() =>
+                              onChange={() => {
                                 setApartmentOverrides((prev) => ({
                                   ...prev,
                                   [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), scenario: option.id },
                                 }))
-                              }
+                                markDirty()
+                              }}
                             />
                             {option.label}
                           </label>
@@ -435,36 +446,39 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                       <input
                         type="number"
                         value={override.monthlyRentWC}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setParkingOverrides((prev) => ({
                             ...prev,
                             [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), monthlyRentWC: e.target.value },
                           }))
-                        }
+                          markDirty()
+                        }}
                       />
                     </td>
                     <td>
                       <input
                         type="number"
                         value={override.monthlyRentBC}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setParkingOverrides((prev) => ({
                             ...prev,
                             [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), monthlyRentBC: e.target.value },
                           }))
-                        }
+                          markDirty()
+                        }}
                       />
                     </td>
                     <td>
                       <input
                         type="number"
                         value={override.occupancy}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setParkingOverrides((prev) => ({
                             ...prev,
                             [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), occupancy: e.target.value },
                           }))
-                        }
+                          markDirty()
+                        }}
                       />
                     </td>
                     <td>
@@ -476,12 +490,13 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                               name={`parking-${row.id}`}
                               value={option.id}
                               checked={override.scenario === option.id}
-                              onChange={() =>
+                              onChange={() => {
                                 setParkingOverrides((prev) => ({
                                   ...prev,
                                   [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), scenario: option.id },
                                 }))
-                              }
+                                markDirty()
+                              }}
                             />
                             {option.label}
                           </label>
@@ -534,7 +549,10 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                 <input
                   type="number"
                   value={buildCostOverride.wc}
-                  onChange={(e) => setBuildCostOverride((prev) => ({ ...prev, wc: e.target.value }))}
+                  onChange={(e) => {
+                    setBuildCostOverride((prev) => ({ ...prev, wc: e.target.value }))
+                    markDirty()
+                  }}
                 />
               </div>
               <div>
@@ -542,7 +560,10 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                 <input
                   type="number"
                   value={buildCostOverride.bc}
-                  onChange={(e) => setBuildCostOverride((prev) => ({ ...prev, bc: e.target.value }))}
+                  onChange={(e) => {
+                    setBuildCostOverride((prev) => ({ ...prev, bc: e.target.value }))
+                    markDirty()
+                  }}
                 />
               </div>
             </div>
@@ -554,13 +575,20 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                     name="build-cost-scenario"
                     value={option.id}
                     checked={buildCostOverride.scenario === option.id}
-                    onChange={() => setBuildCostOverride((prev) => ({ ...prev, scenario: option.id }))}
+                    onChange={() => {
+                      setBuildCostOverride((prev) => ({ ...prev, scenario: option.id }))
+                      markDirty()
+                    }}
                   />
                   {option.label}
                 </label>
               ))}
             </div>
             <strong>{formatCurrency(selectedBuildCostPerSqft)}</strong>
+          </div>
+          <div>
+            <p className="label">Development Costs (selected)</p>
+            <strong>{formatCurrency(selectedHardSoftTotal)}</strong>
           </div>
         </div>
       </section>
@@ -587,14 +615,20 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                   <input
                     type="number"
                     value={managementOverride.wc}
-                    onChange={(e) => setManagementOverride((prev) => ({ ...prev, wc: e.target.value }))}
+                    onChange={(e) => {
+                      setManagementOverride((prev) => ({ ...prev, wc: e.target.value }))
+                      markDirty()
+                    }}
                   />
                 </td>
                 <td>
                   <input
                     type="number"
                     value={managementOverride.bc}
-                    onChange={(e) => setManagementOverride((prev) => ({ ...prev, bc: e.target.value }))}
+                    onChange={(e) => {
+                      setManagementOverride((prev) => ({ ...prev, bc: e.target.value }))
+                      markDirty()
+                    }}
                   />
                 </td>
                 <td>
@@ -606,7 +640,10 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                           name="management-scenario"
                           value={option.id}
                           checked={managementOverride.scenario === option.id}
-                          onChange={() => setManagementOverride((prev) => ({ ...prev, scenario: option.id }))}
+                          onChange={() => {
+                            setManagementOverride((prev) => ({ ...prev, scenario: option.id }))
+                            markDirty()
+                          }}
                         />
                         {option.label}
                       </label>
@@ -622,14 +659,20 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                   <input
                     type="number"
                     value={stabilizedTaxOverride.wc}
-                    onChange={(e) => setStabilizedTaxOverride((prev) => ({ ...prev, wc: e.target.value }))}
+                    onChange={(e) => {
+                      setStabilizedTaxOverride((prev) => ({ ...prev, wc: e.target.value }))
+                      markDirty()
+                    }}
                   />
                 </td>
                 <td>
                   <input
                     type="number"
                     value={stabilizedTaxOverride.bc}
-                    onChange={(e) => setStabilizedTaxOverride((prev) => ({ ...prev, bc: e.target.value }))}
+                    onChange={(e) => {
+                      setStabilizedTaxOverride((prev) => ({ ...prev, bc: e.target.value }))
+                      markDirty()
+                    }}
                   />
                 </td>
                 <td>
@@ -641,7 +684,10 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
                           name="tax-scenario"
                           value={option.id}
                           checked={stabilizedTaxOverride.scenario === option.id}
-                          onChange={() => setStabilizedTaxOverride((prev) => ({ ...prev, scenario: option.id }))}
+                          onChange={() => {
+                            setStabilizedTaxOverride((prev) => ({ ...prev, scenario: option.id }))
+                            markDirty()
+                          }}
                         />
                         {option.label}
                       </label>
@@ -661,13 +707,28 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
           <div>
             <label>
               Construction Period (months)
-              <input type="number" value={constructionPeriodMonths} onChange={(e) => setConstructionPeriodMonths(e.target.value)} />
+              <input
+                type="number"
+                value={constructionPeriodMonths}
+                onChange={(e) => {
+                  setConstructionPeriodMonths(e.target.value)
+                  markDirty()
+                }}
+              />
             </label>
           </div>
           <div>
             <label>
               Interest Rate (%)
-              <input type="number" step="0.01" value={interestRatePct} onChange={(e) => setInterestRatePct(e.target.value)} />
+              <input
+                type="number"
+                step="0.01"
+                value={interestRatePct}
+                onChange={(e) => {
+                  setInterestRatePct(e.target.value)
+                  markDirty()
+                }}
+              />
             </label>
           </div>
           <div>
