@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   ApartmentRevenueRow,
+  RetailRevenueRow,
   CarryingCostRow,
   GpContributionRow,
   ParkingRevenueRow,
@@ -90,6 +91,7 @@ type MetricsTabProps = {
 
 type MetricsPreferences = {
   apartments: Record<string, RevenueOverride>
+  retail: Record<string, RevenueOverride>
   parking: Record<string, RevenueOverride>
   buildCostOverride: CarryingOverride
   managementOverride: CarryingOverride
@@ -126,6 +128,7 @@ const savePreferences = (projectId: EntityId, prefs: MetricsPreferences) => {
 
 export function MetricsTab({ project, projectId }: MetricsTabProps) {
   const [apartmentOverrides, setApartmentOverrides] = useState<Record<string, RevenueOverride>>({})
+  const [retailOverrides, setRetailOverrides] = useState<Record<string, RevenueOverride>>({})
   const [parkingOverrides, setParkingOverrides] = useState<Record<string, RevenueOverride>>({})
   const [buildCostOverride, setBuildCostOverride] = useState<CarryingOverride>({
     wc: '',
@@ -154,6 +157,7 @@ useEffect(() => {
   hydratingRef.current = true
   if (!project || !projectId) {
     setApartmentOverrides({})
+    setRetailOverrides({})
     setParkingOverrides({})
     setBuildCostOverride({ wc: '', bc: '', scenario: defaultScenario })
     setManagementOverride({ wc: '', bc: '', scenario: defaultScenario })
@@ -170,11 +174,16 @@ useEffect(() => {
   project.revenue?.forEach((row) => {
     nextApts[row.id] = stored?.apartments?.[row.id] ?? createDefaultOverride(row)
   })
+  const nextRetail: Record<string, RevenueOverride> = {}
+  project.retailRevenue?.forEach((row) => {
+    nextRetail[row.id] = stored?.retail?.[row.id] ?? createDefaultOverride(row)
+  })
   const nextParking: Record<string, RevenueOverride> = {}
   project.parkingRevenue?.forEach((row) => {
     nextParking[row.id] = stored?.parking?.[row.id] ?? createDefaultOverride(row)
   })
   setApartmentOverrides(nextApts)
+  setRetailOverrides(nextRetail)
   setParkingOverrides(nextParking)
   setBuildCostOverride(stored?.buildCostOverride ?? { wc: '', bc: '', scenario: defaultScenario })
   setManagementOverride(stored?.managementOverride ?? { wc: '', bc: '', scenario: defaultScenario })
@@ -189,6 +198,7 @@ useEffect(() => {
     if (!projectId) return
     const payload: MetricsPreferences = {
       apartments: apartmentOverrides,
+      retail: retailOverrides,
       parking: parkingOverrides,
       buildCostOverride,
       managementOverride,
@@ -209,6 +219,7 @@ useEffect(() => {
   }
 
   const apartments = project.revenue ?? []
+  const retail = project.retailRevenue ?? []
   const parking = project.parkingRevenue ?? []
   const hardCostsTotal = project.hardCosts?.reduce((sum, row) => sum + toNumber(row.amountUsd), 0) ?? 0
   const softCostsTotal = project.softCosts?.reduce((sum, row) => sum + toNumber(row.amountUsd), 0) ?? 0
@@ -279,13 +290,18 @@ const selectedHardSoftTotal =
     return apartments.map((row) => computeRevenueLine(row, apartmentOverrides))
   }, [apartments, apartmentOverrides])
 
+  const retailSummaries = useMemo(() => {
+    return retail.map((row) => computeRevenueLine(row, retailOverrides))
+  }, [retail, retailOverrides])
+
   const parkingSummaries = useMemo(() => {
     return parking.map((row) => computeRevenueLine(row, parkingOverrides))
   }, [parking, parkingOverrides])
 
   const apartmentsMonthlyTotal = apartmentSummaries.reduce((sum, summary) => sum + summary.monthly, 0)
+  const retailMonthlyTotal = retailSummaries.reduce((sum, summary) => sum + summary.monthly, 0)
   const parkingMonthlyTotal = parkingSummaries.reduce((sum, summary) => sum + summary.monthly, 0)
-  const totalMonthlyRevenue = apartmentsMonthlyTotal + parkingMonthlyTotal
+  const totalMonthlyRevenue = apartmentsMonthlyTotal + retailMonthlyTotal + parkingMonthlyTotal
   const totalAnnualRevenue = totalMonthlyRevenue * 12
 
 const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionRealEstateForLoan
@@ -409,6 +425,109 @@ const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionR
               <tr>
                 <td colSpan={7}>Apartments Monthly Total</td>
                 <td>{formatCurrency(apartmentsMonthlyTotal)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div className="metrics-table-wrapper">
+          <table className="metrics-table">
+            <thead>
+              <tr>
+                <th>Retail Type</th>
+                <th>Units</th>
+                <th>Base Rent</th>
+                <th>WC Rent</th>
+                <th>BC Rent</th>
+                <th>Occupancy %</th>
+                <th>Scenario</th>
+                <th>Monthly Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {retail.length === 0 && (
+                <tr>
+                  <td colSpan={8}>No retail revenue defined.</td>
+                </tr>
+              )}
+              {retail.map((row, index) => {
+                const override = retailOverrides[row.id] ?? createDefaultOverride(row)
+                const summary = retailSummaries[index]
+                return (
+                  <tr key={row.id}>
+                    <td>{row.typeLabel}</td>
+                    <td>{row.unitCount}</td>
+                    <td>{formatCurrency(summary.rentDefault)}</td>
+                    <td>
+                      <input
+                        type="number"
+                        value={override.monthlyRentWC}
+                        onChange={(e) => {
+                          setRetailOverrides((prev) => ({
+                            ...prev,
+                            [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), monthlyRentWC: e.target.value },
+                          }))
+                          markDirty()
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        value={override.monthlyRentBC}
+                        onChange={(e) => {
+                          setRetailOverrides((prev) => ({
+                            ...prev,
+                            [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), monthlyRentBC: e.target.value },
+                          }))
+                          markDirty()
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        value={override.occupancy}
+                        onChange={(e) => {
+                          setRetailOverrides((prev) => ({
+                            ...prev,
+                            [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), occupancy: e.target.value },
+                          }))
+                          markDirty()
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <div className="scenario-options">
+                        {scenarioOptions.map((option) => (
+                          <label key={option.id}>
+                            <input
+                              type="radio"
+                              name={`retail-${row.id}`}
+                              value={option.id}
+                              checked={override.scenario === option.id}
+                              onChange={() => {
+                                setRetailOverrides((prev) => ({
+                                  ...prev,
+                                  [row.id]: { ...(prev[row.id] ?? createDefaultOverride(row)), scenario: option.id },
+                                }))
+                                markDirty()
+                              }}
+                            />
+                            {option.label}
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                    <td>{formatCurrency(summary.monthly)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={7}>Retail Monthly Total</td>
+                <td>{formatCurrency(retailMonthlyTotal)}</td>
               </tr>
             </tfoot>
           </table>
