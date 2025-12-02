@@ -73,9 +73,10 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 - These validations fire both when dragging cards across the Kanban board and when selecting a stage from the detail view dropdown. The UI should surface a clear error message listing the missing fields.
 
 ### 6.2 Revenue Tab
-- Clicking the **Add** button now presents two options:
+- Clicking the **Add** button now presents three options:
   1. **Apartment Type** (formerly “unit type”) – multi-unit rents (e.g., 1bd/1bth).
-  2. **Parking Type** – structured like apartment types but for parking variations (garage, uncovered, etc.).
+  2. **Retail Type** – storefront or podium space assumptions, mirrors Apartment fields but typically one unit per bay.
+  3. **Parking Type** – structured like apartment types but for parking variations (garage, uncovered, etc.).
 - Apartment/Parking forms capture:
   - `type_label` (e.g., "1bd/1bth" or "Garage Parking").
   - `unit_sqft` (optional for apartments, still tracked for reference).
@@ -84,7 +85,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `vacancy_pct` (default 5%).
   - `start_month` (integer month offset; revenue hits cashflow starting that month). As the user types/selects a month number, the UI shows `Month N • Month/Year` so you always know which calendar month you’re targeting (closing month is Month 1).
 - Parking omits square footage by default but keeps the same scheduling semantics (start month + vacancy). Revenue is calculated the same way (`rent * count * (1 - vacancy)`).
-- Listing UI is grouped by category (Apartments, Parking) with per-section totals and the overall monthly revenue summary. All revenue modal fields are required before save so cashflow projections are always based on complete input.
+- Listing UI is grouped by category (Apartments, Retail, Parking) with per-section monthly + annual summaries plus the overall totals. All revenue modal fields are required before save so cashflow projections are always based on complete input.
 - Cashflow integration:
   - Apartment/Parking lines start at their configured month; before that they contribute zero.
 - GP contributions and loan assumptions now live under the dedicated **Funding** tab (§6.5) so revenue stays focused on operating income.

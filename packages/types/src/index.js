@@ -203,7 +203,7 @@ export const projectUpdateSchema = z
   })
   .strict()
 
-export const apartmentRevenueInputSchema = z.object({
+const unitRevenueInputSchema = z.object({
   typeLabel: nonEmptyString,
   unitSqft: positiveInt.nullable().optional(),
   unitCount: positiveInt,
@@ -212,7 +212,12 @@ export const apartmentRevenueInputSchema = z.object({
   startMonth: positiveInt.default(0),
 })
 
-export const apartmentRevenueUpdateSchema = apartmentRevenueInputSchema.partial()
+const unitRevenueUpdateSchema = unitRevenueInputSchema.partial()
+
+export const apartmentRevenueInputSchema = unitRevenueInputSchema
+export const apartmentRevenueUpdateSchema = unitRevenueUpdateSchema
+export const retailRevenueInputSchema = unitRevenueInputSchema
+export const retailRevenueUpdateSchema = unitRevenueUpdateSchema
 
 export const parkingRevenueInputSchema = z.object({
   typeLabel: nonEmptyString,

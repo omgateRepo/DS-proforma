@@ -1,29 +1,33 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { apartmentRevenueInputSchema, parkingRevenueInputSchema, formatZodErrors } from '@ds-proforma/types'
+import { apartmentRevenueInputSchema, retailRevenueInputSchema, parkingRevenueInputSchema, formatZodErrors } from '@ds-proforma/types'
 import {
   createParkingRevenue,
   createRevenueItem,
+  createRetailRevenue,
   deleteParkingRevenue,
   deleteRevenueItem,
+  deleteRetailRevenue,
   updateParkingRevenue,
   updateRevenueItem,
+  updateRetailRevenue,
 } from '../../api.js'
 import { calculateNetParking, calculateNetRevenue } from './revenueHelpers.js'
 import type {
   ApartmentRevenueRow,
+  RetailRevenueRow,
   EntityId,
   ParkingRevenueRow,
   ProjectDetail,
 } from '../../types'
 type RequestStatus = 'idle' | 'saving' | 'error'
-type RevenueModalType = 'apartment' | 'parking'
+type RevenueModalType = 'apartment' | 'retail' | 'parking'
 
 type OffsetFormatter = (offset?: number | null) => string
 type CalendarLabelFormatter = (offset: number) => string
 type CalendarInputFormatter = (value: string | number | null | undefined) => string
 type MonthInputConverter = (value: string | number | null | undefined) => number
 
-type RevenueProjectSlice = Pick<ProjectDetail, 'id' | 'revenue' | 'parkingRevenue'>
+type RevenueProjectSlice = Pick<ProjectDetail, 'id' | 'revenue' | 'retailRevenue' | 'parkingRevenue'>
 
 type RevenueSectionProps = {
   project: RevenueProjectSlice | null
@@ -104,30 +108,46 @@ export function RevenueSection({
   const [revenueModalError, setRevenueModalError] = useState('')
   const [revenueStatus, setRevenueStatus] = useState<RequestStatus>('idle')
   const [revenueForm, setRevenueForm] = useState<ApartmentFormState>(() => createDefaultRevenueForm())
+  const [retailForm, setRetailForm] = useState<ApartmentFormState>(() => createDefaultRevenueForm())
   const [parkingForm, setParkingForm] = useState<ParkingFormState>(() => createDefaultParkingForm())
   const [editingRevenueId, setEditingRevenueId] = useState<EntityId | null>(null)
+  const [editingRetailId, setEditingRetailId] = useState<EntityId | null>(null)
   const [editingParkingId, setEditingParkingId] = useState<EntityId | null>(null)
   const [pendingRevenueDeleteId, setPendingRevenueDeleteId] = useState<EntityId | null>(null)
+  const [pendingRetailDeleteId, setPendingRetailDeleteId] = useState<EntityId | null>(null)
   const [pendingParkingDeleteId, setPendingParkingDeleteId] = useState<EntityId | null>(null)
+  const [retailDeleteStatus, setRetailDeleteStatus] = useState<RequestStatus>('idle')
+  const [retailDeleteError, setRetailDeleteError] = useState('')
   const [parkingDeleteStatus, setParkingDeleteStatus] = useState<RequestStatus>('idle')
   const [parkingDeleteError, setParkingDeleteError] = useState('')
   const [revenueMenuOpen, setRevenueMenuOpen] = useState(false)
   const revenueMenuRef = useRef<HTMLDivElement | null>(null)
 
   const apartmentRows: ApartmentRevenueRow[] = project?.revenue ?? []
+  const retailRows: RetailRevenueRow[] = project?.retailRevenue ?? []
   const parkingRows: ParkingRevenueRow[] = project?.parkingRevenue ?? []
   const isEditingApartment = Boolean(editingRevenueId)
+  const isUnitModal = revenueModalType === 'apartment' || revenueModalType === 'retail'
+  const activeUnitForm = revenueModalType === 'retail' ? retailForm : revenueForm
+  const updateUnitForm = revenueModalType === 'retail' ? setRetailForm : setRevenueForm
+  const unitModalLabel = revenueModalType === 'retail' ? 'Retail' : 'Apartment'
+  const isEditingRetail = Boolean(editingRetailId)
   const isEditingParking = Boolean(editingParkingId)
 
   const totalMonthlyRevenue = useMemo(() => {
     const apartments = apartmentRows.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
+    const retail = retailRows.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
     const parking = parkingRows.reduce((sum, row) => sum + calculateNetParking(row), 0)
-    return apartments + parking
-  }, [apartmentRows, parkingRows])
+    return apartments + retail + parking
+  }, [apartmentRows, retailRows, parkingRows])
 
   const apartmentMonthlyTotal = useMemo(() => {
     return apartmentRows.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
   }, [apartmentRows])
+
+  const retailMonthlyTotal = useMemo(() => {
+    return retailRows.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
+  }, [retailRows])
 
   const parkingMonthlyTotal = useMemo(() => {
     return parkingRows.reduce((sum, row) => sum + calculateNetParking(row), 0)
@@ -135,8 +155,10 @@ export function RevenueSection({
 
   const resetRevenueForms = useCallback(() => {
     setRevenueForm(createDefaultRevenueForm())
+    setRetailForm(createDefaultRevenueForm())
     setParkingForm(createDefaultParkingForm())
     setEditingRevenueId(null)
+    setEditingRetailId(null)
     setEditingParkingId(null)
     setRevenueModalType('apartment')
   }, [])
@@ -156,7 +178,10 @@ export function RevenueSection({
     resetRevenueForms()
     setRevenueMenuOpen(false)
     setPendingRevenueDeleteId(null)
+     setPendingRetailDeleteId(null)
     setPendingParkingDeleteId(null)
+     setRetailDeleteError('')
+     setRetailDeleteStatus('idle')
     setParkingDeleteError('')
     setParkingDeleteStatus('idle')
   }, [projectId, resetRevenueForms])
@@ -193,6 +218,23 @@ export function RevenueSection({
     setIsRevenueModalOpen(true)
   }
 
+  const startEditRetail = (row: RetailRevenueRow) => {
+    setRevenueModalError('')
+    setRetailForm({
+      typeLabel: row.typeLabel || '',
+      unitSqft: row.unitSqft !== null && row.unitSqft !== undefined ? String(row.unitSqft) : '',
+      unitCount: row.unitCount !== null && row.unitCount !== undefined ? String(row.unitCount) : '',
+      rentBudget: row.rentBudget !== null && row.rentBudget !== undefined ? String(row.rentBudget) : '',
+      vacancyPct: row.vacancyPct !== null && row.vacancyPct !== undefined ? String(row.vacancyPct) : '5',
+      startMonth: formatOffsetForInput(row.startMonth),
+    })
+    setRevenueModalType('retail')
+    setEditingRetailId(row.id)
+    setEditingRevenueId(null)
+    setEditingParkingId(null)
+    setIsRevenueModalOpen(true)
+  }
+
   const startEditParking = (row: ParkingRevenueRow) => {
     setRevenueModalError('')
     setParkingForm({
@@ -216,6 +258,15 @@ export function RevenueSection({
     rentBudget: parseOptionalNumber(revenueForm.rentBudget),
     vacancyPct: parseNumberWithDefault(revenueForm.vacancyPct, 5),
     startMonth: convertMonthInputToOffset(revenueForm.startMonth),
+  })
+
+  const buildRetailPayload = () => ({
+    typeLabel: retailForm.typeLabel.trim(),
+    unitSqft: parseOptionalNumber(retailForm.unitSqft),
+    unitCount: parseOptionalNumber(retailForm.unitCount),
+    rentBudget: parseOptionalNumber(retailForm.rentBudget),
+    vacancyPct: parseNumberWithDefault(retailForm.vacancyPct, 5),
+    startMonth: convertMonthInputToOffset(retailForm.startMonth),
   })
 
   const buildParkingPayload = () => ({
@@ -248,6 +299,17 @@ export function RevenueSection({
           await updateRevenueItem(projectId, editingRevenueId, validation.data)
         } else {
           await createRevenueItem(projectId, validation.data)
+        }
+      } else if (revenueModalType === 'retail') {
+        const payload = buildRetailPayload()
+        const validation = retailRevenueInputSchema.safeParse(payload)
+        if (!validation.success) {
+          throw new Error(formatZodErrors(validation.error))
+        }
+        if (editingRetailId) {
+          await updateRetailRevenue(projectId, editingRetailId, validation.data)
+        } else {
+          await createRetailRevenue(projectId, validation.data)
         }
       } else {
         const payload = buildParkingPayload()
@@ -298,6 +360,33 @@ export function RevenueSection({
     }
   }
 
+  const handleDeleteRetail = (id: EntityId) => {
+    if (!projectId) return
+    setRetailDeleteError('')
+    setPendingRetailDeleteId(id)
+  }
+
+  const confirmDeleteRetail = async () => {
+    if (!projectId || !pendingRetailDeleteId) return
+    setRetailDeleteStatus('saving')
+    try {
+      await deleteRetailRevenue(projectId, pendingRetailDeleteId)
+      setPendingRetailDeleteId(null)
+      setRetailDeleteStatus('idle')
+      await refreshProject()
+    } catch (err) {
+      setRetailDeleteStatus('error')
+      setRetailDeleteError(getErrorMessage(err))
+    }
+  }
+
+  const cancelDeleteRetail = () => {
+    if (retailDeleteStatus === 'saving') return
+    setPendingRetailDeleteId(null)
+    setRetailDeleteError('')
+    setRetailDeleteStatus('idle')
+  }
+
   const handleDeleteParking = (id: EntityId) => {
     if (!projectId) return
     setParkingDeleteError('')
@@ -346,6 +435,9 @@ export function RevenueSection({
               <div className="add-menu-dropdown">
                 <button type="button" onClick={() => openRevenueModal('apartment')}>
                   Apartment Type
+                </button>
+                <button type="button" onClick={() => openRevenueModal('retail')}>
+                  Retail Type
                 </button>
                 <button type="button" onClick={() => openRevenueModal('parking')}>
                   Parking Type
@@ -429,6 +521,79 @@ export function RevenueSection({
             </div>
           </section>
 
+        <section className="revenue-section">
+          <div className="section-header">
+            <h4>Retail</h4>
+            <p className="muted tiny">Street-level or podium retail assumptions</p>
+          </div>
+          <div className="revenue-section-summary">
+            <div>
+              <span>Monthly</span>
+              <strong>{formatCurrency(retailMonthlyTotal)}</strong>
+            </div>
+            <div>
+              <span>Annualized</span>
+              <strong>{formatCurrency(retailMonthlyTotal * 12)}</strong>
+            </div>
+          </div>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>SqFt</th>
+                  <th>Units</th>
+                  <th>Rent (USD)</th>
+                  <th>Vacancy %</th>
+                  <th>Start Month</th>
+                  <th>Net Monthly</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {retailRows.map((row) => {
+                  const netMonthly = calculateNetRevenue(row)
+                  return (
+                    <tr key={row.id}>
+                      <td>{row.typeLabel}</td>
+                      <td>{row.unitSqft || '—'}</td>
+                      <td>{row.unitCount || '—'}</td>
+                      <td>{row.rentBudget ? `$${row.rentBudget.toLocaleString()}` : '—'}</td>
+                      <td>{row.vacancyPct ?? 5}%</td>
+                      <td>
+                        <div className="month-label">
+                          <span>{`Month ${formatOffsetForInput(row.startMonth ?? 0)}`}</span>
+                          <span className="month-calendar">{getCalendarLabelForOffset(row.startMonth ?? 0)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        {netMonthly
+                          ? `$${netMonthly.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+                          : '—'}
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <button type="button" className="icon-button" onClick={() => startEditRetail(row)}>
+                            ✏️
+                          </button>
+                          <button type="button" className="icon-delete" onClick={() => handleDeleteRetail(row.id)}>
+                            🗑
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {retailRows.length === 0 && (
+                  <tr>
+                    <td colSpan={8}>No retail revenue yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
           <section className="revenue-section">
             <div className="section-header">
               <h4>Parking</h4>
@@ -502,7 +667,7 @@ export function RevenueSection({
 
           <div className="revenue-summary">
             <div>
-              <span>Total Monthly</span>
+              <span>Total Monthly (Apartments + Retail + Parking)</span>
               <strong>{formatCurrency(totalMonthlyRevenue)}</strong>
             </div>
             <div>
@@ -521,19 +686,23 @@ export function RevenueSection({
                 ? isEditingApartment
                   ? 'Edit Apartment Type'
                   : 'Add Apartment Type'
-                : isEditingParking
-                  ? 'Edit Parking Type'
-                  : 'Add Parking Type'}
+                : revenueModalType === 'retail'
+                  ? isEditingRetail
+                    ? 'Edit Retail Type'
+                    : 'Add Retail Type'
+                  : isEditingParking
+                    ? 'Edit Parking Type'
+                    : 'Add Parking Type'}
             </h3>
             <form className="modal-form" onSubmit={handleAddRevenue}>
-              {revenueModalType === 'apartment' && (
+              {isUnitModal && (
                 <>
                   <label>
                     Type label
                     <input
                       type="text"
-                      value={revenueForm.typeLabel}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, typeLabel: e.target.value }))}
+                      value={activeUnitForm.typeLabel}
+                      onChange={(e) => updateUnitForm((prev) => ({ ...prev, typeLabel: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                       required
                     />
@@ -542,8 +711,8 @@ export function RevenueSection({
                     Unit SqFt
                     <input
                       type="number"
-                      value={revenueForm.unitSqft}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, unitSqft: e.target.value }))}
+                      value={activeUnitForm.unitSqft}
+                      onChange={(e) => updateUnitForm((prev) => ({ ...prev, unitSqft: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                     />
                   </label>
@@ -551,8 +720,8 @@ export function RevenueSection({
                     Number of units
                     <input
                       type="number"
-                      value={revenueForm.unitCount}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, unitCount: e.target.value }))}
+                      value={activeUnitForm.unitCount}
+                      onChange={(e) => updateUnitForm((prev) => ({ ...prev, unitCount: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                     />
                   </label>
@@ -560,8 +729,8 @@ export function RevenueSection({
                     Monthly rent (USD)
                     <input
                       type="number"
-                      value={revenueForm.rentBudget}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, rentBudget: e.target.value }))}
+                      value={activeUnitForm.rentBudget}
+                      onChange={(e) => updateUnitForm((prev) => ({ ...prev, rentBudget: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                     />
                   </label>
@@ -569,8 +738,8 @@ export function RevenueSection({
                     Vacancy %
                     <input
                       type="number"
-                      value={revenueForm.vacancyPct}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, vacancyPct: e.target.value }))}
+                      value={activeUnitForm.vacancyPct}
+                      onChange={(e) => updateUnitForm((prev) => ({ ...prev, vacancyPct: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                     />
                   </label>
@@ -578,11 +747,11 @@ export function RevenueSection({
                     Start month
                     <input
                       type="number"
-                      value={revenueForm.startMonth}
-                      onChange={(e) => setRevenueForm((prev) => ({ ...prev, startMonth: e.target.value }))}
+                      value={activeUnitForm.startMonth}
+                      onChange={(e) => updateUnitForm((prev) => ({ ...prev, startMonth: e.target.value }))}
                       disabled={revenueStatus === 'saving'}
                     />
-                    <span className="month-hint">{getCalendarLabelForInput(revenueForm.startMonth)}</span>
+                    <span className="month-hint">{getCalendarLabelForInput(activeUnitForm.startMonth)}</span>
                   </label>
                 </>
               )}
@@ -656,9 +825,13 @@ export function RevenueSection({
                       ? isEditingApartment
                         ? 'Save Changes'
                         : 'Save Apartment Type'
-                      : isEditingParking
-                        ? 'Save Changes'
-                        : 'Save Parking Type'}
+                      : revenueModalType === 'retail'
+                        ? isEditingRetail
+                          ? 'Save Changes'
+                          : 'Save Retail Type'
+                        : isEditingParking
+                          ? 'Save Changes'
+                          : 'Save Parking Type'}
                 </button>
               </div>
             </form>
@@ -695,6 +868,24 @@ export function RevenueSection({
               </button>
               <button type="button" className="danger" onClick={confirmDeleteParking} disabled={parkingDeleteStatus === 'saving'}>
                 {parkingDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingRetailDeleteId && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Delete retail row?</h3>
+            <p>Are you sure you want to remove this retail type?</p>
+            {retailDeleteError && <p className="error">{retailDeleteError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="ghost" onClick={cancelDeleteRetail} disabled={retailDeleteStatus === 'saving'}>
+                Cancel
+              </button>
+              <button type="button" className="danger" onClick={confirmDeleteRetail} disabled={retailDeleteStatus === 'saving'}>
+                {retailDeleteStatus === 'saving' ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

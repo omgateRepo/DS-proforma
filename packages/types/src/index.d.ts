@@ -44,6 +44,7 @@ export interface AddressSuggestion {
 export type ProjectDetail = ProjectSummary & {
   general: ProjectGeneral
   revenue: ApartmentRevenue[]
+  retailRevenue: RetailRevenue[]
   parkingRevenue: ParkingRevenue[]
   gpContributions: GpContribution[]
   softCosts: SoftCostRow[]
@@ -110,6 +111,19 @@ export interface ApartmentRevenueInput {
 }
 
 export interface ApartmentRevenue extends ApartmentRevenueInput {
+  id: EntityId
+}
+
+export interface RetailRevenueInput {
+  typeLabel: string
+  unitSqft?: number | null
+  unitCount: number
+  rentBudget: number | null
+  vacancyPct?: number
+  startMonth?: number
+}
+
+export interface RetailRevenue extends RetailRevenueInput {
   id: EntityId
 }
 
@@ -227,6 +241,8 @@ export declare const projectCreateSchema: z.ZodType<{ name: string }>
 export declare const projectUpdateSchema: z.ZodTypeAny
 export declare const apartmentRevenueInputSchema: z.ZodType<ApartmentRevenueInput>
 export declare const apartmentRevenueUpdateSchema: z.ZodType<Partial<ApartmentRevenueInput>>
+export declare const retailRevenueInputSchema: z.ZodType<RetailRevenueInput>
+export declare const retailRevenueUpdateSchema: z.ZodType<Partial<RetailRevenueInput>>
 export declare const parkingRevenueInputSchema: z.ZodType<ParkingRevenueInput>
 export declare const parkingRevenueUpdateSchema: z.ZodType<Partial<ParkingRevenueInput>>
 export declare const gpContributionInputSchema: z.ZodType<GpContributionInput>

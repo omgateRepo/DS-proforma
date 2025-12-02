@@ -37,6 +37,7 @@ import { MetricsTab } from './features/metrics/MetricsTab'
 import type {
   AddressSuggestion,
   ApartmentRevenueRow,
+  RetailRevenueRow,
   CarryingCostRow,
   EntityId,
   GeneralFormState,
@@ -229,6 +230,7 @@ function App() {
   }
 
   const apartmentRevenueRows: ApartmentRevenueRow[] = selectedProject?.revenue ?? []
+  const retailRevenueRows: RetailRevenueRow[] = selectedProject?.retailRevenue ?? []
   const parkingRevenueRows: ParkingRevenueRow[] = selectedProject?.parkingRevenue ?? []
   const gpContributionRows: GpContributionRow[] = selectedProject?.gpContributions ?? []
   const carryingCostRows: CarryingCostRow[] = selectedProject?.carryingCosts ?? []
@@ -254,6 +256,15 @@ function App() {
       }
     })
 
+    const retailLineItems = retailRevenueRows.map((row, index) => {
+      const net = calculateNetRevenue(row)
+      return {
+        id: row.id || `retail-${index}`,
+        label: `Retail • ${row.typeLabel || 'Retail'}`,
+        values: buildRecurringLineValues(net, row.startMonth ?? 0),
+      }
+    })
+
     const parkingLineItems = parkingRevenueRows.map((row, index) => {
       const net = calculateNetParking(row)
       return {
@@ -272,7 +283,7 @@ function App() {
       }
     })
 
-    const lineItems = [...apartmentLineItems, ...parkingLineItems, ...gpLineItems]
+    const lineItems = [...apartmentLineItems, ...retailLineItems, ...parkingLineItems, ...gpLineItems]
     const baseValues = Array(CASHFLOW_MONTHS).fill(0)
     lineItems.forEach((item) => {
       item.values.forEach((value, idx) => {
@@ -281,7 +292,7 @@ function App() {
     })
 
     return { label: 'Revenues', type: 'revenue', baseValues, lineItems }
-  }, [apartmentRevenueRows, parkingRevenueRows, gpContributionRows])
+  }, [apartmentRevenueRows, retailRevenueRows, parkingRevenueRows, gpContributionRows])
 
   const softCostSeries = useMemo(
     () => buildExpenseSeries(selectedProject?.softCosts || [], 'Soft Costs', CASHFLOW_MONTHS),
@@ -360,6 +371,7 @@ function App() {
     setDetailError('')
     try {
       const detail = (await fetchProjectDetail(projectId)) as ProjectDetail
+      detail.retailRevenue = detail.retailRevenue || []
       detail.parkingRevenue = detail.parkingRevenue || []
       detail.gpContributions = detail.gpContributions || []
       setSelectedProject(detail)

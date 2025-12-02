@@ -6,6 +6,7 @@ export type {
   ProjectGeneral,
   ProjectDetail,
   ApartmentRevenue as ApartmentRevenueRow,
+  RetailRevenue as RetailRevenueRow,
   ParkingRevenue as ParkingRevenueRow,
   GpContribution as GpContributionRow,
   SoftCostRow,

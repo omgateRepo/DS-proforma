@@ -16,6 +16,7 @@ vi.mock('../revenueHelpers.js', () => ({
 const baseProject = {
   id: 'proj-1',
   revenue: [],
+  retailRevenue: [],
   parkingRevenue: [],
   gpContributions: [],
 }

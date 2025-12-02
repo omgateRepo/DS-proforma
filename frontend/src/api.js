@@ -1,4 +1,9 @@
-import { apartmentRevenueInputSchema, parkingRevenueInputSchema, gpContributionInputSchema } from '@ds-proforma/types'
+import {
+  apartmentRevenueInputSchema,
+  retailRevenueInputSchema,
+  parkingRevenueInputSchema,
+  gpContributionInputSchema,
+} from '@ds-proforma/types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -181,6 +186,32 @@ export async function deleteRevenueItem(projectId, revenueId) {
     method: 'DELETE',
   })
   return handleJsonResponse(res, 'Failed to delete revenue item')
+}
+
+export async function createRetailRevenue(projectId, payload) {
+  const parsed = retailRevenueInputSchema.parse(payload)
+  const res = await request(`/api/projects/${projectId}/retail`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(parsed),
+  })
+  return handleJsonResponse(res, 'Failed to add retail revenue item')
+}
+
+export async function updateRetailRevenue(projectId, retailId, payload) {
+  const res = await request(`/api/projects/${projectId}/retail/${retailId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update retail revenue item')
+}
+
+export async function deleteRetailRevenue(projectId, retailId) {
+  const res = await request(`/api/projects/${projectId}/retail/${retailId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete retail revenue item')
 }
 
 export async function createSoftCost(projectId, payload) {

@@ -6,6 +6,8 @@ import {
   projectUpdateSchema,
   apartmentRevenueInputSchema,
   apartmentRevenueUpdateSchema,
+  retailRevenueInputSchema,
+  retailRevenueUpdateSchema,
   parkingRevenueInputSchema,
   parkingRevenueUpdateSchema,
   gpContributionInputSchema,
@@ -114,6 +116,18 @@ const stubProject = {
       rentBudget: 2100,
       vacancyPct: 5,
       startMonth: 0,
+      rentActual: 0,
+    },
+  ],
+  retailRevenue: [
+    {
+      id: 'retail-1',
+      typeLabel: 'Retail Suite A',
+      unitSqft: 1200,
+      unitCount: 1,
+      rentBudget: 4200,
+      vacancyPct: 5,
+      startMonth: 3,
       rentActual: 0,
     },
   ],
@@ -322,6 +336,17 @@ const mapRevenueRow = (row) => ({
   rentActual: toNumber(row.rent_actual),
 })
 
+const mapRetailRow = (row) => ({
+  id: row.id,
+  typeLabel: row.type_label,
+  unitSqft: row.unit_sqft,
+  unitCount: row.unit_count,
+  rentBudget: toNumber(row.rent_budget),
+  vacancyPct: toNumber(row.vacancy_pct),
+  startMonth: toInt(row.start_month),
+  rentActual: toNumber(row.rent_actual),
+})
+
 const mapParkingRow = (row) => ({
   id: row.id,
   typeLabel: row.type_label,
@@ -456,8 +481,12 @@ router.get('/projects/:id', async (req, res) => {
       targetSqft: projectRow.target_sqft,
     })
 
-    const [revenue, parking, contributions, costs, cashflow] = await Promise.all([
+    const [revenue, retail, parking, contributions, costs, cashflow] = await Promise.all([
       prisma.apartment_types.findMany({
+        where: { project_id: req.params.id },
+        orderBy: { created_at: 'asc' },
+      }),
+      prisma.retail_spaces.findMany({
         where: { project_id: req.params.id },
         orderBy: { created_at: 'asc' },
       }),
@@ -480,6 +509,7 @@ router.get('/projects/:id', async (req, res) => {
     ])
 
     project.revenue = revenue.map(mapRevenueRow)
+    project.retailRevenue = retail.map(mapRetailRow)
     project.parkingRevenue = parking.map(mapParkingRow)
     project.gpContributions = contributions.map(mapGpContributionRow)
     const costRows = costs.map(mapCostRow)
@@ -675,6 +705,83 @@ router.post('/projects/:id/revenue', async (req, res) => {
     res.status(201).json(mapRevenueRow(row))
   } catch (err) {
     res.status(500).json({ error: 'Failed to add revenue item', details: err.message })
+  }
+})
+
+router.post('/projects/:id/retail', async (req, res) => {
+  const payload = parseBody(retailRevenueInputSchema, req.body, res)
+  if (!payload) return
+  const { typeLabel, unitSqft, unitCount, rentBudget, vacancyPct, startMonth } = payload
+  const vacancy = vacancyPct ?? 5
+  const start = startMonth ?? 0
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `retail-${Date.now()}`,
+      typeLabel,
+      unitSqft,
+      unitCount,
+      rentBudget,
+      vacancyPct: vacancy,
+      startMonth: start,
+    })
+  }
+  try {
+    const row = await prisma.retail_spaces.create({
+      data: {
+        project_id: req.params.id,
+        type_label: typeLabel,
+        unit_sqft: unitSqft || null,
+        unit_count: unitCount || 0,
+        rent_budget: rentBudget || null,
+        vacancy_pct: vacancy,
+        start_month: start,
+      },
+    })
+    res.status(201).json(mapRetailRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add retail revenue item', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/retail/:retailId', async (req, res) => {
+  const payload = parseBody(retailRevenueUpdateSchema, req.body, res)
+  if (!payload) return
+  if (SKIP_DB) {
+    return res.json({
+      id: req.params.retailId,
+      typeLabel: payload.typeLabel || 'retail',
+      unitSqft: payload.unitSqft || 0,
+      unitCount: payload.unitCount || 0,
+      rentBudget: payload.rentBudget || 0,
+      vacancyPct: payload.vacancyPct ?? 5,
+      startMonth: payload.startMonth ?? 0,
+    })
+  }
+
+  const data = {}
+  if (payload.typeLabel !== undefined) data.type_label = payload.typeLabel
+  if (payload.unitSqft !== undefined) data.unit_sqft = payload.unitSqft
+  if (payload.unitCount !== undefined) data.unit_count = payload.unitCount
+  if (payload.rentBudget !== undefined) data.rent_budget = payload.rentBudget
+  if (payload.vacancyPct !== undefined) data.vacancy_pct = payload.vacancyPct
+  if (payload.startMonth !== undefined) data.start_month = payload.startMonth
+
+  if (Object.keys(data).length === 0) return res.status(400).json({ error: 'No valid fields to update' })
+
+  try {
+    const row = await prisma.retail_spaces.update({
+      where: { id: req.params.retailId },
+      data,
+    })
+    if (row.project_id !== req.params.id) {
+      return res.status(404).json({ error: 'Retail revenue item not found' })
+    }
+    res.json(mapRetailRow(row))
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Retail revenue item not found' })
+    }
+    res.status(500).json({ error: 'Failed to update retail revenue item', details: err.message })
   }
 })
 
@@ -1124,6 +1231,24 @@ router.delete('/projects/:id/revenue/:revenueId', async (req, res) => {
     res.json({ id: req.params.revenueId, deleted: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete revenue item', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/retail/:retailId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.retailId, deleted: true })
+  }
+
+  try {
+    const deleted = await prisma.retail_spaces.delete({
+      where: { id: req.params.retailId, project_id: req.params.id },
+    })
+    res.json({ id: deleted.id, deleted: true })
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Retail revenue item not found' })
+    }
+    res.status(500).json({ error: 'Failed to delete retail revenue item', details: err.message })
   }
 })
 
