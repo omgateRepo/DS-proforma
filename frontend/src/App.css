@@ -866,17 +866,37 @@ td {
 
 .turnover-form {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 1rem;
-  align-items: flex-end;
   margin-top: 1rem;
 }
 
 .turnover-form label {
-  flex: 1 1 220px;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.turnover-inline-form {
+  margin: 0.5rem 0 1rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.turnover-inline-form > div {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.turnover-inline-form label {
+  min-width: 150px;
+}
+
+.turnover-inline-form button {
+  align-self: flex-start;
 }
 
 .turnover-form input {

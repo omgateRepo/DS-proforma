@@ -95,6 +95,9 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 - Parking omits square footage by default but keeps the same scheduling semantics (start month + vacancy). Revenue is calculated the same way (`rent * count * (1 - vacancy)`).
 - Listing UI is grouped by category (Apartments, Retail, Parking) with per-section monthly + annual summaries plus the overall totals. All revenue modal fields are required before save so cashflow projections are always based on complete input.
 - Cashflow ramps every revenue line item from 0 at the Start Leasing Date to full net rent at the Stabilized Date (both configured on the General tab). Before leasing begins the line contributes 0; after stabilization it remains flat at the steady-state value.
+- Turnover assumptions:
+  - The **Turnover** card at the top of the tab now captures separate % and per-unit costs for Apartments and Retail.
+  - Saving updates both the Metrics tab and the Management auto rows so churn for either asset class is budgeted in carrying costs automatically.
 - Cashflow integration:
   - Apartment/Parking lines start at their configured month; before that they contribute zero.
 - GP contributions and loan assumptions now live under the dedicated **Funding** tab (§6.5) so revenue stays focused on operating income.
@@ -216,6 +219,8 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 - **Cashflow Behavior**
   - Same interval logic as Property Tax.
   - These rows appear under Carrying Costs → Management with per-line totals and flow into the aggregated Carrying Costs row.
+- **Automatic Turnover Lines**
+  - Apartment + Retail turnover settings (Revenue tab) each contribute a read-only monthly line item under Management so costs stay synced with the leasing assumptions.
 - **Automatic Turnover Line**
   - The global Apartment Turnover settings (Revenue tab) automatically inject a read-only row under Management showing the annual refresh cost = `turnover_pct × apartment_units × turnover_cost`.
   - The line is informational only (no edit/delete icons) but its monthly equivalent is added to the Management summary totals so NOI/CAP Rate reflect tenant churn assumptions.

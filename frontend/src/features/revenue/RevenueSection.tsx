@@ -28,7 +28,10 @@ type CalendarLabelFormatter = (offset: number) => string
 type CalendarInputFormatter = (value: string | number | null | undefined) => string
 type MonthInputConverter = (value: string | number | null | undefined) => number
 
-type RevenueProjectSlice = Pick<ProjectDetail, 'id' | 'revenue' | 'retailRevenue' | 'parkingRevenue' | 'apartmentTurnover'>
+type RevenueProjectSlice = Pick<
+  ProjectDetail,
+  'id' | 'revenue' | 'retailRevenue' | 'parkingRevenue' | 'apartmentTurnover' | 'retailTurnover'
+>
 
 type RevenueSectionProps = {
   project: RevenueProjectSlice | null
@@ -139,6 +142,8 @@ export function RevenueSection({
   const revenueMenuRef = useRef<HTMLDivElement | null>(null)
   const [turnoverPctInput, setTurnoverPctInput] = useState('')
   const [turnoverCostInput, setTurnoverCostInput] = useState('')
+  const [retailTurnoverPctInput, setRetailTurnoverPctInput] = useState('')
+  const [retailTurnoverCostInput, setRetailTurnoverCostInput] = useState('')
   const [turnoverStatus, setTurnoverStatus] = useState<RequestStatus>('idle')
   const [turnoverError, setTurnoverError] = useState('')
   const [apartmentStartMode, setApartmentStartMode] = useState<StartMode>(initialStartMode)
@@ -243,9 +248,19 @@ export function RevenueSection({
     setTurnoverPctInput(pct !== null && pct !== undefined ? String(pct) : '')
     const cost = project?.apartmentTurnover?.turnoverCostUsd
     setTurnoverCostInput(cost !== null && cost !== undefined ? String(cost) : '')
+    const retailPct = project?.retailTurnover?.turnoverPct
+    setRetailTurnoverPctInput(retailPct !== null && retailPct !== undefined ? String(retailPct) : '')
+    const retailCost = project?.retailTurnover?.turnoverCostUsd
+    setRetailTurnoverCostInput(retailCost !== null && retailCost !== undefined ? String(retailCost) : '')
     setTurnoverError('')
     setTurnoverStatus('idle')
-  }, [project?.id, project?.apartmentTurnover?.turnoverPct, project?.apartmentTurnover?.turnoverCostUsd])
+  }, [
+    project?.id,
+    project?.apartmentTurnover?.turnoverPct,
+    project?.apartmentTurnover?.turnoverCostUsd,
+    project?.retailTurnover?.turnoverPct,
+    project?.retailTurnover?.turnoverCostUsd,
+  ])
 
   const openRevenueModal = (type: RevenueModalType) => {
     if (!projectId) return
@@ -344,6 +359,8 @@ export function RevenueSection({
   const buildTurnoverPayload = () => ({
     turnoverPct: parseOptionalNumber(turnoverPctInput),
     turnoverCostUsd: parseOptionalNumber(turnoverCostInput),
+    retailTurnoverPct: parseOptionalNumber(retailTurnoverPctInput),
+    retailTurnoverCostUsd: parseOptionalNumber(retailTurnoverCostInput),
   })
 
   const refreshProject = async () => {
@@ -533,51 +550,43 @@ export function RevenueSection({
         </div>
 
         <div className="revenue-sections">
-          <section className="revenue-section turnover-section">
-            <div className="section-header">
-              <h4>Apartment Turnover</h4>
-              <p className="muted tiny">Applies across every apartment unit</p>
-            </div>
-            <form className="turnover-form" onSubmit={handleTurnoverSave}>
-              <label>
-                Annual turnover %
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={turnoverPctInput}
-                  onChange={(e) => setTurnoverPctInput(e.target.value)}
-                  disabled={turnoverStatus === 'saving'}
-                  aria-label="Apartment turnover percent"
-                />
-              </label>
-              <label>
-                Turnover cost per unit (USD)
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={turnoverCostInput}
-                  onChange={(e) => setTurnoverCostInput(e.target.value)}
-                  disabled={turnoverStatus === 'saving'}
-                  aria-label="Turnover cost per unit"
-                />
-              </label>
-              <div className="turnover-actions">
-                <button type="submit" className="secondary" disabled={turnoverStatus === 'saving'}>
-                  {turnoverStatus === 'saving' ? 'Saving…' : 'Save Turnover'}
-                </button>
-                {turnoverError && <span className="error tiny">{turnoverError}</span>}
-              </div>
-            </form>
-          </section>
-
           <section className="revenue-section">
             <div className="section-header">
               <h4>Apartments</h4>
               <p className="muted tiny">Start month controls when revenue begins</p>
             </div>
+            <form className="turnover-inline-form" onSubmit={handleTurnoverSave}>
+              <div>
+                <label>
+                  Turnover %
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={turnoverPctInput}
+                    onChange={(e) => setTurnoverPctInput(e.target.value)}
+                    disabled={turnoverStatus === 'saving'}
+                    aria-label="Apartment turnover percent"
+                  />
+                </label>
+                <label>
+                  Cost per unit (USD)
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={turnoverCostInput}
+                    onChange={(e) => setTurnoverCostInput(e.target.value)}
+                    disabled={turnoverStatus === 'saving'}
+                    aria-label="Apartment turnover cost"
+                  />
+                </label>
+              </div>
+              <button type="submit" className="tiny secondary" disabled={turnoverStatus === 'saving'}>
+                {turnoverStatus === 'saving' ? 'Saving…' : 'Save Apartment Turnover'}
+              </button>
+            </form>
             <div className="revenue-section-summary">
               <div>
                 <span>Monthly</span>
@@ -651,6 +660,38 @@ export function RevenueSection({
             <h4>Retail</h4>
             <p className="muted tiny">Street-level or podium retail assumptions</p>
           </div>
+            <form className="turnover-inline-form" onSubmit={handleTurnoverSave}>
+              <div>
+                <label>
+                  Turnover %
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={retailTurnoverPctInput}
+                    onChange={(e) => setRetailTurnoverPctInput(e.target.value)}
+                    disabled={turnoverStatus === 'saving'}
+                    aria-label="Retail turnover percent"
+                  />
+                </label>
+                <label>
+                  Cost per space (USD)
+                  <input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={retailTurnoverCostInput}
+                    onChange={(e) => setRetailTurnoverCostInput(e.target.value)}
+                    disabled={turnoverStatus === 'saving'}
+                    aria-label="Retail turnover cost"
+                  />
+                </label>
+              </div>
+              <button type="submit" className="tiny secondary" disabled={turnoverStatus === 'saving'}>
+                {turnoverStatus === 'saving' ? 'Saving…' : 'Save Retail Turnover'}
+              </button>
+            </form>
           <div className="revenue-section-summary">
             <div>
               <span>Monthly</span>

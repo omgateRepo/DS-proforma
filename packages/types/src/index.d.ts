@@ -51,6 +51,7 @@ export interface AddressSuggestion {
 export type ProjectDetail = ProjectSummary & {
   general: ProjectGeneral
   apartmentTurnover: ApartmentTurnoverSettings
+  retailTurnover: ApartmentTurnoverSettings
   revenue: ApartmentRevenue[]
   retailRevenue: RetailRevenue[]
   parkingRevenue: ParkingRevenue[]

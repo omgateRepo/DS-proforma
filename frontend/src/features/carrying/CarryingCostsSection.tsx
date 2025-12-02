@@ -39,6 +39,7 @@ type RecurringPayload = {
 }
 
 type RecurringCarryingType = Extract<CarryingType, 'property_tax' | 'management'>
+type AutoRow = { id: string; label: string; monthlyAmount: number; startMonth: number | null }
 
 type CarryingCostsSectionProps = {
   project: ProjectDetail | null
@@ -47,9 +48,7 @@ type CarryingCostsSectionProps = {
   formatOffsetForInput: OffsetFormatter
   convertMonthInputToOffset: MonthOffsetConverter
   getCalendarLabelForInput: CalendarLabelFormatter
-  turnoverAnnualCost?: number
-  turnoverMonthlyCost?: number
-  turnoverStartMonth?: number | null
+  autoManagementRows?: AutoRow[]
   defaultManagementStartMonth?: number | null
 }
 
@@ -74,9 +73,7 @@ export function CarryingCostsSection({
   formatOffsetForInput,
   convertMonthInputToOffset,
   getCalendarLabelForInput,
-  turnoverAnnualCost = 0,
-  turnoverMonthlyCost = 0,
-  turnoverStartMonth = null,
+  autoManagementRows = [],
   defaultManagementStartMonth = null,
 }: CarryingCostsSectionProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -127,10 +124,13 @@ export function CarryingCostsSection({
     return { missingPropertyPhases: missing, nextPropertyPhase: nextPhase }
   }, [propertyRows])
 
+  const autoManagementMonthlyTotal = useMemo(() => {
+    return autoManagementRows.reduce((sum, row) => sum + (row.monthlyAmount || 0), 0)
+  }, [autoManagementRows])
   const managementMonthlyTotal = useMemo(() => {
     const base = managementRows.reduce((sum, row) => sum + (calculateRecurringAverage(row) || 0), 0)
-    return base + turnoverMonthlyCost
-  }, [managementRows, turnoverMonthlyCost])
+    return base + autoManagementMonthlyTotal
+  }, [managementRows, autoManagementMonthlyTotal])
 
   const defaultManagementStartInput = useMemo(() => {
     if (defaultManagementStartMonth === null || defaultManagementStartMonth === undefined) return '1'
@@ -544,16 +544,16 @@ export function CarryingCostsSection({
         {renderRecurringTable(
           managementRows,
           'Management Fees',
-          turnoverAnnualCost > 0 && (
-            <tr className="readonly-row" key="turnover-auto">
-              <td>Turnover Refresh (auto)</td>
-              <td>{formatCurrency(turnoverMonthlyCost)}</td>
+          autoManagementRows.map((row) => (
+            <tr className="readonly-row" key={row.id}>
+              <td>{row.label}</td>
+              <td>{formatCurrency(row.monthlyAmount)}</td>
               <td>Monthly (auto)</td>
-              <td>{turnoverStartMonth !== null ? formatMonthDisplay(turnoverStartMonth) : '—'}</td>
+              <td>{formatMonthDisplay(row.startMonth)}</td>
               <td>—</td>
               <td>—</td>
             </tr>
-          ),
+          )),
         )}
 
         <div className="management-summary">

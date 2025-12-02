@@ -113,6 +113,10 @@ const stubProject = {
     turnoverPct: 15,
     turnoverCostUsd: 2500,
   },
+  retailTurnover: {
+    turnoverPct: 10,
+    turnoverCostUsd: 1500,
+  },
   revenue: [
     {
       id: 'rev-1',
@@ -173,6 +177,8 @@ const projectFieldMap = {
   description: 'description',
   turnoverPct: 'turnover_pct',
   turnoverCostUsd: 'turnover_cost_usd',
+  retailTurnoverPct: 'retail_turnover_pct',
+  retailTurnoverCostUsd: 'retail_turnover_cost',
   startLeasingDate: 'start_leasing_date',
   stabilizedDate: 'stabilized_date',
 }
@@ -349,6 +355,10 @@ const mapProjectDetail = (row) => ({
     turnoverPct: toNumber(row.turnoverPct),
     turnoverCostUsd: toNumber(row.turnoverCostUsd),
   },
+  retailTurnover: {
+    turnoverPct: toNumber(row.retailTurnoverPct),
+    turnoverCostUsd: toNumber(row.retailTurnoverCostUsd),
+  },
 })
 
 const mapRevenueRow = (row) => ({
@@ -494,6 +504,8 @@ router.get('/projects/:id', async (req, res) => {
         description: true,
         turnover_pct: true,
         turnover_cost_usd: true,
+        retail_turnover_pct: true,
+        retail_turnover_cost: true,
         start_leasing_date: true,
         stabilized_date: true,
       },
@@ -511,6 +523,8 @@ router.get('/projects/:id', async (req, res) => {
       targetSqft: projectRow.target_sqft,
       turnoverPct: projectRow.turnover_pct,
       turnoverCostUsd: projectRow.turnover_cost_usd,
+      retailTurnoverPct: projectRow.retail_turnover_pct,
+      retailTurnoverCostUsd: projectRow.retail_turnover_cost,
       startLeasingDate: projectRow.start_leasing_date,
       stabilizedDate: projectRow.stabilized_date,
     })
@@ -591,7 +605,7 @@ router.post('/projects', async (req, res) => {
 
 router.patch('/projects/:id', async (req, res) => {
   if (SKIP_DB) {
-    const { turnoverPct, turnoverCostUsd, name, ...generalFields } = req.body
+    const { turnoverPct, turnoverCostUsd, retailTurnoverPct, retailTurnoverCostUsd, name, ...generalFields } = req.body
     return res.json({
       ...stubProject,
       name: name ?? stubProject.name,
@@ -601,6 +615,14 @@ router.patch('/projects/:id', async (req, res) => {
           turnoverPct !== undefined ? turnoverPct : stubProject.apartmentTurnover.turnoverPct,
         turnoverCostUsd:
           turnoverCostUsd !== undefined ? turnoverCostUsd : stubProject.apartmentTurnover.turnoverCostUsd,
+      },
+      retailTurnover: {
+        turnoverPct:
+          retailTurnoverPct !== undefined ? retailTurnoverPct : stubProject.retailTurnover.turnoverPct,
+        turnoverCostUsd:
+          retailTurnoverCostUsd !== undefined
+            ? retailTurnoverCostUsd
+            : stubProject.retailTurnover.turnoverCostUsd,
       },
     })
   }

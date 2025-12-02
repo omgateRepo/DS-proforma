@@ -69,6 +69,7 @@ type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
 type CashflowMonthMeta = { index: number; label: string; calendarLabel: string; year: number }
 type AuthFormState = { username: string; password: string }
+type AutoManagementRow = { id: string; label: string; monthlyAmount: number; startMonth: number | null }
 
 const CASHFLOW_MONTHS = 60
 const defaultGeneralForm: GeneralFormState = {
@@ -280,33 +281,67 @@ function App() {
     return selectedProject?.general?.targetUnits ?? 0
   }, [apartmentRevenueRows, selectedProject?.general?.targetUnits])
 
-  const turnoverAnnualCost = useMemo(() => {
+  const totalRetailUnits = useMemo(() => {
+    if (!retailRevenueRows.length) return 0
+    return retailRevenueRows.reduce((sum, row) => {
+      const units = row.unitCount
+      if (units && units > 0) return sum + units
+      return sum + 1
+    }, 0)
+  }, [retailRevenueRows])
+
+  const apartmentTurnoverAnnualCost = useMemo(() => {
     const turnoverPct = selectedProject?.apartmentTurnover?.turnoverPct ?? 0
     const turnoverCost = selectedProject?.apartmentTurnover?.turnoverCostUsd ?? 0
     if (!turnoverPct || !turnoverCost || !totalApartmentUnits) return 0
     return (turnoverPct / 100) * totalApartmentUnits * turnoverCost
   }, [selectedProject?.apartmentTurnover?.turnoverCostUsd, selectedProject?.apartmentTurnover?.turnoverPct, totalApartmentUnits])
 
-  const turnoverMonthlyCost = turnoverAnnualCost / 12
+  const retailTurnoverAnnualCost = useMemo(() => {
+    const turnoverPct = selectedProject?.retailTurnover?.turnoverPct ?? 0
+    const turnoverCost = selectedProject?.retailTurnover?.turnoverCostUsd ?? 0
+    if (!turnoverPct || !turnoverCost || !totalRetailUnits) return 0
+    return (turnoverPct / 100) * totalRetailUnits * turnoverCost
+  }, [selectedProject?.retailTurnover?.turnoverCostUsd, selectedProject?.retailTurnover?.turnoverPct, totalRetailUnits])
+
+  const apartmentTurnoverMonthlyCost = apartmentTurnoverAnnualCost / 12
+  const retailTurnoverMonthlyCost = retailTurnoverAnnualCost / 12
   const turnoverStartMonth = leasingStartOffset ?? null
 
-  const turnoverRow = useMemo(() => {
-    if (!turnoverMonthlyCost) return null
-    return {
-      id: 'turnover-auto',
-      carryingType: 'management' as CarryingType,
-      costName: 'Turnover Refresh (auto)',
-      amountUsd: turnoverMonthlyCost,
-      intervalUnit: 'monthly' as IntervalUnit,
-      startMonth: turnoverStartMonth ?? 0,
-      endMonth: null,
-    } as CarryingCostRow
-  }, [turnoverMonthlyCost, turnoverStartMonth])
+  const autoManagementRows = useMemo<AutoManagementRow[]>(() => {
+    const rows: AutoManagementRow[] = []
+    if (apartmentTurnoverMonthlyCost) {
+      rows.push({
+        id: 'turnover-apartments',
+        label: 'Apartment Turnover (auto)',
+        monthlyAmount: apartmentTurnoverMonthlyCost,
+        startMonth: turnoverStartMonth,
+      })
+    }
+    if (retailTurnoverMonthlyCost) {
+      rows.push({
+        id: 'turnover-retail',
+        label: 'Retail Turnover (auto)',
+        monthlyAmount: retailTurnoverMonthlyCost,
+        startMonth: turnoverStartMonth,
+      })
+    }
+    return rows
+  }, [apartmentTurnoverMonthlyCost, retailTurnoverMonthlyCost, turnoverStartMonth])
 
   const carryingCostRowsWithTurnover = useMemo(() => {
-    if (!turnoverRow) return carryingCostRows
-    return [...carryingCostRows, turnoverRow]
-  }, [carryingCostRows, turnoverRow])
+    if (!autoManagementRows.length) return carryingCostRows
+    const autoRows: CarryingCostRow[] = autoManagementRows.map((row) => ({
+      id: row.id,
+      carryingType: 'management' as CarryingType,
+      costName: row.label,
+      amountUsd: row.monthlyAmount,
+      intervalUnit: 'monthly' as IntervalUnit,
+      startMonth: (row.startMonth ?? 0) as number,
+      endMonth: null,
+    }))
+    return [...carryingCostRows, ...autoRows]
+  }, [autoManagementRows, carryingCostRows])
 
   const cashflowMonths = useMemo<CashflowMonthMeta[]>(() => {
     return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
@@ -456,6 +491,7 @@ function App() {
       detail.parkingRevenue = detail.parkingRevenue || []
       detail.gpContributions = detail.gpContributions || []
       detail.apartmentTurnover = detail.apartmentTurnover || { turnoverPct: null, turnoverCostUsd: null }
+      detail.retailTurnover = detail.retailTurnover || { turnoverPct: null, turnoverCostUsd: null }
       setSelectedProject(detail)
       setGeneralForm({
         ...defaultGeneralForm,
@@ -875,9 +911,7 @@ function App() {
                   formatOffsetForInput={formatOffsetForInput}
                   convertMonthInputToOffset={convertMonthInputToOffset}
                   getCalendarLabelForInput={getCalendarLabelForInput}
-            turnoverAnnualCost={turnoverAnnualCost}
-            turnoverMonthlyCost={turnoverMonthlyCost}
-            turnoverStartMonth={turnoverStartMonth}
+            autoManagementRows={autoManagementRows}
             defaultManagementStartMonth={leasingStartOffset ?? null}
                 />
               )}

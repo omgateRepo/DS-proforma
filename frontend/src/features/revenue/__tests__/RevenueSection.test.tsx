@@ -23,6 +23,10 @@ const baseProject = {
     turnoverPct: null,
     turnoverCostUsd: null,
   },
+  retailTurnover: {
+    turnoverPct: null,
+    turnoverCostUsd: null,
+  },
 }
 
 describe('RevenueSection', () => {
