@@ -92,6 +92,22 @@ export function GeneralTab({
           <input type="date" value={form.closingDate} onChange={(e) => onFieldChange('closingDate', e.target.value)} />
         </label>
         <label>
+          Start Leasing Date
+          <input
+            type="date"
+            value={form.startLeasingDate}
+            onChange={(e) => onFieldChange('startLeasingDate', e.target.value)}
+          />
+        </label>
+        <label>
+          Stabilized Date
+          <input
+            type="date"
+            value={form.stabilizedDate}
+            onChange={(e) => onFieldChange('stabilizedDate', e.target.value)}
+          />
+        </label>
+        <label>
           Latitude
           <input type="number" step="any" value={form.latitude} onChange={(e) => onFieldChange('latitude', e.target.value)} />
         </label>

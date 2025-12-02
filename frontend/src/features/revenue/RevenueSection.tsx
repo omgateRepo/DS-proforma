@@ -38,6 +38,7 @@ type RevenueSectionProps = {
   getCalendarLabelForOffset: CalendarLabelFormatter
   getCalendarLabelForInput: CalendarInputFormatter
   convertMonthInputToOffset: MonthInputConverter
+  defaultStartMonth: number | null
 }
 
 type ApartmentFormState = {
@@ -95,6 +96,8 @@ const createDefaultParkingForm = (): ParkingFormState => ({
   startMonth: '1',
 })
 
+type StartMode = 'leasing' | 'custom'
+
 export function RevenueSection({
   project,
   projectId,
@@ -103,7 +106,18 @@ export function RevenueSection({
   getCalendarLabelForOffset,
   getCalendarLabelForInput,
   convertMonthInputToOffset,
+  defaultStartMonth,
 }: RevenueSectionProps) {
+  const clampedDefaultStart = useMemo(() => {
+    if (defaultStartMonth === null || defaultStartMonth === undefined) return null
+    return Math.max(0, defaultStartMonth)
+  }, [defaultStartMonth])
+  const hasDefaultStart = clampedDefaultStart !== null
+  const defaultStartText = useMemo(() => {
+    if (!hasDefaultStart || clampedDefaultStart === null) return ''
+    return `Month ${formatOffsetForInput(clampedDefaultStart)} • ${getCalendarLabelForOffset(clampedDefaultStart)}`
+  }, [clampedDefaultStart, formatOffsetForInput, getCalendarLabelForOffset, hasDefaultStart])
+  const initialStartMode: StartMode = hasDefaultStart ? 'leasing' : 'custom'
   const [revenueModalType, setRevenueModalType] = useState<RevenueModalType>('apartment')
   const [isRevenueModalOpen, setIsRevenueModalOpen] = useState(false)
   const [revenueModalError, setRevenueModalError] = useState('')
@@ -127,6 +141,9 @@ export function RevenueSection({
   const [turnoverCostInput, setTurnoverCostInput] = useState('')
   const [turnoverStatus, setTurnoverStatus] = useState<RequestStatus>('idle')
   const [turnoverError, setTurnoverError] = useState('')
+  const [apartmentStartMode, setApartmentStartMode] = useState<StartMode>(initialStartMode)
+  const [retailStartMode, setRetailStartMode] = useState<StartMode>(initialStartMode)
+  const [parkingStartMode, setParkingStartMode] = useState<StartMode>(initialStartMode)
 
   const apartmentRows: ApartmentRevenueRow[] = project?.revenue ?? []
   const retailRows: RetailRevenueRow[] = project?.retailRevenue ?? []
@@ -135,9 +152,28 @@ export function RevenueSection({
   const isUnitModal = revenueModalType === 'apartment' || revenueModalType === 'retail'
   const activeUnitForm = revenueModalType === 'retail' ? retailForm : revenueForm
   const updateUnitForm = revenueModalType === 'retail' ? setRetailForm : setRevenueForm
+  const activeStartMode = revenueModalType === 'retail' ? retailStartMode : apartmentStartMode
+  const setActiveStartMode = revenueModalType === 'retail' ? setRetailStartMode : setApartmentStartMode
   const unitModalLabel = revenueModalType === 'retail' ? 'Retail' : 'Apartment'
   const isEditingRetail = Boolean(editingRetailId)
   const isEditingParking = Boolean(editingParkingId)
+  const deriveStartMode = useCallback(
+    (value?: number | null): StartMode => {
+      if (!hasDefaultStart || clampedDefaultStart === null) return 'custom'
+      if (value === null || value === undefined) return 'leasing'
+      return value === clampedDefaultStart ? 'leasing' : 'custom'
+    },
+    [clampedDefaultStart, hasDefaultStart],
+  )
+  const resolveStartMonth = useCallback(
+    (mode: StartMode, value: string) => {
+      if (mode === 'leasing' && clampedDefaultStart !== null) {
+        return clampedDefaultStart
+      }
+      return convertMonthInputToOffset(value)
+    },
+    [clampedDefaultStart, convertMonthInputToOffset],
+  )
 
   const totalMonthlyRevenue = useMemo(() => {
     const apartments = apartmentRows.reduce((sum, row) => sum + calculateNetRevenue(row), 0)
@@ -166,7 +202,10 @@ export function RevenueSection({
     setEditingRetailId(null)
     setEditingParkingId(null)
     setRevenueModalType('apartment')
-  }, [])
+    setApartmentStartMode(initialStartMode)
+    setRetailStartMode(initialStartMode)
+    setParkingStartMode(initialStartMode)
+  }, [initialStartMode])
 
   useEffect(() => {
     if (!revenueMenuOpen) return
@@ -190,6 +229,14 @@ export function RevenueSection({
     setParkingDeleteError('')
     setParkingDeleteStatus('idle')
   }, [projectId, resetRevenueForms])
+
+  useEffect(() => {
+    if (!hasDefaultStart) {
+      setApartmentStartMode('custom')
+      setRetailStartMode('custom')
+      setParkingStartMode('custom')
+    }
+  }, [hasDefaultStart])
 
   useEffect(() => {
     const pct = project?.apartmentTurnover?.turnoverPct
@@ -229,6 +276,7 @@ export function RevenueSection({
     setRevenueModalType('apartment')
     setEditingRevenueId(row.id)
     setEditingParkingId(null)
+    setApartmentStartMode(deriveStartMode(row.startMonth))
     setIsRevenueModalOpen(true)
   }
 
@@ -246,6 +294,7 @@ export function RevenueSection({
     setEditingRetailId(row.id)
     setEditingRevenueId(null)
     setEditingParkingId(null)
+    setRetailStartMode(deriveStartMode(row.startMonth))
     setIsRevenueModalOpen(true)
   }
 
@@ -262,6 +311,7 @@ export function RevenueSection({
     setRevenueModalType('parking')
     setEditingParkingId(row.id)
     setEditingRevenueId(null)
+    setParkingStartMode(deriveStartMode(row.startMonth))
     setIsRevenueModalOpen(true)
   }
 
@@ -271,7 +321,7 @@ export function RevenueSection({
     unitCount: parseOptionalNumber(revenueForm.unitCount),
     rentBudget: parseOptionalNumber(revenueForm.rentBudget),
     vacancyPct: parseNumberWithDefault(revenueForm.vacancyPct, 5),
-    startMonth: convertMonthInputToOffset(revenueForm.startMonth),
+    startMonth: resolveStartMonth(apartmentStartMode, revenueForm.startMonth),
   })
 
   const buildRetailPayload = () => ({
@@ -280,7 +330,7 @@ export function RevenueSection({
     unitCount: parseOptionalNumber(retailForm.unitCount),
     rentBudget: parseOptionalNumber(retailForm.rentBudget),
     vacancyPct: parseNumberWithDefault(retailForm.vacancyPct, 5),
-    startMonth: convertMonthInputToOffset(retailForm.startMonth),
+    startMonth: resolveStartMonth(retailStartMode, retailForm.startMonth),
   })
 
   const buildParkingPayload = () => ({
@@ -288,7 +338,7 @@ export function RevenueSection({
     spaceCount: parseOptionalNumber(parkingForm.spaceCount),
     monthlyRentUsd: parseOptionalNumber(parkingForm.monthlyRentUsd),
     vacancyPct: parseNumberWithDefault(parkingForm.vacancyPct, 5),
-    startMonth: convertMonthInputToOffset(parkingForm.startMonth),
+    startMonth: resolveStartMonth(parkingStartMode, parkingForm.startMonth),
   })
 
   const buildTurnoverPayload = () => ({
@@ -818,16 +868,46 @@ export function RevenueSection({
                       disabled={revenueStatus === 'saving'}
                     />
                   </label>
-                  <label>
-                    Start month
-                    <input
-                      type="number"
-                      value={activeUnitForm.startMonth}
-                      onChange={(e) => updateUnitForm((prev) => ({ ...prev, startMonth: e.target.value }))}
-                      disabled={revenueStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelForInput(activeUnitForm.startMonth)}</span>
-                  </label>
+                  <div className="start-month-control">
+                    <span className="field-label">Start Month</span>
+                    <div className="start-options">
+                      <label>
+                        <input
+                          type="radio"
+                          name="unit-start-mode"
+                          value="leasing"
+                          disabled={!hasDefaultStart}
+                          checked={activeStartMode === 'leasing' && hasDefaultStart}
+                          onChange={() => setActiveStartMode('leasing')}
+                        />
+                        At leasing start{' '}
+                        {hasDefaultStart ? <span>{defaultStartText}</span> : <em>(set Start Leasing Date in General tab)</em>}
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="unit-start-mode"
+                          value="custom"
+                          checked={!hasDefaultStart || activeStartMode === 'custom'}
+                          onChange={() => setActiveStartMode('custom')}
+                        />
+                        Custom
+                      </label>
+                    </div>
+                    {hasDefaultStart && activeStartMode === 'leasing' ? (
+                      <div className="month-hint">{defaultStartText}</div>
+                    ) : (
+                      <>
+                        <input
+                          type="number"
+                          value={activeUnitForm.startMonth}
+                          onChange={(e) => updateUnitForm((prev) => ({ ...prev, startMonth: e.target.value }))}
+                          disabled={revenueStatus === 'saving'}
+                        />
+                        <span className="month-hint">{getCalendarLabelForInput(activeUnitForm.startMonth)}</span>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -870,16 +950,46 @@ export function RevenueSection({
                       disabled={revenueStatus === 'saving'}
                     />
                   </label>
-                  <label>
-                    Start month
-                    <input
-                      type="number"
-                      value={parkingForm.startMonth}
-                      onChange={(e) => setParkingForm((prev) => ({ ...prev, startMonth: e.target.value }))}
-                      disabled={revenueStatus === 'saving'}
-                    />
-                    <span className="month-hint">{getCalendarLabelForInput(parkingForm.startMonth)}</span>
-                  </label>
+                  <div className="start-month-control">
+                    <span className="field-label">Start Month</span>
+                    <div className="start-options">
+                      <label>
+                        <input
+                          type="radio"
+                          name="parking-start-mode"
+                          value="leasing"
+                          disabled={!hasDefaultStart}
+                          checked={parkingStartMode === 'leasing' && hasDefaultStart}
+                          onChange={() => setParkingStartMode('leasing')}
+                        />
+                        At leasing start{' '}
+                        {hasDefaultStart ? <span>{defaultStartText}</span> : <em>(set Start Leasing Date in General tab)</em>}
+                      </label>
+                      <label>
+                        <input
+                          type="radio"
+                          name="parking-start-mode"
+                          value="custom"
+                          checked={!hasDefaultStart || parkingStartMode === 'custom'}
+                          onChange={() => setParkingStartMode('custom')}
+                        />
+                        Custom
+                      </label>
+                    </div>
+                    {hasDefaultStart && parkingStartMode === 'leasing' ? (
+                      <div className="month-hint">{defaultStartText}</div>
+                    ) : (
+                      <>
+                        <input
+                          type="number"
+                          value={parkingForm.startMonth}
+                          onChange={(e) => setParkingForm((prev) => ({ ...prev, startMonth: e.target.value }))}
+                          disabled={revenueStatus === 'saving'}
+                        />
+                        <span className="month-hint">{getCalendarLabelForInput(parkingForm.startMonth)}</span>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
 

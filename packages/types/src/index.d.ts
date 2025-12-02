@@ -28,6 +28,8 @@ export interface ProjectGeneral {
   targetUnits: number | null
   targetSqft: number | null
   description: string | null
+  startLeasingDate: string | null
+  stabilizedDate: string | null
 }
 
 export interface ApartmentTurnoverSettings {

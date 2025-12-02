@@ -16,6 +16,35 @@ export const buildRecurringLineValues = (netAmount, startMonth, months = 60) => 
   return values
 }
 
+export const buildRampedRevenueValues = (netAmount, rowStartMonth = 0, leasingStart, stabilized, months = 60) => {
+  if (!netAmount) return buildRecurringLineValues(0, rowStartMonth, months)
+  if (
+    leasingStart === null ||
+    leasingStart === undefined ||
+    stabilized === null ||
+    stabilized === undefined ||
+    stabilized <= leasingStart
+  ) {
+    return buildRecurringLineValues(netAmount, rowStartMonth, months)
+  }
+  const values = Array(months).fill(0)
+  const rampStart = clampCashflowMonth(Math.max(rowStartMonth ?? 0, leasingStart), months)
+  const rampEnd = clampCashflowMonth(Math.max(stabilized, rampStart), months)
+  if (rampEnd <= rampStart) {
+    return buildRecurringLineValues(netAmount, rampStart, months)
+  }
+  const duration = rampEnd - rampStart
+  for (let idx = rampStart; idx < months; idx += 1) {
+    if (idx <= rampEnd) {
+      const progress = duration === 0 ? 1 : (idx - rampStart) / duration
+      values[idx] = netAmount * Math.max(0, Math.min(1, progress))
+    } else {
+      values[idx] = netAmount
+    }
+  }
+  return values
+}
+
 export const buildContributionValues = (amount, monthIndex, months = 60) => {
   const values = Array(months).fill(0)
   const index = clampCashflowMonth(monthIndex, months)

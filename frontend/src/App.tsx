@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 import {
@@ -26,7 +26,7 @@ import { CashflowBoard } from './features/cashflow/CashflowBoard'
 import { calculateNetParking, calculateNetRevenue, gpPartners } from './features/revenue/revenueHelpers.js'
 import {
   buildContributionValues,
-  buildRecurringLineValues,
+  buildRampedRevenueValues,
   buildCashflowRows,
   buildExpenseSeries,
   buildCarryingSeries,
@@ -39,9 +39,11 @@ import type {
   ApartmentRevenueRow,
   RetailRevenueRow,
   CarryingCostRow,
+  CarryingType,
   EntityId,
   GeneralFormState,
   GpContributionRow,
+  IntervalUnit,
   ParkingRevenueRow,
   ProjectDetail,
   ProjectStage,
@@ -78,6 +80,8 @@ const defaultGeneralForm: GeneralFormState = {
   zip: '',
   purchasePriceUsd: '',
   closingDate: '',
+  startLeasingDate: '',
+  stabilizedDate: '',
   latitude: '',
   longitude: '',
   targetUnits: '',
@@ -198,6 +202,41 @@ function App() {
     return Number.isNaN(parsed) ? null : parsed
   }
 
+  const getOffsetFromDate = useCallback(
+    (value: string | null | undefined) => {
+      if (!value) return null
+      const target = new Date(value)
+      if (Number.isNaN(target.getTime())) return null
+      return (target.getFullYear() - baseDate.getFullYear()) * 12 + (target.getMonth() - baseDate.getMonth())
+    },
+    [baseDate],
+  )
+
+  const leasingStartDateValue = generalForm.startLeasingDate || selectedProject?.general?.startLeasingDate || null
+  const stabilizedDateValue = generalForm.stabilizedDate || selectedProject?.general?.stabilizedDate || null
+
+  const leasingStartOffset = useMemo(() => {
+    const diff = getOffsetFromDate(leasingStartDateValue)
+    if (diff === null) return null
+    return Math.max(0, diff)
+  }, [getOffsetFromDate, leasingStartDateValue])
+
+  const stabilizedOffsetRaw = useMemo(() => {
+    const diff = getOffsetFromDate(stabilizedDateValue)
+    if (diff === null) return null
+    return Math.max(0, diff)
+  }, [getOffsetFromDate, stabilizedDateValue])
+
+  const stabilizedOffset = useMemo(() => {
+    if (stabilizedOffsetRaw === null) {
+      return leasingStartOffset !== null ? leasingStartOffset + 12 : null
+    }
+    if (leasingStartOffset !== null && stabilizedOffsetRaw < leasingStartOffset) {
+      return leasingStartOffset
+    }
+    return stabilizedOffsetRaw
+  }, [leasingStartOffset, stabilizedOffsetRaw])
+
   const toggleCashflowRow = (rowId: string) => {
     setExpandedCashflowRows((prev) => {
       const next = new Set(prev)
@@ -235,6 +274,40 @@ function App() {
   const gpContributionRows: GpContributionRow[] = selectedProject?.gpContributions ?? []
   const carryingCostRows: CarryingCostRow[] = selectedProject?.carryingCosts ?? []
 
+  const totalApartmentUnits = useMemo(() => {
+    const explicitUnits = apartmentRevenueRows.reduce((sum, row) => sum + (row.unitCount || 0), 0)
+    if (explicitUnits > 0) return explicitUnits
+    return selectedProject?.general?.targetUnits ?? 0
+  }, [apartmentRevenueRows, selectedProject?.general?.targetUnits])
+
+  const turnoverAnnualCost = useMemo(() => {
+    const turnoverPct = selectedProject?.apartmentTurnover?.turnoverPct ?? 0
+    const turnoverCost = selectedProject?.apartmentTurnover?.turnoverCostUsd ?? 0
+    if (!turnoverPct || !turnoverCost || !totalApartmentUnits) return 0
+    return (turnoverPct / 100) * totalApartmentUnits * turnoverCost
+  }, [selectedProject?.apartmentTurnover?.turnoverCostUsd, selectedProject?.apartmentTurnover?.turnoverPct, totalApartmentUnits])
+
+  const turnoverMonthlyCost = turnoverAnnualCost / 12
+  const turnoverStartMonth = leasingStartOffset ?? null
+
+  const turnoverRow = useMemo(() => {
+    if (!turnoverMonthlyCost) return null
+    return {
+      id: 'turnover-auto',
+      carryingType: 'management' as CarryingType,
+      costName: 'Turnover Refresh (auto)',
+      amountUsd: turnoverMonthlyCost,
+      intervalUnit: 'monthly' as IntervalUnit,
+      startMonth: turnoverStartMonth ?? 0,
+      endMonth: null,
+    } as CarryingCostRow
+  }, [turnoverMonthlyCost, turnoverStartMonth])
+
+  const carryingCostRowsWithTurnover = useMemo(() => {
+    if (!turnoverRow) return carryingCostRows
+    return [...carryingCostRows, turnoverRow]
+  }, [carryingCostRows, turnoverRow])
+
   const cashflowMonths = useMemo<CashflowMonthMeta[]>(() => {
     return Array.from({ length: CASHFLOW_MONTHS }, (_, index) => {
       const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + index, 1)
@@ -253,7 +326,7 @@ function App() {
       return {
         id: row.id || `apt-${index}`,
         label: `Apartment • ${row.typeLabel || 'Unit type'}`,
-        values: buildRecurringLineValues(net, row.startMonth ?? 0),
+        values: buildRampedRevenueValues(net, row.startMonth ?? 0, leasingStartOffset, stabilizedOffset, CASHFLOW_MONTHS),
       }
     })
 
@@ -262,7 +335,7 @@ function App() {
       return {
         id: row.id || `retail-${index}`,
         label: `Retail • ${row.typeLabel || 'Retail'}`,
-        values: buildRecurringLineValues(net, row.startMonth ?? 0),
+        values: buildRampedRevenueValues(net, row.startMonth ?? 0, leasingStartOffset, stabilizedOffset, CASHFLOW_MONTHS),
       }
     })
 
@@ -271,7 +344,7 @@ function App() {
       return {
         id: row.id || `park-${index}`,
         label: `Parking • ${row.typeLabel || 'Parking'}`,
-        values: buildRecurringLineValues(net, row.startMonth ?? 0),
+        values: buildRampedRevenueValues(net, row.startMonth ?? 0, leasingStartOffset, stabilizedOffset, CASHFLOW_MONTHS),
       }
     })
 
@@ -293,7 +366,14 @@ function App() {
     })
 
     return { label: 'Revenues', type: 'revenue', baseValues, lineItems }
-  }, [apartmentRevenueRows, retailRevenueRows, parkingRevenueRows, gpContributionRows])
+  }, [
+    apartmentRevenueRows,
+    retailRevenueRows,
+    parkingRevenueRows,
+    gpContributionRows,
+    leasingStartOffset,
+    stabilizedOffset,
+  ])
 
   const softCostSeries = useMemo(
     () => buildExpenseSeries(selectedProject?.softCosts || [], 'Soft Costs', CASHFLOW_MONTHS),
@@ -306,8 +386,8 @@ function App() {
   )
 
   const carryingCostSeries = useMemo(
-    () => buildCarryingSeries(carryingCostRows, CASHFLOW_MONTHS),
-    [carryingCostRows],
+    () => buildCarryingSeries(carryingCostRowsWithTurnover, CASHFLOW_MONTHS),
+    [carryingCostRowsWithTurnover],
   )
 
   const cashflowRows = useMemo(() => {
@@ -387,6 +467,8 @@ function App() {
         zip: detail.general.zip ?? '',
         purchasePriceUsd: formatNumberForInput(detail.general.purchasePriceUsd),
         closingDate: formatDateForInput(detail.general.closingDate),
+        startLeasingDate: formatDateForInput(detail.general.startLeasingDate),
+        stabilizedDate: formatDateForInput(detail.general.stabilizedDate),
         latitude: formatNumberForInput(detail.general.latitude),
         longitude: formatNumberForInput(detail.general.longitude),
         targetUnits: formatNumberForInput(detail.general.targetUnits),
@@ -601,6 +683,8 @@ function App() {
         addressLine1: generalForm.addressLine1.trim(),
         purchasePriceUsd: generalForm.purchasePriceUsd ? Number(generalForm.purchasePriceUsd) : null,
         closingDate: generalForm.closingDate || null,
+        startLeasingDate: generalForm.startLeasingDate || null,
+        stabilizedDate: generalForm.stabilizedDate || null,
         latitude: parseFloatOrNull(generalForm.latitude),
         longitude: parseFloatOrNull(generalForm.longitude),
         targetUnits: generalForm.targetUnits ? Number(generalForm.targetUnits) : null,
@@ -743,6 +827,7 @@ function App() {
                   getCalendarLabelForOffset={getCalendarLabelForOffset}
                   getCalendarLabelForInput={getCalendarLabelForInput}
                   convertMonthInputToOffset={convertMonthInputToOffset}
+            defaultStartMonth={leasingStartOffset}
                 />
               )}
 
@@ -790,6 +875,10 @@ function App() {
                   formatOffsetForInput={formatOffsetForInput}
                   convertMonthInputToOffset={convertMonthInputToOffset}
                   getCalendarLabelForInput={getCalendarLabelForInput}
+            turnoverAnnualCost={turnoverAnnualCost}
+            turnoverMonthlyCost={turnoverMonthlyCost}
+            turnoverStartMonth={turnoverStartMonth}
+            defaultManagementStartMonth={leasingStartOffset ?? null}
                 />
               )}
 

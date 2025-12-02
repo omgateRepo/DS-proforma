@@ -43,6 +43,8 @@ export type GeneralFormState = {
   zip: string
   purchasePriceUsd: string
   closingDate: string
+  startLeasingDate: string
+  stabilizedDate: string
   latitude: string
   longitude: string
   targetUnits: string

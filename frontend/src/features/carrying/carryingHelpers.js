@@ -49,7 +49,7 @@ export const createDefaultRecurringForm = (type, options = {}) => {
     costName: type === 'management' ? '' : (options.defaultTitle || 'Property Tax'),
     amountUsd: '',
     intervalUnit: 'monthly',
-    startMonth: '1',
+    startMonth: options.defaultStartMonth ?? '1',
     endMonth: '',
   }
   if (type === 'property_tax') {

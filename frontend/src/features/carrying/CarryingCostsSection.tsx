@@ -47,6 +47,10 @@ type CarryingCostsSectionProps = {
   formatOffsetForInput: OffsetFormatter
   convertMonthInputToOffset: MonthOffsetConverter
   getCalendarLabelForInput: CalendarLabelFormatter
+  turnoverAnnualCost?: number
+  turnoverMonthlyCost?: number
+  turnoverStartMonth?: number | null
+  defaultManagementStartMonth?: number | null
 }
 
 const toNumberOrNull = (value: string | number | null | undefined) => {
@@ -70,6 +74,10 @@ export function CarryingCostsSection({
   formatOffsetForInput,
   convertMonthInputToOffset,
   getCalendarLabelForInput,
+  turnoverAnnualCost = 0,
+  turnoverMonthlyCost = 0,
+  turnoverStartMonth = null,
+  defaultManagementStartMonth = null,
 }: CarryingCostsSectionProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [activeModal, setActiveModal] = useState<RecurringCarryingType | null>(null)
@@ -91,7 +99,6 @@ export function CarryingCostsSection({
   const addMenuRef = useRef<HTMLDivElement | null>(null)
 
   const carryingRows: CarryingCostRow[] = project?.carryingCosts ?? []
-  const apartmentRows = project?.revenue ?? []
   const recurringMenuOptions = useMemo(
     () =>
       carryingMenuOptions.filter(
@@ -108,18 +115,6 @@ export function CarryingCostsSection({
 
   const propertyRows = useMemo(() => carryingRows.filter(isPropertyRow), [carryingRows])
   const managementRows = useMemo(() => carryingRows.filter(isManagementRow), [carryingRows])
-  const totalApartmentUnits = useMemo(() => {
-    const explicitUnits = apartmentRows.reduce((sum, row) => sum + (row.unitCount || 0), 0)
-    if (explicitUnits > 0) return explicitUnits
-    return project?.general?.targetUnits ?? 0
-  }, [apartmentRows, project?.general?.targetUnits])
-  const turnoverAnnualCost = useMemo(() => {
-    const pct = project?.apartmentTurnover?.turnoverPct ?? 0
-    const cost = project?.apartmentTurnover?.turnoverCostUsd ?? 0
-    if (!pct || !cost || !totalApartmentUnits) return 0
-    return (pct / 100) * totalApartmentUnits * cost
-  }, [project?.apartmentTurnover?.turnoverCostUsd, project?.apartmentTurnover?.turnoverPct, totalApartmentUnits])
-  const turnoverMonthlyCost = turnoverAnnualCost / 12
   const { missingPropertyPhases, nextPropertyPhase } = useMemo(() => {
     const used = new Set<PropertyTaxPhase>()
     propertyRows.forEach((row) => {
@@ -137,15 +132,24 @@ export function CarryingCostsSection({
     return base + turnoverMonthlyCost
   }, [managementRows, turnoverMonthlyCost])
 
+  const defaultManagementStartInput = useMemo(() => {
+    if (defaultManagementStartMonth === null || defaultManagementStartMonth === undefined) return '1'
+    return String(defaultManagementStartMonth + 1)
+  }, [defaultManagementStartMonth])
+
+  const buildDefaultManagementForm = useCallback(() => {
+    return createDefaultRecurringForm('management', { defaultStartMonth: defaultManagementStartInput }) as RecurringFormState
+  }, [defaultManagementStartInput])
+
   const resetForms = useCallback(() => {
     setPropertyForm(
       createDefaultRecurringForm('property_tax', { propertyTaxPhase: nextPropertyPhase }) as RecurringFormState,
     )
-    setManagementForm(createDefaultRecurringForm('management') as RecurringFormState)
+    setManagementForm(buildDefaultManagementForm())
     setEditingId(null)
     setModalError('')
     setStatus('idle')
-  }, [nextPropertyPhase])
+  }, [nextPropertyPhase, buildDefaultManagementForm])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -196,7 +200,7 @@ export function CarryingCostsSection({
       setManagementForm(
         row
           ? (buildRecurringFormFromRow(row, formatOffsetForInput) as RecurringFormState)
-          : (createDefaultRecurringForm('management') as RecurringFormState),
+          : buildDefaultManagementForm(),
       )
     }
     setEditingId(row?.id || null)
@@ -294,7 +298,8 @@ export function CarryingCostsSection({
   }
 
   const formatMonthDisplay = (offset?: number | null) => {
-    const normalized = offset ?? 0
+    if (offset === null || offset === undefined) return '—'
+    const normalized = offset
     const monthLabel = formatOffsetForInput(normalized)
     const calendarHint = getCalendarLabelForInput(normalized)
     return (
@@ -542,9 +547,9 @@ export function CarryingCostsSection({
           turnoverAnnualCost > 0 && (
             <tr className="readonly-row" key="turnover-auto">
               <td>Turnover Refresh (auto)</td>
-              <td>{formatCurrency(turnoverAnnualCost)}</td>
-              <td>Annual (auto)</td>
-              <td>—</td>
+              <td>{formatCurrency(turnoverMonthlyCost)}</td>
+              <td>Monthly (auto)</td>
+              <td>{turnoverStartMonth !== null ? formatMonthDisplay(turnoverStartMonth) : '—'}</td>
               <td>—</td>
               <td>—</td>
             </tr>

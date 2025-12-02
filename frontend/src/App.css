@@ -840,6 +840,30 @@ td {
   align-items: flex-start;
 }
 
+.start-month-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.start-month-control .field-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.start-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.start-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+}
+
 .turnover-form {
   display: flex;
   flex-wrap: wrap;

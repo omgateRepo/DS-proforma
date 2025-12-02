@@ -14,6 +14,8 @@ const baseForm: GeneralFormState = {
   zip: '02118',
   purchasePriceUsd: '5000000',
   closingDate: '2025-02-01',
+  startLeasingDate: '2025-06-01',
+  stabilizedDate: '2025-12-01',
   latitude: '42.35',
   longitude: '-71.05',
   targetUnits: '40',

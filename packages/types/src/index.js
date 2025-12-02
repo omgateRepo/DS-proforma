@@ -195,6 +195,8 @@ export const projectUpdateSchema = z
     propertyType: optionalNullableString,
     purchasePriceUsd: nullableNumber,
     closingDate: nullableString,
+    startLeasingDate: nullableString,
+    stabilizedDate: nullableString,
     latitude: nullableNumber,
     longitude: nullableNumber,
     targetUnits: optionalPositiveInt.nullable(),

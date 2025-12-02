@@ -132,6 +132,8 @@ model projects {
   longitude             Decimal?                @db.Decimal
   turnover_pct          Decimal?                @db.Decimal
   turnover_cost_usd     Decimal?                @db.Decimal
+  start_leasing_date    DateTime?               @db.Date
+  stabilized_date       DateTime?               @db.Date
   apartment_types       apartment_types[]
   retail_spaces         retail_spaces[]
   cashflow_entries      cashflow_entries[]

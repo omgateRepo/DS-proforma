@@ -41,6 +41,7 @@ describe('RevenueSection', () => {
         getCalendarLabelForOffset={() => ''}
         getCalendarLabelForInput={() => ''}
         convertMonthInputToOffset={(value) => Number(value)}
+        defaultStartMonth={0}
       />,
     )
 

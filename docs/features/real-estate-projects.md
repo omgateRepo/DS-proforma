@@ -54,6 +54,9 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `description` / notes.
   - `purchase_price_usd`, `closing_date`.
     - Closing date uses a date picker (month/day/year) so timelines align with cashflow modeling.
+  - `start_leasing_date`, `stabilized_date` – optional project-level milestones (both post-closing) that drive revenue ramping and default management scheduling.
+    - Management fees (including the auto-generated turnover line) default their start month to the Start Leasing Date.
+    - All revenue rows ramp linearly from 0 at the Start Leasing Date to full run-rate at the Stabilized Date; before leasing begins they contribute 0 to cashflow.
   - `latitude`, `longitude` – captured from the address autocomplete (editable if adjustments needed). Used for satellite preview and mapping context.
   - `target_units`, `target_sqft`.
   - `sponsor` (future, for LP/GP tracking).
@@ -88,8 +91,10 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - `monthly_rent_usd` (budget).
   - `vacancy_pct` (default 5%).
   - `start_month` (integer month offset; revenue hits cashflow starting that month). As the user types/selects a month number, the UI shows `Month N • Month/Year` so you always know which calendar month you’re targeting (closing month is Month 1).
+- Start month selection now defaults to **At leasing start**, which locks the item to the project’s Start Leasing Date. Switching the radio button to **Custom** reveals the manual month input for cases where a specific type begins earlier/later than the global leasing kickoff.
 - Parking omits square footage by default but keeps the same scheduling semantics (start month + vacancy). Revenue is calculated the same way (`rent * count * (1 - vacancy)`).
 - Listing UI is grouped by category (Apartments, Retail, Parking) with per-section monthly + annual summaries plus the overall totals. All revenue modal fields are required before save so cashflow projections are always based on complete input.
+- Cashflow ramps every revenue line item from 0 at the Start Leasing Date to full net rent at the Stabilized Date (both configured on the General tab). Before leasing begins the line contributes 0; after stabilization it remains flat at the steady-state value.
 - Cashflow integration:
   - Apartment/Parking lines start at their configured month; before that they contribute zero.
 - GP contributions and loan assumptions now live under the dedicated **Funding** tab (§6.5) so revenue stays focused on operating income.

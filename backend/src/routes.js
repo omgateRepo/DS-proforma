@@ -106,6 +106,8 @@ const stubProject = {
     targetUnits: 42,
     targetSqft: 52000,
     description: 'Initial stub record',
+    startLeasingDate: null,
+    stabilizedDate: null,
   },
   apartmentTurnover: {
     turnoverPct: 15,
@@ -171,6 +173,8 @@ const projectFieldMap = {
   description: 'description',
   turnoverPct: 'turnover_pct',
   turnoverCostUsd: 'turnover_cost_usd',
+  startLeasingDate: 'start_leasing_date',
+  stabilizedDate: 'stabilized_date',
 }
 
 const projectFieldTransforms = {
@@ -181,6 +185,16 @@ const projectFieldTransforms = {
       return null
     }
     return date
+  },
+  startLeasingDate: (value) => {
+    if (value === null || value === undefined || value === '') return null
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? null : date
+  },
+  stabilizedDate: (value) => {
+    if (value === null || value === undefined || value === '') return null
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? null : date
   },
 }
 
@@ -328,6 +342,8 @@ const mapProjectDetail = (row) => ({
     targetUnits: toInt(row.targetUnits),
     targetSqft: toInt(row.targetSqft),
     description: row.description,
+    startLeasingDate: row.startLeasingDate,
+    stabilizedDate: row.stabilizedDate,
   },
   apartmentTurnover: {
     turnoverPct: toNumber(row.turnoverPct),
@@ -478,6 +494,8 @@ router.get('/projects/:id', async (req, res) => {
         description: true,
         turnover_pct: true,
         turnover_cost_usd: true,
+        start_leasing_date: true,
+        stabilized_date: true,
       },
     })
     if (!projectRow) return res.status(404).json({ error: 'Project not found' })
@@ -493,6 +511,8 @@ router.get('/projects/:id', async (req, res) => {
       targetSqft: projectRow.target_sqft,
       turnoverPct: projectRow.turnover_pct,
       turnoverCostUsd: projectRow.turnover_cost_usd,
+      startLeasingDate: projectRow.start_leasing_date,
+      stabilizedDate: projectRow.stabilized_date,
     })
 
     const [revenue, retail, parking, contributions, costs, cashflow] = await Promise.all([
