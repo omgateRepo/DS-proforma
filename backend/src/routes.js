@@ -665,6 +665,10 @@ router.patch('/projects/:id', async (req, res) => {
         description: true,
         turnover_pct: true,
         turnover_cost_usd: true,
+        start_leasing_date: true,
+        stabilized_date: true,
+        retail_turnover_pct: true,
+        retail_turnover_cost: true,
       },
     })
     res.json(
@@ -679,6 +683,10 @@ router.patch('/projects/:id', async (req, res) => {
         targetSqft: updated.target_sqft,
         turnoverPct: updated.turnover_pct,
         turnoverCostUsd: updated.turnover_cost_usd,
+        retailTurnoverPct: updated.retail_turnover_pct,
+        retailTurnoverCostUsd: updated.retail_turnover_cost,
+        startLeasingDate: updated.start_leasing_date,
+        stabilizedDate: updated.stabilized_date,
       }),
     )
   } catch (err) {
