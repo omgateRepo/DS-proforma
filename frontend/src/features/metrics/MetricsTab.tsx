@@ -236,6 +236,11 @@ useEffect(() => {
   const apartments = project.revenue ?? []
   const retail = project.retailRevenue ?? []
   const parking = project.parkingRevenue ?? []
+
+  const totalApartmentUnits = useMemo(
+    () => apartments.reduce((sum, row) => sum + (row.unitCount || 0), 0),
+    [apartments],
+  )
   const hardCostsTotal = project.hardCosts?.reduce((sum, row) => sum + toNumber(row.amountUsd), 0) ?? 0
   const softCostsTotal = project.softCosts?.reduce((sum, row) => sum + toNumber(row.amountUsd), 0) ?? 0
   const gpContributions: GpContributionRow[] = project.gpContributions ?? []
@@ -364,6 +369,9 @@ const selectedHardSoftTotal =
 
       <section>
         <h3>Revenues (Stabilized)</h3>
+        {apartments.length > 0 && (
+          <p className="muted tiny">Total apartments: {totalApartmentUnits.toLocaleString()}</p>
+        )}
         <div className="metrics-table-wrapper">
           <table className="metrics-table">
             <thead>
