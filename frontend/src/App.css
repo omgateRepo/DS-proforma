@@ -490,6 +490,18 @@
   align-items: flex-end;
 }
 
+.view-toggle {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.view-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .cashflow-grid {
   min-width: 900px;
   border-collapse: separate;

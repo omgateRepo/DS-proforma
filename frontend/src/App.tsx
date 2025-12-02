@@ -65,7 +65,7 @@ type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
-type CashflowMonthMeta = { index: number; label: string; calendarLabel: string }
+type CashflowMonthMeta = { index: number; label: string; calendarLabel: string; year: number }
 type AuthFormState = { username: string; password: string }
 
 const CASHFLOW_MONTHS = 60
@@ -242,6 +242,7 @@ function App() {
         index,
         label: `M${index + 1}`,
         calendarLabel: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        year: date.getFullYear(),
       }
     })
   }, [baseDate])
