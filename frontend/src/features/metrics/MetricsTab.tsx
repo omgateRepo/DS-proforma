@@ -98,6 +98,9 @@ type MetricsPreferences = {
   stabilizedTaxOverride: CarryingOverride
   constructionPeriodMonths: string
   interestRatePct: string
+  stabilizedInterestRatePct: string
+  stabilizedTermYears: string
+  refinanceAmount: string
 }
 
 const STORAGE_KEY = 'metrics-preferences-v1'
@@ -147,6 +150,9 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
   })
   const [constructionPeriodMonths, setConstructionPeriodMonths] = useState('24')
   const [interestRatePct, setInterestRatePct] = useState('6.25')
+  const [stabilizedInterestRatePct, setStabilizedInterestRatePct] = useState('5.25')
+  const [stabilizedTermYears, setStabilizedTermYears] = useState('30')
+  const [refinanceAmount, setRefinanceAmount] = useState('0')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
   const hydratingRef = useRef(false)
   const markDirty = () => {
@@ -164,6 +170,9 @@ useEffect(() => {
     setStabilizedTaxOverride({ wc: '', bc: '', scenario: defaultScenario })
     setConstructionPeriodMonths('24')
     setInterestRatePct('6.25')
+    setStabilizedInterestRatePct('5.25')
+    setStabilizedTermYears('30')
+    setRefinanceAmount('0')
     setSaveStatus('idle')
     hydratingRef.current = false
     return
@@ -190,6 +199,9 @@ useEffect(() => {
   setStabilizedTaxOverride(stored?.stabilizedTaxOverride ?? { wc: '', bc: '', scenario: defaultScenario })
   setConstructionPeriodMonths(stored?.constructionPeriodMonths ?? '24')
   setInterestRatePct(stored?.interestRatePct ?? '6.25')
+  setStabilizedInterestRatePct(stored?.stabilizedInterestRatePct ?? '5.25')
+  setStabilizedTermYears(stored?.stabilizedTermYears ?? '30')
+  setRefinanceAmount(stored?.refinanceAmount ?? '0')
   setSaveStatus('idle')
   hydratingRef.current = false
 }, [project?.id, projectId])
@@ -205,6 +217,9 @@ useEffect(() => {
       stabilizedTaxOverride,
       constructionPeriodMonths,
       interestRatePct,
+      stabilizedInterestRatePct,
+      stabilizedTermYears,
+      refinanceAmount,
     }
     savePreferences(projectId, payload)
     setSaveStatus('saved')
@@ -231,6 +246,10 @@ useEffect(() => {
 
   const constructionPeriod = Math.max(0, Math.trunc(toNumber(constructionPeriodMonths)))
   const interestRate = toNumber(interestRatePct)
+  const stabilizedRate = Math.max(0, toNumber(stabilizedInterestRatePct))
+  const stabilizedTermYearsValue = Math.max(1, toNumber(stabilizedTermYears) || 1)
+  const stabilizedTermMonths = Math.max(1, Math.trunc(stabilizedTermYearsValue * 12))
+  const refinanceAmountValue = Math.max(0, toNumber(refinanceAmount))
 
   const propertyTaxRows = carryingRows.filter((row) => row.carryingType === 'property_tax')
   const managementRows = carryingRows.filter((row) => row.carryingType === 'management')
@@ -311,6 +330,23 @@ const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionR
 
   const noi = totalAnnualRevenue - selectedStabilizedTaxAnnual - selectedManagementAnnual
   const capRate = constructionLoanAmount + gpTotal === 0 ? 0 : noi / (constructionLoanAmount + gpTotal)
+
+  const stabilizedLoanPrincipal = Math.max(0, constructionLoanAmount + refinanceAmountValue)
+  const stabilizedMonthlyRate = stabilizedRate / 100 / 12
+  let stabilizedMonthlyDebtService = 0
+  if (stabilizedLoanPrincipal && stabilizedTermMonths) {
+    if (stabilizedMonthlyRate === 0) {
+      stabilizedMonthlyDebtService = stabilizedLoanPrincipal / stabilizedTermMonths
+    } else {
+      stabilizedMonthlyDebtService =
+        (stabilizedLoanPrincipal * stabilizedMonthlyRate * (1 + stabilizedMonthlyRate) ** stabilizedTermMonths) /
+        ((1 + stabilizedMonthlyRate) ** stabilizedTermMonths - 1 || 1)
+    }
+  }
+  const stabilizedAnnualDebtService = stabilizedMonthlyDebtService * 12
+  const stabilizedDcr = stabilizedAnnualDebtService ? noi / stabilizedAnnualDebtService : null
+  const availableCashAnnual = noi - stabilizedAnnualDebtService
+  const availableCashMonthly = availableCashAnnual / 12
 
   const scenarioBadge = (value: Scenario) =>
     scenarioOptions.find((opt) => opt.id === value)?.label ?? 'Base'
@@ -896,6 +932,83 @@ const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionR
           <div>
             <p className="label">CAP Rate</p>
             <strong>{capRate ? formatPercent(capRate) : '—'}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h3>Stabilized Cashflow &amp; Refi</h3>
+        <div className="stabilized-grid">
+          <div className="stabilized-card">
+            <p className="label">Loan Amount (post-build)</p>
+            <strong>{formatCurrency(stabilizedLoanPrincipal)}</strong>
+            <label>
+              Stabilized Interest Rate (%)
+              <input
+                type="number"
+                step="0.01"
+                value={stabilizedInterestRatePct}
+                onChange={(e) => {
+                  setStabilizedInterestRatePct(e.target.value)
+                  markDirty()
+                }}
+              />
+            </label>
+            <label>
+              Amortization (years)
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={stabilizedTermYears}
+                onChange={(e) => {
+                  setStabilizedTermYears(e.target.value)
+                  markDirty()
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="stabilized-card">
+            <label>
+              Refinance / Cash-Out (USD)
+              <input
+                type="number"
+                min="0"
+                step="10000"
+                value={refinanceAmount}
+                onChange={(e) => {
+                  setRefinanceAmount(e.target.value)
+                  markDirty()
+                }}
+              />
+            </label>
+            <p className="label">Debt Coverage Ratio</p>
+            <strong>{stabilizedDcr ? stabilizedDcr.toFixed(2) : '—'}</strong>
+            <p className="muted tiny">NOI / Annual Debt Service</p>
+          </div>
+
+          <div className="stabilized-card">
+            <div className="metric-row">
+              <span>NOI (annual)</span>
+              <strong>{formatCurrency(noi)}</strong>
+            </div>
+            <div className="metric-row">
+              <span>Debt Service (annual)</span>
+              <strong>{formatCurrency(stabilizedAnnualDebtService)}</strong>
+            </div>
+            <div className="metric-row">
+              <span>Debt Service (monthly)</span>
+              <strong>{formatCurrency(stabilizedMonthlyDebtService)}</strong>
+            </div>
+            <div className="metric-row highlight">
+              <span>Available Cash (annual)</span>
+              <strong>{formatCurrency(availableCashAnnual)}</strong>
+            </div>
+            <div className="metric-row highlight">
+              <span>Available Cash (monthly)</span>
+              <strong>{formatCurrency(availableCashMonthly)}</strong>
+            </div>
           </div>
         </div>
       </section>

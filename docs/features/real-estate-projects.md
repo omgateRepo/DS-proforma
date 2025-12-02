@@ -421,3 +421,13 @@ A new tab translates the entire proforma into a single reproducible CAP Rate whi
 - **CAP Rate** = NOI / Total Project Cost (Loan Amount + GP Contribution).  
 - Display the active scenario (WC / Default / BC) near the metrics. Each computed field includes the hover tooltip describing its formula.
 
+### 11.6 Stabilized Cashflow & Refinance
+- The final section lets you model the “in-service” loan that replaces the construction facility.
+- Inputs:
+  - Loan amount is pre-filled from the construction loan total.
+  - Editable stabilized interest rate (default 5.25%) and amortization term (default 30 years).
+  - Optional cash-out refinance field; increasing it bumps the loan balance and debt service in real time.
+- Outputs:
+  - Debt coverage ratio = `NOI / Annual Debt Service` (updates as you tweak the refi amount).
+  - Annual / Monthly debt service and the resulting annual / monthly available cash (NOI minus debt service).
+
