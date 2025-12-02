@@ -36,6 +36,8 @@ const hardCostCategories = [
   'gym',
   'study_lounge',
   'roof_top',
+  'foundation',
+  'other_hard',
 ]
 const measurementUnits = ['none', 'sqft', 'linear_feet', 'apartment', 'building']
 const carryingTypes = ['loan', 'property_tax', 'management']

@@ -45,24 +45,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
    - **Carrying Costs** – debt service, insurance, taxes while project is underway.  
    - **Cashflow** – aggregates all inflows/outflows, supports budget vs actual tracking.
 
-## 6. Tab-Level Requirements & Multi-User Model
-
-### 6.0 Accounts, Roles, and Sharing
-- **Authentication** now uses real user records instead of the single hard-coded Basic Auth pair.
-  - `users` table tracks `id`, `email`, `display_name`, `password_hash`, `is_super_admin`.
-  - Login flow is unchanged in the UI (Basic Auth overlay) but credentials are validated against the database (`bcrypt`).
-- **Roles**
-  - `is_super_admin` users (founders) can create/reset other accounts and can see every project.
-  - Standard users only see projects they own or that a collaborator shared with them.
-- **Project Ownership & Collaboration**
-  - `projects.owner_id` references the user who created/owns the deal.
-  - `project_collaborators` (`project_id`, `user_id`, optional `role`) grants read/write access to additional users.
-  - Every API call asserts the current user either owns the project, is listed as collaborator, or is super admin before returning/ mutating data.
-- **Admin screens**
-  - A small “Users” admin view (super admin only) lists accounts with actions to add/reset users.
-  - Each project detail card includes a “Collaborators” panel for owners/admins to add/remove users by email.
-- **Persistence**
-  - Basic Auth credentials are still stored client-side, but now they map to users in the new table, so future enhancements (password resets, SSO) can plug into the same model.
+## 6. Tab-Level Requirements
 
 ### 6.1 General Tab
 - Fields:
@@ -150,6 +133,8 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   - Gym — Per Building
   - Study Lounge — Per Building
   - Roof Top — Per Building
+  - Foundation — None (lump sum)
+  - Other (custom bucket) — None (lump sum)
 - Measurement unit options: Per Square Feet, Per Linear Feet, Per Apartment, Per Building, or `None`. When the measurement unit is not `None`, the modal requires `price_per_unit` and `units_count` and automatically calculates the total amount. When `None` is selected, the user can enter a lump-sum `amount_usd`.
 - Each entry can schedule money exactly like soft costs (single month, range, multi-month with optional % allocation). Every hard-cost modal field (name, category, measurement fields when applicable, schedule) is required so downstream reports never contain partial data. Totals roll into the cashflow grid immediately.
 - Every month input (single start month, range boundaries, multi-month lists) displays the Month N + calendar month hint in real time, so users don’t have to mentally translate offsets back to the calendar.

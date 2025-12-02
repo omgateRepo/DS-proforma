@@ -136,7 +136,6 @@ model projects {
   retail_turnover_cost  Decimal?                @db.Decimal
   start_leasing_date    DateTime?               @db.Date
   stabilized_date       DateTime?               @db.Date
-  owner_id              String?                 @db.Uuid
   apartment_types       apartment_types[]
   retail_spaces         retail_spaces[]
   cashflow_entries      cashflow_entries[]
@@ -144,29 +143,4 @@ model projects {
   gp_contributions      gp_contributions[]
   parking_types         parking_types[]
   project_stage_history project_stage_history[]
-  owners                users?                 @relation("ProjectOwner", fields: [owner_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  project_collaborators project_collaborators[]
-}
-
-model users {
-  id                 String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  email              String                  @unique
-  display_name       String
-  password_hash      String
-  is_super_admin     Boolean                 @default(false)
-  created_at         DateTime                @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime                @default(now()) @db.Timestamptz(6)
-  projects           projects[]              @relation("ProjectOwner")
-  project_collaborators project_collaborators[]
-}
-
-model project_collaborators {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  project_id String   @db.Uuid
-  user_id    String   @db.Uuid
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  projects   projects @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([project_id, user_id])
 }

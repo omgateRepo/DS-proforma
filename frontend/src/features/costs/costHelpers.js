@@ -30,6 +30,8 @@ export const hardCostCategories = [
   { id: 'gym', label: 'Gym' },
   { id: 'study_lounge', label: 'Study Lounge' },
   { id: 'roof_top', label: 'Roof Top' },
+  { id: 'foundation', label: 'Foundation' },
+  { id: 'other_hard', label: 'Other (Lump Sum)' },
 ]
 
 export const measurementUnitOptions = [
@@ -70,6 +72,8 @@ const hardCostDefaultMeasurement = {
   gym: 'building',
   study_lounge: 'building',
   roof_top: 'building',
+  foundation: 'none',
+  other_hard: 'none',
 }
 
 export const getDefaultMeasurementForCategory = (categoryId) =>

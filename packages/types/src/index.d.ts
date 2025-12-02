@@ -94,6 +94,8 @@ export const HARD_COST_CATEGORY_IDS: readonly [
   'gym',
   'study_lounge',
   'roof_top',
+  'foundation',
+  'other_hard',
 ]
 
 export const MEASUREMENT_UNITS: readonly ['none', 'sqft', 'linear_feet', 'apartment', 'building']
