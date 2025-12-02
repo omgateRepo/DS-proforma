@@ -419,7 +419,8 @@ A new tab translates the entire proforma into a single reproducible CAP Rate whi
   - Show a `% Loan-to-Project-Cost` badge calculated as (Loan Amount) / (Loan Amount + GP Contribution). Highlight in red if > 75%.
 
 ### 11.5 Metrics
-- **NOI (Stabilized)** = Selected Revenue Total – Selected Property Tax (Stabilized) – Selected Management Fee.  
+- **Expenses (Mgmt + Stabilized RE Tax)** – the dashboard now surfaces a single combined figure (still driven by the individual override controls above) so users can see steady-state OpEx at a glance.  
+- **NOI (Stabilized)** = Selected Revenue Total – Expenses.  
 - **CAP Rate** = NOI / Total Project Cost (Loan Amount + GP Contribution).  
 - Display the active scenario (WC / Default / BC) near the metrics. Each computed field includes the hover tooltip describing its formula.
 

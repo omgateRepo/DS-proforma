@@ -282,6 +282,7 @@ useEffect(() => {
 
   const selectedManagementAnnual = selectScenarioValue(managementOverride, managementAnnualBase)
   const selectedStabilizedTaxAnnual = selectScenarioValue(stabilizedTaxOverride, stabilizedTaxAnnualBase)
+  const selectedExpensesAnnual = selectedManagementAnnual + selectedStabilizedTaxAnnual
 
 const hardSoftBaseTotal = hardCostsTotal + softCostsTotal
 const buildCostPerSqftDefault = buildableSqft > 0 ? hardSoftBaseTotal / buildableSqft : hardSoftBaseTotal
@@ -323,12 +324,12 @@ const selectedHardSoftTotal =
   const totalMonthlyRevenue = apartmentsMonthlyTotal + retailMonthlyTotal + parkingMonthlyTotal
   const totalAnnualRevenue = totalMonthlyRevenue * 12
 
-const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionRealEstateForLoan
+  const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionRealEstateForLoan
   const interestAccrued = loanBase * (interestRate / 100) * (constructionPeriod / 12)
   const constructionLoanAmount = Math.max(0, loanBase + interestAccrued)
   const loanToCostRatio = constructionLoanAmount + gpTotal === 0 ? 0 : constructionLoanAmount / (constructionLoanAmount + gpTotal)
 
-  const noi = totalAnnualRevenue - selectedStabilizedTaxAnnual - selectedManagementAnnual
+  const noi = totalAnnualRevenue - selectedExpensesAnnual
   const capRate = constructionLoanAmount + gpTotal === 0 ? 0 : noi / (constructionLoanAmount + gpTotal)
 
   const stabilizedLoanPrincipal = Math.max(0, constructionLoanAmount + refinanceAmountValue)
@@ -918,12 +919,8 @@ const loanBase = purchasePrice + selectedHardSoftTotal - gpTotal + constructionR
             <strong>{formatCurrency(totalAnnualRevenue)}</strong>
           </div>
           <div>
-            <p className="label">Building Management ({scenarioBadge(managementOverride.scenario)})</p>
-            <strong>{formatCurrency(selectedManagementAnnual)}</strong>
-          </div>
-          <div>
-            <p className="label">Stabilized RE Tax ({scenarioBadge(stabilizedTaxOverride.scenario)})</p>
-            <strong>{formatCurrency(selectedStabilizedTaxAnnual)}</strong>
+            <p className="label">Expenses (Mgmt + RE Tax)</p>
+            <strong>{formatCurrency(selectedExpensesAnnual)}</strong>
           </div>
           <div>
             <p className="label">NOI</p>
