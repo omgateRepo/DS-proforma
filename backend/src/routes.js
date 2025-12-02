@@ -32,6 +32,7 @@ import {
 } from './utils/carrying.js'
 
 const router = Router()
+const HASH_ROUNDS = Number(process.env.AUTH_HASH_ROUNDS || 10)
 const SKIP_DB = process.env.SKIP_DB === 'true'
 const WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast?latitude=39.9526&longitude=-75.1652&current_weather=true&timezone=America%2FNew_York'
@@ -88,6 +89,13 @@ const HARD_COST_CATEGORIES = [
 ]
 const MEASUREMENT_UNITS = ['none', 'sqft', 'linear_feet', 'apartment', 'building']
 const PAYMENT_MODES = ['single', 'range', 'multi']
+const stubUser = {
+  id: 'stub-user',
+  email: 'ds',
+  displayName: 'Stub Admin',
+  isSuperAdmin: true,
+}
+
 const stubProject = {
   id: 'stub-1',
   name: 'Sample Multifamily Deal',
@@ -96,6 +104,9 @@ const stubProject = {
   state: 'PA',
   targetUnits: 42,
   purchasePriceUsd: 7500000,
+  ownerId: stubUser.id,
+  owner: stubUser,
+  collaborators: [],
   general: {
     addressLine1: '123 Market St',
     city: 'Philadelphia',
@@ -223,6 +234,37 @@ const parseBody = (schema, body, res) => {
   return result.data
 }
 
+router.use((req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  return next()
+})
+
+router.get('/me', (req, res) => {
+  res.json(mapCurrentUser(req.user))
+})
+
+router.use('/projects/:id', async (req, res, next) => {
+  if (SKIP_DB) {
+    req.project = stubProject
+    return next()
+  }
+  try {
+    const project = await prisma.projects.findFirst({
+      where: { id: req.params.id, deleted_at: null, ...projectAccessWhere(req.user) },
+      select: { id: true, owner_id: true },
+    })
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' })
+    }
+    req.project = project
+    return next()
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to verify project access', details: err.message })
+  }
+})
+
 function normalizeScheduledCostPayload(body, { categoryField, allowedCategories }) {
   const costName = (body.costName || '').trim()
   if (!costName) return { error: 'costName is required' }
@@ -320,6 +362,24 @@ function normalizeHardCostPayload(body) {
   }
 }
 
+const mapUserSummary = (row) =>
+  row
+    ? {
+        id: row.id,
+        email: row.email,
+        displayName: row.display_name,
+        isSuperAdmin: Boolean(row.is_super_admin),
+        createdAt: row.created_at || null,
+      }
+    : null
+
+const mapCollaboratorRow = (row) => ({
+  id: row.id,
+  userId: row.user_id,
+  email: row.users?.email || null,
+  displayName: row.users?.display_name || null,
+})
+
 const mapProjectRow = (row) => ({
   id: row.id,
   name: row.name,
@@ -328,12 +388,16 @@ const mapProjectRow = (row) => ({
   state: row.state,
   targetUnits: toInt(row.target_units),
   purchasePriceUsd: toNumber(row.purchase_price_usd),
+  ownerId: row.owner_id,
+  owner: row.owners ? mapUserSummary(row.owners) : null,
 })
 
 const mapProjectDetail = (row) => ({
   id: row.id,
   name: row.name,
   stage: row.stage,
+  ownerId: row.owner_id ?? row.ownerId ?? null,
+  owner: row.owners ? mapUserSummary(row.owners) : null,
   general: {
     addressLine1: row.addressLine1,
     addressLine2: row.addressLine2,
@@ -359,6 +423,11 @@ const mapProjectDetail = (row) => ({
     turnoverPct: toNumber(row.retailTurnoverPct),
     turnoverCostUsd: toNumber(row.retailTurnoverCostUsd),
   },
+  collaborators: Array.isArray(row.collaborators)
+    ? row.collaborators
+    : row.project_collaborators
+    ? row.project_collaborators.map(mapCollaboratorRow)
+    : [],
 })
 
 const mapRevenueRow = (row) => ({
@@ -398,6 +467,32 @@ const mapGpContributionRow = (row) => ({
   amountUsd: toNumber(row.amount_usd),
   contributionMonth: toInt(row.contribution_month),
 })
+
+const projectAccessWhere = (user) =>
+  user?.isSuperAdmin
+    ? {}
+    : {
+        OR: [
+          { owner_id: user.id },
+          {
+            project_collaborators: {
+              some: { user_id: user.id },
+            },
+          },
+        ],
+      }
+
+const canManageProject = (user, project) => user?.isSuperAdmin || project?.owner_id === user?.id
+
+const mapCurrentUser = (user) =>
+  user
+    ? {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        isSuperAdmin: user.isSuperAdmin,
+      }
+    : null
 
 const mapCostRow = (row) => ({
   id: row.id,
@@ -454,13 +549,13 @@ router.get('/health', async (_req, res) => {
   }
 })
 
-router.get('/projects', async (_req, res) => {
+router.get('/projects', async (req, res) => {
   if (SKIP_DB) {
     return res.json([stubProject])
   }
   try {
     const projects = await prisma.projects.findMany({
-      where: { deleted_at: null },
+      where: { deleted_at: null, ...projectAccessWhere(req.user) },
       orderBy: { created_at: 'desc' },
       select: {
         id: true,
@@ -470,6 +565,16 @@ router.get('/projects', async (_req, res) => {
         state: true,
         target_units: true,
         purchase_price_usd: true,
+        owner_id: true,
+        owners: {
+          select: {
+            id: true,
+            email: true,
+            display_name: true,
+            is_super_admin: true,
+            created_at: true,
+          },
+        },
       },
     })
     res.json(projects.map(mapProjectRow))
@@ -484,11 +589,21 @@ router.get('/projects/:id', async (req, res) => {
   }
   try {
     const projectRow = await prisma.projects.findFirst({
-      where: { id: req.params.id, deleted_at: null },
+      where: { id: req.params.id, deleted_at: null, ...projectAccessWhere(req.user) },
       select: {
         id: true,
         name: true,
         stage: true,
+        owner_id: true,
+        owners: {
+          select: {
+            id: true,
+            email: true,
+            display_name: true,
+            is_super_admin: true,
+            created_at: true,
+          },
+        },
         address_line1: true,
         address_line2: true,
         city: true,
@@ -508,6 +623,19 @@ router.get('/projects/:id', async (req, res) => {
         retail_turnover_cost: true,
         start_leasing_date: true,
         stabilized_date: true,
+        project_collaborators: {
+          include: {
+            users: {
+              select: {
+                id: true,
+                email: true,
+                display_name: true,
+                is_super_admin: true,
+                created_at: true,
+              },
+            },
+          },
+        },
       },
     })
     if (!projectRow) return res.status(404).json({ error: 'Project not found' })
@@ -527,6 +655,7 @@ router.get('/projects/:id', async (req, res) => {
       retailTurnoverCostUsd: projectRow.retail_turnover_cost,
       startLeasingDate: projectRow.start_leasing_date,
       stabilizedDate: projectRow.stabilized_date,
+      collaborators: projectRow.project_collaborators,
     })
 
     const [revenue, retail, parking, contributions, costs, cashflow] = await Promise.all([
@@ -579,13 +708,23 @@ router.post('/projects', async (req, res) => {
   if (SKIP_DB) {
     return res
       .status(201)
-      .json({ id: `stub-${Date.now()}`, name, stage: 'new', city: 'Philadelphia', state: 'PA', targetUnits: 0 })
+      .json({
+        id: `stub-${Date.now()}`,
+        name,
+        stage: 'new',
+        city: 'Philadelphia',
+        state: 'PA',
+        targetUnits: 0,
+        ownerId: stubProject.ownerId,
+        owner: stubProject.owner,
+      })
   }
   try {
     const project = await prisma.projects.create({
       data: {
         name,
         stage: 'new',
+        owner_id: req.user.id,
       },
       select: {
         id: true,
@@ -595,6 +734,16 @@ router.post('/projects', async (req, res) => {
         state: true,
         target_units: true,
         purchase_price_usd: true,
+        owner_id: true,
+        owners: {
+          select: {
+            id: true,
+            email: true,
+            display_name: true,
+            is_super_admin: true,
+            created_at: true,
+          },
+        },
       },
     })
     res.status(201).json(mapProjectRow(project))
