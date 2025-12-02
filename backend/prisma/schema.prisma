@@ -130,6 +130,8 @@ model projects {
   deleted_at            DateTime?               @db.Timestamptz(6)
   latitude              Decimal?                @db.Decimal
   longitude             Decimal?                @db.Decimal
+  turnover_pct          Decimal?                @db.Decimal
+  turnover_cost_usd     Decimal?                @db.Decimal
   apartment_types       apartment_types[]
   retail_spaces         retail_spaces[]
   cashflow_entries      cashflow_entries[]

@@ -375,6 +375,7 @@ function App() {
       detail.retailRevenue = detail.retailRevenue || []
       detail.parkingRevenue = detail.parkingRevenue || []
       detail.gpContributions = detail.gpContributions || []
+      detail.apartmentTurnover = detail.apartmentTurnover || { turnoverPct: null, turnoverCostUsd: null }
       setSelectedProject(detail)
       setGeneralForm({
         ...defaultGeneralForm,
@@ -609,7 +610,9 @@ function App() {
         payload[field] = normalizeOptionalField(generalForm[field as keyof GeneralFormState])
       })
       const updated = (await updateProjectGeneral(selectedProjectId, payload)) as ProjectDetail
-      setSelectedProject((prev) => (prev ? { ...prev, name: updated.name, general: updated.general } : prev))
+      setSelectedProject((prev) =>
+        prev ? { ...prev, name: updated.name, general: updated.general, apartmentTurnover: updated.apartmentTurnover } : prev,
+      )
       setAddressQuery(updated.general.addressLine1 || '')
       setGeneralForm((prev) => ({
         ...prev,

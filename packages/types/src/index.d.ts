@@ -30,6 +30,11 @@ export interface ProjectGeneral {
   description: string | null
 }
 
+export interface ApartmentTurnoverSettings {
+  turnoverPct: number | null
+  turnoverCostUsd: number | null
+}
+
 export interface AddressSuggestion {
   id: string
   label: string
@@ -43,6 +48,7 @@ export interface AddressSuggestion {
 
 export type ProjectDetail = ProjectSummary & {
   general: ProjectGeneral
+  apartmentTurnover: ApartmentTurnoverSettings
   revenue: ApartmentRevenue[]
   retailRevenue: RetailRevenue[]
   parkingRevenue: ParkingRevenue[]

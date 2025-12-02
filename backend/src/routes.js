@@ -107,6 +107,10 @@ const stubProject = {
     targetSqft: 52000,
     description: 'Initial stub record',
   },
+  apartmentTurnover: {
+    turnoverPct: 15,
+    turnoverCostUsd: 2500,
+  },
   revenue: [
     {
       id: 'rev-1',
@@ -165,6 +169,8 @@ const projectFieldMap = {
   targetUnits: 'target_units',
   targetSqft: 'target_sqft',
   description: 'description',
+  turnoverPct: 'turnover_pct',
+  turnoverCostUsd: 'turnover_cost_usd',
 }
 
 const projectFieldTransforms = {
@@ -323,6 +329,10 @@ const mapProjectDetail = (row) => ({
     targetSqft: toInt(row.targetSqft),
     description: row.description,
   },
+  apartmentTurnover: {
+    turnoverPct: toNumber(row.turnoverPct),
+    turnoverCostUsd: toNumber(row.turnoverCostUsd),
+  },
 })
 
 const mapRevenueRow = (row) => ({
@@ -466,6 +476,8 @@ router.get('/projects/:id', async (req, res) => {
         target_units: true,
         target_sqft: true,
         description: true,
+        turnover_pct: true,
+        turnover_cost_usd: true,
       },
     })
     if (!projectRow) return res.status(404).json({ error: 'Project not found' })
@@ -479,6 +491,8 @@ router.get('/projects/:id', async (req, res) => {
       closingDate: projectRow.closing_date,
       targetUnits: projectRow.target_units,
       targetSqft: projectRow.target_sqft,
+      turnoverPct: projectRow.turnover_pct,
+      turnoverCostUsd: projectRow.turnover_cost_usd,
     })
 
     const [revenue, retail, parking, contributions, costs, cashflow] = await Promise.all([
@@ -557,7 +571,18 @@ router.post('/projects', async (req, res) => {
 
 router.patch('/projects/:id', async (req, res) => {
   if (SKIP_DB) {
-    return res.json({ ...stubProject, general: { ...stubProject.general, ...req.body } })
+    const { turnoverPct, turnoverCostUsd, name, ...generalFields } = req.body
+    return res.json({
+      ...stubProject,
+      name: name ?? stubProject.name,
+      general: { ...stubProject.general, ...generalFields },
+      apartmentTurnover: {
+        turnoverPct:
+          turnoverPct !== undefined ? turnoverPct : stubProject.apartmentTurnover.turnoverPct,
+        turnoverCostUsd:
+          turnoverCostUsd !== undefined ? turnoverCostUsd : stubProject.apartmentTurnover.turnoverCostUsd,
+      },
+    })
   }
 
   const payload = parseBody(projectUpdateSchema, req.body, res)
@@ -589,6 +614,8 @@ router.patch('/projects/:id', async (req, res) => {
         target_units: true,
         target_sqft: true,
         description: true,
+        turnover_pct: true,
+        turnover_cost_usd: true,
       },
     })
     res.json(
@@ -601,6 +628,8 @@ router.patch('/projects/:id', async (req, res) => {
         closingDate: updated.closing_date,
         targetUnits: updated.target_units,
         targetSqft: updated.target_sqft,
+        turnoverPct: updated.turnover_pct,
+        turnoverCostUsd: updated.turnover_cost_usd,
       }),
     )
   } catch (err) {

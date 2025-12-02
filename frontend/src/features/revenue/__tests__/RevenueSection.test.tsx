@@ -19,6 +19,10 @@ const baseProject = {
   retailRevenue: [],
   parkingRevenue: [],
   gpContributions: [],
+  apartmentTurnover: {
+    turnoverPct: null,
+    turnoverCostUsd: null,
+  },
 }
 
 describe('RevenueSection', () => {
@@ -47,7 +51,7 @@ describe('RevenueSection', () => {
     await user.type(screen.getByLabelText(/number of units/i), '10')
     await user.type(screen.getByLabelText(/monthly rent/i), '2500')
 
-    await user.click(screen.getByRole('button', { name: /save/i }))
+    await user.click(screen.getByRole('button', { name: /save apartment type/i }))
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/failed to add revenue item/i)

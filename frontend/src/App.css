@@ -385,6 +385,12 @@
   font-size: 1.25rem;
 }
 
+.carrying-section table .readonly-row td {
+  background: #f1f5f9;
+  font-style: italic;
+  color: var(--muted);
+}
+
 .metrics-tab {
   display: flex;
   flex-direction: column;
@@ -832,6 +838,37 @@ td {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+}
+
+.turnover-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-top: 1rem;
+}
+
+.turnover-form label {
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.turnover-form input {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+}
+
+.turnover-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.turnover-actions .error {
+  margin: 0;
 }
 
 .add-menu {

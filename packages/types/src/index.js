@@ -200,6 +200,8 @@ export const projectUpdateSchema = z
     targetUnits: optionalPositiveInt.nullable(),
     targetSqft: optionalPositiveInt.nullable(),
     description: optionalNullableString,
+    turnoverPct: percentage.optional().nullable(),
+    turnoverCostUsd: nullableNumber,
   })
   .strict()
 

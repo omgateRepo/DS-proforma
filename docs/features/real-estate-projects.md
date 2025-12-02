@@ -77,6 +77,10 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
   1. **Apartment Type** (formerly “unit type”) – multi-unit rents (e.g., 1bd/1bth).
   2. **Retail Type** – storefront or podium space assumptions, mirrors Apartment fields but typically one unit per bay.
   3. **Parking Type** – structured like apartment types but for parking variations (garage, uncovered, etc.).
+- Above the listings, a dedicated **Apartment Turnover** card captures building-wide assumptions:
+  - **Annual Turnover %** – percent of apartments expected to change tenants each year.
+  - **Turnover Cost / Unit** – one-time refresh cost incurred for each turnover.
+  - Saving writes the values at the project level so Metrics and future reports can reference them without editing each apartment type.
 - Apartment/Parking forms capture:
   - `type_label` (e.g., "1bd/1bth" or "Garage Parking").
   - `unit_sqft` (optional for apartments, still tracked for reference).
@@ -207,6 +211,9 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 - **Cashflow Behavior**
   - Same interval logic as Property Tax.
   - These rows appear under Carrying Costs → Management with per-line totals and flow into the aggregated Carrying Costs row.
+- **Automatic Turnover Line**
+  - The global Apartment Turnover settings (Revenue tab) automatically inject a read-only row under Management showing the annual refresh cost = `turnover_pct × apartment_units × turnover_cost`.
+  - The line is informational only (no edit/delete icons) but its monthly equivalent is added to the Management summary totals so NOI/CAP Rate reflect tenant churn assumptions.
 
 #### 6.6.3 UI & Validation Notes
 - All month-entry controls reuse the shared helpers so they show `Month N • Calendar Month`.

@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createCarryingCost, deleteCarryingCost, updateCarryingCost } from '../../api.js'
 import {
   buildRecurringFormFromRow,
@@ -91,6 +91,7 @@ export function CarryingCostsSection({
   const addMenuRef = useRef<HTMLDivElement | null>(null)
 
   const carryingRows: CarryingCostRow[] = project?.carryingCosts ?? []
+  const apartmentRows = project?.revenue ?? []
   const recurringMenuOptions = useMemo(
     () =>
       carryingMenuOptions.filter(
@@ -107,6 +108,18 @@ export function CarryingCostsSection({
 
   const propertyRows = useMemo(() => carryingRows.filter(isPropertyRow), [carryingRows])
   const managementRows = useMemo(() => carryingRows.filter(isManagementRow), [carryingRows])
+  const totalApartmentUnits = useMemo(() => {
+    const explicitUnits = apartmentRows.reduce((sum, row) => sum + (row.unitCount || 0), 0)
+    if (explicitUnits > 0) return explicitUnits
+    return project?.general?.targetUnits ?? 0
+  }, [apartmentRows, project?.general?.targetUnits])
+  const turnoverAnnualCost = useMemo(() => {
+    const pct = project?.apartmentTurnover?.turnoverPct ?? 0
+    const cost = project?.apartmentTurnover?.turnoverCostUsd ?? 0
+    if (!pct || !cost || !totalApartmentUnits) return 0
+    return (pct / 100) * totalApartmentUnits * cost
+  }, [project?.apartmentTurnover?.turnoverCostUsd, project?.apartmentTurnover?.turnoverPct, totalApartmentUnits])
+  const turnoverMonthlyCost = turnoverAnnualCost / 12
   const { missingPropertyPhases, nextPropertyPhase } = useMemo(() => {
     const used = new Set<PropertyTaxPhase>()
     propertyRows.forEach((row) => {
@@ -120,8 +133,9 @@ export function CarryingCostsSection({
   }, [propertyRows])
 
   const managementMonthlyTotal = useMemo(() => {
-    return managementRows.reduce((sum, row) => sum + (calculateRecurringAverage(row) || 0), 0)
-  }, [managementRows])
+    const base = managementRows.reduce((sum, row) => sum + (calculateRecurringAverage(row) || 0), 0)
+    return base + turnoverMonthlyCost
+  }, [managementRows, turnoverMonthlyCost])
 
   const resetForms = useCallback(() => {
     setPropertyForm(
@@ -354,7 +368,7 @@ export function CarryingCostsSection({
     </section>
   )
 
-  const renderRecurringTable = (rows: CarryingCostRow[], title: string) => (
+  const renderRecurringTable = (rows: CarryingCostRow[], title: string, extraRows?: ReactNode) => (
     <section className="carrying-section">
       <div className="section-header">
         <h4>{title}</h4>
@@ -400,6 +414,7 @@ export function CarryingCostsSection({
               </tr>
               )
             })}
+            {extraRows}
           </tbody>
         </table>
       </div>
@@ -521,7 +536,20 @@ export function CarryingCostsSection({
         </div>
 
         {renderPropertyTaxTable()}
-        {renderRecurringTable(managementRows, 'Management Fees')}
+        {renderRecurringTable(
+          managementRows,
+          'Management Fees',
+          turnoverAnnualCost > 0 && (
+            <tr className="readonly-row" key="turnover-auto">
+              <td>Turnover Refresh (auto)</td>
+              <td>{formatCurrency(turnoverAnnualCost)}</td>
+              <td>Annual (auto)</td>
+              <td>—</td>
+              <td>—</td>
+              <td>—</td>
+            </tr>
+          ),
+        )}
 
         <div className="management-summary">
           <div>
