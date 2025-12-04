@@ -416,10 +416,10 @@ const mapProjectDetail = (row) => ({
     turnoverPct: toNumber(row.retailTurnoverPct),
     turnoverCostUsd: toNumber(row.retailTurnoverCostUsd),
   },
-  collaborators: Array.isArray(row.collaborators)
-    ? row.collaborators
-    : row.project_collaborators
+  collaborators: Array.isArray(row.project_collaborators)
     ? row.project_collaborators.map(mapCollaboratorRow)
+    : Array.isArray(row.collaborators)
+    ? row.collaborators.map(mapCollaboratorRow)
     : [],
 })
 

@@ -171,7 +171,7 @@ export interface ParkingRevenue extends ParkingRevenueInput {
 }
 
 export interface GpContributionInput {
-  partner: 'darmon' | 'sherman'
+  partner: string
   amountUsd: number
   contributionMonth: number
 }

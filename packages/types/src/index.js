@@ -238,7 +238,7 @@ export const parkingRevenueInputSchema = z.object({
 export const parkingRevenueUpdateSchema = parkingRevenueInputSchema.partial()
 
 export const gpContributionInputSchema = z.object({
-  partner: z.enum(['darmon', 'sherman']),
+  partner: nonEmptyString,
   amountUsd: money,
   contributionMonth: positiveInt,
 })
