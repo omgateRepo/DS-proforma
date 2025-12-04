@@ -528,7 +528,29 @@ router.get('/me', (req, res) => {
 })
 
 router.get('/users', async (req, res) => {
-  if (!ensureSuperAdmin(req, res)) return
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  const projectId =
+    typeof req.query?.projectId === 'string' && req.query?.projectId ? req.query.projectId : null
+  let projectContext = null
+  if (projectId) {
+    if (!isUuid(projectId)) {
+      return res.status(400).json({ error: 'Invalid project id' })
+    }
+    projectContext = await prisma.projects.findUnique({
+      where: { id: projectId },
+      select: { owner_id: true },
+    })
+    if (!projectContext) {
+      return res.status(404).json({ error: 'Project not found' })
+    }
+    if (!canManageCollaborators(req.user, projectContext)) {
+      return res.status(403).json({ error: 'Not authorized to list users for this project' })
+    }
+  } else if (!ensureSuperAdmin(req, res)) {
+    return
+  }
   if (SKIP_DB) {
     return res.json([
       sanitizeUserRow({

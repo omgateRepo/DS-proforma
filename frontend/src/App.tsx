@@ -140,10 +140,11 @@ type CollaboratorsPanelProps = {
   ownerEmail: string
   collaborators: ProjectCollaborator[]
   canEdit: boolean
-  inputValue: string
+  selectedUserId: string
+  availableUsers: UserSummary[]
   status: RequestStatus
   error: string
-  onInputChange: (value: string) => void
+  onSelectionChange: (value: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onRemove: (id: string) => void
 }
@@ -153,10 +154,11 @@ function CollaboratorsPanel({
   ownerEmail,
   collaborators,
   canEdit,
-  inputValue,
+  selectedUserId,
+  availableUsers,
   status,
   error,
-  onInputChange,
+  onSelectionChange,
   onSubmit,
   onRemove,
 }: CollaboratorsPanelProps) {
@@ -193,16 +195,22 @@ function CollaboratorsPanel({
         <form onSubmit={onSubmit} className="collaborator-form">
           <label>
             <span className="muted tiny">Invite collaborator</span>
-            <input
-              type="email"
-              value={inputValue}
-              onChange={(e) => onInputChange(e.target.value)}
-              placeholder="user@example.com"
+            <select
+              value={selectedUserId}
+              onChange={(e) => onSelectionChange(e.target.value)}
               disabled={status === 'saving'}
-            />
+            >
+              <option value="">Select user</option>
+              {availableUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.displayName || user.email}
+                </option>
+              ))}
+            </select>
           </label>
+          {!availableUsers.length && <p className="muted tiny">No additional users available.</p>}
           {error && <p className="error tiny">{error}</p>}
-          <button type="submit" className="primary" disabled={status === 'saving'}>
+          <button type="submit" className="primary" disabled={status === 'saving' || !availableUsers.length}>
             {status === 'saving' ? 'Adding…' : 'Add collaborator'}
           </button>
         </form>
@@ -525,10 +533,27 @@ function App() {
   const [projectWeather, setProjectWeather] = useState<WeatherReading | null>(null)
   const [projectWeatherStatus, setProjectWeatherStatus] = useState<LoadStatus>('idle')
   const [projectWeatherError, setProjectWeatherError] = useState('')
-  const [collaboratorInput, setCollaboratorInput] = useState('')
+  const [collaboratorSelection, setCollaboratorSelection] = useState('')
   const [collaboratorStatus, setCollaboratorStatus] = useState<RequestStatus>('idle')
   const [collaboratorError, setCollaboratorError] = useState('')
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
+
+  const availableUsers = useMemo(() => {
+    if (!selectedProject) return []
+    const excluded = new Set<string>()
+    if (selectedProject.owner?.id) excluded.add(selectedProject.owner.id)
+    selectedProject.collaborators?.forEach((collab) => {
+      if (collab.userId) excluded.add(collab.userId)
+    })
+    return users.filter((user) => user.id && !excluded.has(user.id))
+  }, [selectedProject, users])
+
+  useEffect(() => {
+    if (!collaboratorSelection) return
+    if (!availableUsers.some((user) => user.id === collaboratorSelection)) {
+      setCollaboratorSelection('')
+    }
+  }, [availableUsers, collaboratorSelection])
 
   const stageOptions = stageLabels() as Array<{ id: ProjectStage; label: string }>
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
@@ -892,19 +917,22 @@ function App() {
     }
   }, [])
 
-  const refreshUsers = useCallback(async () => {
-    if (!currentUser?.isSuperAdmin) return
-    setUsersStatus('loading')
-    setUsersError('')
-    try {
-      const list = (await fetchUsers()) as UserSummary[]
-      setUsers(list)
-      setUsersStatus('loaded')
-    } catch (err) {
-      setUsersError(getErrorMessage(err))
-      setUsersStatus('error')
-    }
-  }, [currentUser?.isSuperAdmin])
+  const refreshUsers = useCallback(
+    async (projectId?: EntityId) => {
+      if (!currentUser) return
+      setUsersStatus('loading')
+      setUsersError('')
+      try {
+        const list = (await fetchUsers(projectId)) as UserSummary[]
+        setUsers(list)
+        setUsersStatus('loaded')
+      } catch (err) {
+        setUsersError(getErrorMessage(err))
+        setUsersStatus('error')
+      }
+    },
+    [currentUser],
+  )
 
   const handleCreateUserAccount = useCallback(
     async (payload: { email: string; displayName: string; password: string; isSuperAdmin: boolean }) => {
@@ -1105,6 +1133,11 @@ useEffect(() => {
   refreshUsers()
 }, [isAccountSettingsOpen, currentUser?.isSuperAdmin, refreshUsers])
 
+useEffect(() => {
+  if (!selectedProjectId || !canEditCollaborators) return
+  refreshUsers(selectedProjectId)
+}, [selectedProjectId, canEditCollaborators, refreshUsers])
+
   useEffect(() => {
     setExpandedCashflowRows(new Set())
   }, [selectedProjectId])
@@ -1269,8 +1302,14 @@ useEffect(() => {
   async function handleCollaboratorSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!selectedProjectId) return
-    if (!collaboratorInput.trim()) {
-      setCollaboratorError('Email is required')
+    if (!collaboratorSelection) {
+      setCollaboratorError('Select a user to add')
+      setCollaboratorStatus('error')
+      return
+    }
+    const targetUser = users.find((user) => user.id === collaboratorSelection)
+    if (!targetUser || !targetUser.email) {
+      setCollaboratorError('Selected user is unavailable')
       setCollaboratorStatus('error')
       return
     }
@@ -1279,10 +1318,10 @@ useEffect(() => {
     try {
       const list = (await addProjectCollaborator(
         selectedProjectId,
-        collaboratorInput.trim(),
+        targetUser.email,
       )) as ProjectCollaborator[]
       setSelectedProject((prev) => (prev ? { ...prev, collaborators: list } : prev))
-      setCollaboratorInput('')
+      setCollaboratorSelection('')
       setCollaboratorStatus('idle')
     } catch (err) {
       setCollaboratorStatus('error')
@@ -1571,10 +1610,11 @@ useEffect(() => {
                     ownerEmail={selectedProject.owner?.email || ''}
                     collaborators={selectedProject.collaborators || []}
                     canEdit={canEditCollaborators}
-                    inputValue={collaboratorInput}
+                    selectedUserId={collaboratorSelection}
+                    availableUsers={availableUsers}
                     status={collaboratorStatus}
                     error={collaboratorError}
-                    onInputChange={setCollaboratorInput}
+                    onSelectionChange={setCollaboratorSelection}
                     onSubmit={handleCollaboratorSubmit}
                     onRemove={handleCollaboratorRemove}
                   />

@@ -154,8 +154,9 @@ export async function deleteProject(id) {
   return handleJsonResponse(res, 'Failed to delete project')
 }
 
-export async function fetchUsers() {
-  const res = await request('/api/users')
+export async function fetchUsers(projectId) {
+  const query = projectId ? `?projectId=${projectId}` : ''
+  const res = await request(`/api/users${query}`)
   return handleJsonResponse(res, 'Failed to load users')
 }
 
