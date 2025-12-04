@@ -934,7 +934,15 @@ router.post('/projects', async (req, res) => {
       })
   }
   try {
-    const ownerData = canUseUserId(req.user) ? { owner_id: req.user.id } : {}
+    let ownerId = canUseUserId(req.user) ? req.user.id : null
+    if (!ownerId) {
+      const fallbackOwner = await prisma.users.findFirst({
+        where: { is_super_admin: true },
+        select: { id: true },
+      })
+      ownerId = fallbackOwner?.id || null
+    }
+    const ownerData = ownerId ? { owner_id: ownerId } : {}
     const project = await prisma.projects.create({
       data: {
         name,
