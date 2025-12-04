@@ -363,7 +363,7 @@ const mapUserSummary = (row) =>
     : null
 
 const mapCollaboratorRow = (row) => {
-  const user = row.user || row.users || null
+  const user = row.user || null
   return {
     id: row.id,
     userId: row.user_id,
@@ -729,7 +729,7 @@ const fetchProjectCollaborators = (projectId) =>
     where: { project_id: projectId },
     orderBy: { created_at: 'asc' },
     include: {
-      users: {
+      user: {
         select: userSelectFields,
       },
     },
@@ -830,7 +830,7 @@ router.get('/projects/:id', async (req, res) => {
         stabilized_date: true,
         project_collaborators: {
           include: {
-            users: {
+            user: {
               select: userSelectFields,
             },
           },
@@ -1103,7 +1103,7 @@ router.patch('/projects/:id', async (req, res) => {
         retail_turnover_cost: true,
         project_collaborators: {
           include: {
-            users: {
+            user: {
               select: userSelectFields,
             },
           },
