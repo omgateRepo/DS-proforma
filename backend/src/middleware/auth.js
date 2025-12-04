@@ -62,13 +62,29 @@ export default function createAuthMiddleware({ enabled = true, bypass = [] } = {
 
     // Always honor env credentials first to avoid lockouts
     if (envUsername && envPassword && username === envUsername && password === envPassword) {
-      req.user = {
+      const baseUser = {
         id: 'env-super-admin',
         email: envUsername,
         displayName: envUsername,
         isSuperAdmin: true,
         synthetic: true,
       }
+      if (!SKIP_DB) {
+        const dbUser = await prisma.users.findUnique({
+          where: { email: envUsername.toLowerCase() },
+        })
+        if (dbUser) {
+          req.user = {
+            id: dbUser.id,
+            email: dbUser.email,
+            displayName: dbUser.display_name || envUsername,
+            isSuperAdmin: Boolean(dbUser.is_super_admin),
+            synthetic: false,
+          }
+          return next()
+        }
+      }
+      req.user = baseUser
       return next()
     }
 
