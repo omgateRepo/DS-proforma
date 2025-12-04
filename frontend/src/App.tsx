@@ -1401,19 +1401,6 @@ useEffect(() => {
                   />
               </div>
 
-                <CollaboratorsPanel
-                  ownerName={ownerName}
-                  ownerEmail={selectedProject.owner?.email || ''}
-                  collaborators={selectedProject.collaborators || []}
-                  canEdit={canEditCollaborators}
-                  inputValue={collaboratorInput}
-                  status={collaboratorStatus}
-                  error={collaboratorError}
-                  onInputChange={setCollaboratorInput}
-                  onSubmit={handleCollaboratorSubmit}
-                  onRemove={handleCollaboratorRemove}
-                />
-
               <div className="tabs">
                 {TABS.map((tab) => (
                   <button
@@ -1427,6 +1414,7 @@ useEffect(() => {
               </div>
 
               {activeTab === 'general' && (
+                <>
                 <GeneralTab
                   form={generalForm}
                   generalStatus={generalStatus}
@@ -1442,6 +1430,19 @@ useEffect(() => {
                   selectedCoords={selectedCoords}
                   apiOrigin={apiOrigin}
                 />
+                  <CollaboratorsPanel
+                    ownerName={ownerName}
+                    ownerEmail={selectedProject.owner?.email || ''}
+                    collaborators={selectedProject.collaborators || []}
+                    canEdit={canEditCollaborators}
+                    inputValue={collaboratorInput}
+                    status={collaboratorStatus}
+                    error={collaboratorError}
+                    onInputChange={setCollaboratorInput}
+                    onSubmit={handleCollaboratorSubmit}
+                    onRemove={handleCollaboratorRemove}
+                  />
+                </>
               )}
 
               {activeTab === 'revenue' && (
