@@ -63,6 +63,7 @@ const STAGE_FIELD_LABELS = {
   closing_date: 'Closing date',
 }
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN
+const GOOGLE_STREET_VIEW_KEY = process.env.GOOGLE_STREET_VIEW_API_KEY
 const SOFT_COST_CATEGORIES = ['architect', 'legal', 'permits', 'consulting', 'marketing', 'other']
 const HARD_COST_CATEGORIES = [
   'structure',
@@ -2152,6 +2153,43 @@ router.get('/geocode/satellite', async (req, res) => {
   } catch (err) {
     console.error('Satellite fetch failed', err)
     res.status(500).json({ error: 'Failed to load satellite image', details: err.message })
+  }
+})
+
+router.get('/geocode/front', async (req, res) => {
+  const { lat, lon, zoom = '16', bearing = '0', pitch = '60' } = req.query
+  if (!lat || !lon) return res.status(400).json({ error: 'lat and lon are required' })
+  if (!MAPBOX_TOKEN && !GOOGLE_STREET_VIEW_KEY) {
+    return res.status(503).json({ error: 'Building front imagery not configured' })
+  }
+  try {
+    let imageUrl
+    if (GOOGLE_STREET_VIEW_KEY) {
+      imageUrl = new URL('https://maps.googleapis.com/maps/api/streetview')
+      imageUrl.searchParams.set('size', '600x400')
+      imageUrl.searchParams.set('location', `${lat},${lon}`)
+      imageUrl.searchParams.set('heading', bearing)
+      imageUrl.searchParams.set('pitch', pitch)
+      imageUrl.searchParams.set('fov', '90')
+      imageUrl.searchParams.set('key', GOOGLE_STREET_VIEW_KEY)
+    } else {
+      imageUrl = new URL(
+        `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/${lon},${lat},${zoom},${bearing},${pitch}/600x400`,
+      )
+      imageUrl.searchParams.set('access_token', MAPBOX_TOKEN)
+      imageUrl.searchParams.set('attribution', 'false')
+      imageUrl.searchParams.set('logo', 'false')
+    }
+
+    const response = await fetch(imageUrl.href)
+    if (!response.ok) throw new Error(`Building front request failed ${response.status}`)
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'image/png')
+    res.setHeader('Cache-Control', 'public, max-age=300')
+    const buffer = await response.arrayBuffer()
+    res.send(Buffer.from(buffer))
+  } catch (err) {
+    console.error('Building front fetch failed', err)
+    res.status(500).json({ error: 'Failed to load building front image', details: err.message })
   }
 })
 

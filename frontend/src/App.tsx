@@ -541,11 +541,11 @@ function App() {
   const availableUsers = useMemo(() => {
     if (!selectedProject) return []
     const excluded = new Set<string>()
-    if (selectedProject.owner?.id) excluded.add(selectedProject.owner.id)
+    if (selectedProject.owner?.id) excluded.add(String(selectedProject.owner.id))
     selectedProject.collaborators?.forEach((collab) => {
-      if (collab.userId) excluded.add(collab.userId)
+      if (collab.userId) excluded.add(String(collab.userId))
     })
-    return users.filter((user) => user.id && !excluded.has(user.id))
+    return users.filter((user) => user.id && !excluded.has(String(user.id)))
   }, [selectedProject, users])
 
   useEffect(() => {

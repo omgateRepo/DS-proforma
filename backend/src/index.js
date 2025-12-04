@@ -45,7 +45,14 @@ const apiLimiter = rateLimit({
 
 const authMiddleware = createAuthMiddleware({
   enabled: !skipAuth,
-  bypass: ['/api/geocode/satellite', '/geocode/satellite', '/api/geocode/search', '/geocode/search'],
+  bypass: [
+    '/api/geocode/satellite',
+    '/geocode/satellite',
+    '/api/geocode/front',
+    '/geocode/front',
+    '/api/geocode/search',
+    '/geocode/search',
+  ],
 })
 
 app.use('/api', authMiddleware, apiLimiter, routes)

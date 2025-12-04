@@ -34,6 +34,23 @@ export function GeneralTab({
   selectedCoords,
   apiOrigin,
 }: GeneralTabProps) {
+  const buildPreviewUrl = (endpoint: 'satellite' | 'front', extraParams?: Record<string, string>) => {
+    if (!selectedCoords) return null
+    const lat = String(selectedCoords.lat)
+    const lon = String(selectedCoords.lon)
+    const params = new URLSearchParams({
+      lat,
+      lon,
+      zoom: '18',
+      ...(extraParams || {}),
+    })
+    const prefix = apiOrigin?.replace(/\/$/, '') || ''
+    return `${prefix}/api/geocode/${endpoint}?${params.toString()}`
+  }
+
+  const satelliteUrl = buildPreviewUrl('satellite')
+  const buildingFrontUrl = buildPreviewUrl('front', { pitch: '60', bearing: '0' })
+
   return (
     <form className="general-form" onSubmit={onSubmit}>
       <div className="form-grid">
@@ -129,14 +146,16 @@ export function GeneralTab({
           <input type="number" value={form.targetSqft} onChange={(e) => onFieldChange('targetSqft', e.target.value)} />
         </label>
       </div>
-      {selectedCoords && (
-        <div className="satellite-preview small">
-          <img
-            src={`${apiOrigin || ''}/api/geocode/satellite?lat=${selectedCoords.lat}&lon=${selectedCoords.lon}&zoom=18`}
-            alt="Satellite preview"
-            role="img"
-            aria-label="satellite preview"
-          />
+      {satelliteUrl && buildingFrontUrl && (
+        <div className="preview-row">
+          <div className="satellite-preview">
+            <p className="preview-label">Satellite</p>
+            <img src={satelliteUrl} alt="Satellite preview" role="img" aria-label="satellite preview" />
+          </div>
+          <div className="satellite-preview">
+            <p className="preview-label">Building front</p>
+            <img src={buildingFrontUrl} alt="Building front preview" role="img" aria-label="building front preview" />
+          </div>
         </div>
       )}
       <label>
