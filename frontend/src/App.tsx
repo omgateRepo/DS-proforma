@@ -65,8 +65,7 @@ import type {
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'revenue', label: 'Revenue' },
-  { id: 'hard', label: 'Hard Costs' },
-  { id: 'soft', label: 'Soft Costs' },
+  { id: 'dev-costs', label: 'Dev Costs' },
   { id: 'funding', label: 'Funding' },
   { id: 'carrying', label: 'Carrying Costs' },
   { id: 'cashflow', label: 'Cashflow' },
@@ -1638,28 +1637,27 @@ useEffect(() => {
                 />
               )}
 
-              {activeTab === 'hard' && (
-                <HardCostsSection
-                  project={selectedProject}
-                  projectId={selectedProjectId}
-                  onProjectRefresh={loadProjectDetail}
-                  formatOffsetForInput={formatOffsetForInput}
-                  convertMonthInputToOffset={convertMonthInputToOffset}
-                  getCalendarLabelForInput={getCalendarLabelForInput}
-                  getCalendarLabelsForListInput={getCalendarLabelsForListInput}
-                />
-              )}
-
-              {activeTab === 'soft' && (
-                <SoftCostsSection
-                  project={selectedProject}
-                  projectId={selectedProjectId}
-                  onProjectRefresh={loadProjectDetail}
-                  formatOffsetForInput={formatOffsetForInput}
-                  convertMonthInputToOffset={convertMonthInputToOffset}
-                  getCalendarLabelForInput={getCalendarLabelForInput}
-                  getCalendarLabelsForListInput={getCalendarLabelsForListInput}
-                />
+              {activeTab === 'dev-costs' && (
+                <div className="dev-costs-tab">
+                  <HardCostsSection
+                    project={selectedProject}
+                    projectId={selectedProjectId}
+                    onProjectRefresh={loadProjectDetail}
+                    formatOffsetForInput={formatOffsetForInput}
+                    convertMonthInputToOffset={convertMonthInputToOffset}
+                    getCalendarLabelForInput={getCalendarLabelForInput}
+                    getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                  />
+                  <SoftCostsSection
+                    project={selectedProject}
+                    projectId={selectedProjectId}
+                    onProjectRefresh={loadProjectDetail}
+                    formatOffsetForInput={formatOffsetForInput}
+                    convertMonthInputToOffset={convertMonthInputToOffset}
+                    getCalendarLabelForInput={getCalendarLabelForInput}
+                    getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                  />
+                </div>
               )}
 
               {activeTab === 'funding' && (
