@@ -991,6 +991,21 @@ function App() {
         setDisplayNameInput(updated.displayName || updated.email || '')
         setDisplayNameStatus('idle')
         setIsEditingDisplayName(false)
+        setSelectedProject((prev) => {
+          if (!prev) return prev
+          const updatedOwner =
+            prev.owner?.id === updated.id
+              ? { ...prev.owner, displayName: updated.displayName || updated.email }
+              : prev.owner
+          const updatedCollaborators = prev.collaborators?.map((collab) =>
+            collab.userId === updated.id ? { ...collab, displayName: updated.displayName || updated.email } : collab,
+          )
+          return {
+            ...prev,
+            owner: updatedOwner,
+            collaborators: updatedCollaborators || prev.collaborators,
+          }
+        })
       } catch (err) {
         setDisplayNameStatus('error')
         setDisplayNameError(getErrorMessage(err))
