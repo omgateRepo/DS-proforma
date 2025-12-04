@@ -543,7 +543,7 @@ export function CarryingCostsSection({
         {renderPropertyTaxTable()}
         {renderRecurringTable(
           managementRows,
-          'Management Fees',
+          'Stabilized Expenses',
           autoManagementRows.map((row) => (
             <tr className="readonly-row" key={row.id}>
               <td>{row.label}</td>

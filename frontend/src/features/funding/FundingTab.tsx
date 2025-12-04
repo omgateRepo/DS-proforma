@@ -16,7 +16,6 @@ import {
   loanModeLabels,
   loanModeOptions,
 } from '../carrying/carryingHelpers.js'
-import { gpPartners } from '../revenue/revenueHelpers.js'
 import type {
   CarryingCostRow,
   CarryingType,
@@ -34,7 +33,7 @@ type CalendarLabelFormatter = (offset: number | null) => string
 type CalendarInputFormatter = (value: string | number | null | undefined) => string
 type MonthInputConverter = (value: string | number | null | undefined) => number
 
-type FundingProjectSlice = Pick<ProjectDetail, 'gpContributions' | 'carryingCosts'>
+type FundingProjectSlice = Pick<ProjectDetail, 'gpContributions' | 'carryingCosts' | 'collaborators' | 'owner' | 'ownerId'>
 
 type FundingTabProps = {
   project: FundingProjectSlice | null
@@ -78,7 +77,7 @@ const toNumberOrNull = (value: string | number | null | undefined) => {
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 const createDefaultGpForm = (): GpContributionFormState => ({
-  partner: gpPartners[0]?.id ?? 'darmon',
+  partner: '',
   amountUsd: '',
   contributionMonth: '1',
 })
@@ -108,6 +107,19 @@ export function FundingTab({
   const [loanDeleteError, setLoanDeleteError] = useState('')
 
   const gpRows: GpContributionRow[] = project?.gpContributions ?? []
+  const partnerOptions = useMemo(() => {
+    if (!project) return []
+    const options: { id: string; label: string }[] = []
+    if (project.owner?.id) {
+      options.push({ id: project.owner.id as string, label: project.owner.displayName || project.owner.email || 'Owner' })
+    }
+    project.collaborators?.forEach((collab) => {
+      if (collab.userId) {
+        options.push({ id: collab.userId, label: collab.displayName || collab.email || 'Collaborator' })
+      }
+    })
+    return options
+  }, [project])
   const loanRows: CarryingCostRow[] = useMemo(() => {
     if (!project?.carryingCosts) return []
     return project.carryingCosts.filter((row) => row.carryingType === 'loan')
@@ -162,7 +174,7 @@ export function FundingTab({
       const gpRow = row as GpContributionRow | null
       if (gpRow) {
         setGpForm({
-          partner: gpRow.partner || gpPartners[0]?.id || 'gp',
+          partner: gpRow.partner || '',
           amountUsd: gpRow.amountUsd ? String(gpRow.amountUsd) : '',
           contributionMonth: formatOffsetForInput(gpRow.contributionMonth ?? 0),
         })
@@ -191,7 +203,7 @@ export function FundingTab({
   }
 
   const buildGpPayload = () => ({
-    partner: gpForm.partner,
+    partner: gpForm.partner || null,
     amountUsd: parseOptionalNumber(gpForm.amountUsd),
     contributionMonth: convertMonthInputToOffset(gpForm.contributionMonth),
   })
@@ -374,7 +386,11 @@ export function FundingTab({
                 </thead>
                 <tbody>
                   {gpRows.map((row) => {
-                    const partnerLabel = gpPartners.find((partner) => partner.id === row.partner)?.label || row.partner || 'GP'
+                    const collaborator = project?.collaborators?.find((collab) => collab.userId === row.partner)
+                    const ownerLabel =
+                      project?.ownerId === row.partner ? project.owner?.displayName || project.owner?.email : null
+                    const partnerLabel =
+                      collaborator?.displayName || collaborator?.email || ownerLabel || row.partner || 'GP'
                     return (
                       <tr key={row.id}>
                         <td>{partnerLabel}</td>
@@ -493,9 +509,15 @@ export function FundingTab({
                   <label>
                     Partner
                     <select value={gpForm.partner} onChange={(e) => setGpForm((prev) => ({ ...prev, partner: e.target.value }))}>
-                      {gpPartners.map((partner) => (
-                        <option key={partner.id} value={partner.id}>
-                          {partner.label}
+                      <option value="">Select partner</option>
+                      {project?.owner && (
+                        <option key={project.owner.id} value={project.owner.id as string}>
+                          {project.owner.displayName || project.owner.email || 'Owner'}
+                        </option>
+                      )}
+                      {project?.collaborators?.map((collab) => (
+                        <option key={collab.id} value={collab.userId}>
+                          {collab.displayName || collab.email || 'Collaborator'}
                         </option>
                       ))}
                     </select>

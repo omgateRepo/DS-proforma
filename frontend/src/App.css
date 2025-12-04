@@ -925,6 +925,46 @@ textarea {
   margin-bottom: 0.35rem;
 }
 
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-form label span {
+  display: block;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.profile-form input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  font-size: 1rem;
+}
+
+.profile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.profile-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
 .account-actions {
   display: flex;
   gap: 0.5rem;

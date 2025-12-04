@@ -21,6 +21,7 @@ import {
   searchAddresses,
   setAuthCredentials,
   stageLabels,
+  updateCurrentUser,
   updateProjectGeneral,
   updateProjectStage,
   updateUser,
@@ -225,6 +226,14 @@ type AccountSettingsModalProps = {
   onToggleAdmin: (userId: EntityId, nextValue: boolean) => Promise<void>
   onResetPassword: (userId: EntityId, password: string) => Promise<void>
   onDeleteUser: (userId: EntityId) => Promise<void>
+  displayNameInput: string
+  displayNameStatus: RequestStatus
+  displayNameError: string
+  onDisplayNameChange: (value: string) => void
+  onSaveDisplayName: (event: FormEvent<HTMLFormElement>) => void
+  onEditDisplayName: () => void
+  onCancelDisplayName: () => void
+  isEditingDisplayName: boolean
 }
 
 function AccountSettingsModal({
@@ -242,6 +251,14 @@ function AccountSettingsModal({
   onToggleAdmin,
   onResetPassword,
   onDeleteUser,
+  displayNameInput,
+  displayNameStatus,
+  displayNameError,
+  onDisplayNameChange,
+  onSaveDisplayName,
+  onEditDisplayName,
+  onCancelDisplayName,
+  isEditingDisplayName,
 }: AccountSettingsModalProps) {
   const [form, setForm] = useState({
     email: '',
@@ -296,12 +313,55 @@ function AccountSettingsModal({
         </header>
 
         <section className="account-section">
-          <h4>Profile</h4>
-          <p>{currentUser.displayName || currentUser.email}</p>
-          <p className="muted tiny">{currentUser.isSuperAdmin ? 'Super admin' : 'Collaborator'}</p>
-          <button type="button" className="ghost tiny" onClick={onLogout}>
-            Sign out
-          </button>
+          <div className="section-header">
+            <h4>Profile</h4>
+            <p className="muted tiny">Your display name is shown in project headers and collaborator lists.</p>
+          </div>
+          <div className="profile-body">
+            {!isEditingDisplayName && (
+              <>
+                <strong>{currentUser.displayName || currentUser.email}</strong>
+                <p className="muted tiny">{currentUser.isSuperAdmin ? 'Super admin' : 'Collaborator'}</p>
+              </>
+            )}
+            {isEditingDisplayName && (
+              <form className="profile-form" onSubmit={onSaveDisplayName}>
+                <label>
+                  <span>Display Name</span>
+                  <input
+                    type="text"
+                    value={displayNameInput}
+                    onChange={(event) => onDisplayNameChange(event.target.value)}
+                    disabled={displayNameStatus === 'saving'}
+                  />
+                </label>
+                {displayNameError && <p className="error tiny">{displayNameError}</p>}
+                <div className="profile-form-actions">
+                  <button type="submit" className="primary" disabled={displayNameStatus === 'saving'}>
+                    {displayNameStatus === 'saving' ? 'Saving…' : 'Save name'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost tiny"
+                    onClick={onCancelDisplayName}
+                    disabled={displayNameStatus === 'saving'}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+            <div className="profile-actions">
+              {!isEditingDisplayName && (
+                <button type="button" className="ghost tiny" onClick={onEditDisplayName}>
+                  Edit display name
+                </button>
+              )}
+              <button type="button" className="ghost tiny" onClick={onLogout}>
+                Sign out
+              </button>
+            </div>
+          </div>
         </section>
 
         {isAdmin && (
@@ -458,6 +518,10 @@ function App() {
   const [usersError, setUsersError] = useState('')
   const [userActionStatus, setUserActionStatus] = useState<RequestStatus>('idle')
   const [userActionError, setUserActionError] = useState('')
+  const [displayNameInput, setDisplayNameInput] = useState('')
+  const [displayNameStatus, setDisplayNameStatus] = useState<RequestStatus>('idle')
+  const [displayNameError, setDisplayNameError] = useState('')
+  const [isEditingDisplayName, setIsEditingDisplayName] = useState(false)
   const [projectWeather, setProjectWeather] = useState<WeatherReading | null>(null)
   const [projectWeatherStatus, setProjectWeatherStatus] = useState<LoadStatus>('idle')
   const [projectWeatherError, setProjectWeatherError] = useState('')
@@ -821,8 +885,10 @@ function App() {
     try {
       const me = (await fetchCurrentUser()) as UserSummary
       setCurrentUser(me)
+      setDisplayNameInput(me.displayName || me.email || '')
     } catch (err) {
       setCurrentUser(null)
+      setDisplayNameInput('')
     }
   }, [])
 
@@ -906,6 +972,61 @@ function App() {
     },
     [currentUser?.isSuperAdmin, refreshUsers],
   )
+
+  const handleSaveDisplayName = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      if (!currentUser) return
+      const nextName = displayNameInput.trim()
+      if (!nextName) {
+        setDisplayNameStatus('error')
+        setDisplayNameError('Display name is required')
+        return
+      }
+      setDisplayNameStatus('saving')
+      setDisplayNameError('')
+      try {
+        const updated = (await updateCurrentUser({ displayName: nextName })) as UserSummary
+        setCurrentUser(updated)
+        setDisplayNameInput(updated.displayName || updated.email || '')
+        setDisplayNameStatus('idle')
+        setIsEditingDisplayName(false)
+      } catch (err) {
+        setDisplayNameStatus('error')
+        setDisplayNameError(getErrorMessage(err))
+      }
+    },
+    [currentUser, displayNameInput],
+  )
+
+  const handleDisplayNameChange = useCallback(
+    (value: string) => {
+      setDisplayNameInput(value)
+      if (displayNameStatus === 'error') setDisplayNameStatus('idle')
+      if (displayNameError) setDisplayNameError('')
+    },
+    [displayNameStatus, displayNameError],
+  )
+
+  const handleDisplayNameCancel = useCallback(() => {
+    if (!currentUser) return
+    setDisplayNameInput(currentUser.displayName || currentUser.email || '')
+    setDisplayNameStatus('idle')
+    setDisplayNameError('')
+    setIsEditingDisplayName(false)
+  }, [currentUser])
+
+  const handleDisplayNameEdit = useCallback(() => {
+    setIsEditingDisplayName(true)
+    setDisplayNameStatus('idle')
+    setDisplayNameError('')
+  }, [])
+
+  useEffect(() => {
+    if (!currentUser) return
+    setDisplayNameInput(currentUser.displayName || currentUser.email || '')
+    setIsEditingDisplayName(false)
+  }, [currentUser?.displayName, currentUser?.email])
 
   const loadProjectDetail = async (projectId: EntityId) => {
     if (!projectId) return
@@ -1106,6 +1227,7 @@ useEffect(() => {
     setCurrentUser(null)
     setAccountMenuOpen(false)
     setIsAccountSettingsOpen(false)
+    setProfileName('')
   }
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
@@ -1595,6 +1717,14 @@ useEffect(() => {
           onToggleAdmin={handleToggleUserAdmin}
           onResetPassword={handleResetUserPassword}
           onDeleteUser={handleDeleteUserAccount}
+        displayNameInput={displayNameInput}
+        displayNameStatus={displayNameStatus}
+        displayNameError={displayNameError}
+        onDisplayNameChange={handleDisplayNameChange}
+        onSaveDisplayName={handleSaveDisplayName}
+          onEditDisplayName={handleDisplayNameEdit}
+          onCancelDisplayName={handleDisplayNameCancel}
+          isEditingDisplayName={isEditingDisplayName}
         />
       )}
 

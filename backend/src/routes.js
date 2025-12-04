@@ -590,6 +590,49 @@ router.post('/users', async (req, res) => {
   }
 })
 
+router.patch('/users/me', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  if (req.user.synthetic) {
+    return res.status(403).json({ error: 'Synthetic accounts cannot be edited' })
+  }
+  const displayName =
+    typeof req.body?.displayName === 'string' && req.body.displayName.trim()
+      ? req.body.displayName.trim()
+      : null
+  if (!displayName) {
+    return res.status(400).json({ error: 'displayName is required' })
+  }
+  if (SKIP_DB) {
+    return res.json(
+      sanitizeUserRow({
+        ...stubUser,
+        display_name: displayName,
+        displayName,
+        created_at: new Date().toISOString(),
+      }),
+    )
+  }
+  try {
+    const updated = await prisma.users.update({
+      where: { id: req.user.id },
+      data: { display_name: displayName },
+      select: userSelectFields,
+    })
+    req.user = {
+      ...req.user,
+      displayName: updated.display_name,
+    }
+    res.json(sanitizeUserRow(updated))
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    res.status(500).json({ error: 'Failed to update display name', details: err.message })
+  }
+})
+
 router.patch('/users/:userId', async (req, res) => {
   if (!ensureSuperAdmin(req, res)) return
   if (SKIP_DB) {
@@ -651,6 +694,49 @@ router.delete('/users/:userId', async (req, res) => {
   }
 })
 
+router.patch('/users/me', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  if (req.user.synthetic) {
+    return res.status(403).json({ error: 'Synthetic accounts cannot be edited' })
+  }
+  const displayName =
+    typeof req.body?.displayName === 'string' && req.body.displayName.trim()
+      ? req.body.displayName.trim()
+      : null
+  if (!displayName) {
+    return res.status(400).json({ error: 'displayName is required' })
+  }
+  if (SKIP_DB) {
+    return res.json(
+      sanitizeUserRow({
+        ...stubUser,
+        display_name: displayName,
+        displayName,
+        created_at: new Date().toISOString(),
+      }),
+    )
+  }
+  try {
+    const updated = await prisma.users.update({
+      where: { id: req.user.id },
+      data: { display_name: displayName },
+      select: userSelectFields,
+    })
+    req.user = {
+      ...req.user,
+      displayName: updated.display_name,
+    }
+    res.json(sanitizeUserRow(updated))
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    res.status(500).json({ error: 'Failed to update display name', details: err.message })
+  }
+})
+
 router.use('/projects/:id', async (req, res, next) => {
   if (SKIP_DB) {
     req.project = stubProject
@@ -693,6 +779,36 @@ const projectAccessWhere = (user) => {
   }
   return filters.length ? { OR: filters } : {}
 }
+
+router.patch('/me', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' })
+  const data = {}
+  if (typeof req.body?.displayName === 'string' && req.body.displayName.trim()) {
+    data.display_name = req.body.displayName.trim()
+  }
+  if (!Object.keys(data).length) {
+    return res.status(400).json({ error: 'displayName is required' })
+  }
+  if (SKIP_DB) {
+    return res.json({
+      id: req.user.id,
+      email: req.user.email,
+      displayName: req.body.displayName.trim(),
+      isSuperAdmin: Boolean(req.user.isSuperAdmin),
+      createdAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const updated = await prisma.users.update({
+      where: { id: req.user.id },
+      data,
+      select: userSelectFields,
+    })
+    res.json(sanitizeUserRow(updated))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update profile', details: err.message })
+  }
+})
 
 const canUseUserId = (user) => Boolean(user && !user.synthetic && user.id)
 

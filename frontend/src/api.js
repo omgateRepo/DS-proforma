@@ -182,6 +182,15 @@ export async function deleteUser(userId) {
   return handleJsonResponse(res, 'Failed to delete user')
 }
 
+export async function updateCurrentUser(payload) {
+  const res = await request('/api/users/me', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update current user')
+}
+
 export async function updateProjectGeneral(id, payload) {
   const res = await request(`/api/projects/${id}`, {
     method: 'PATCH',
