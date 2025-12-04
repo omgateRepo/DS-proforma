@@ -7,6 +7,9 @@ const baseProject = {
   id: 'proj-1',
   gpContributions: [],
   carryingCosts: [],
+  collaborators: [],
+  owner: null,
+  ownerId: null,
 }
 
 const noop = async () => {}

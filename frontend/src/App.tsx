@@ -1227,7 +1227,6 @@ useEffect(() => {
     setCurrentUser(null)
     setAccountMenuOpen(false)
     setIsAccountSettingsOpen(false)
-    setProfileName('')
   }
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
