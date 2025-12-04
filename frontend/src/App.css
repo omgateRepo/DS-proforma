@@ -284,6 +284,23 @@
   font-size: 0.9rem;
 }
 
+.general-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.general-form-wrapper {
+  width: 100%;
+}
+
+.general-collaborators-wrapper {
+  width: 33.33%;
+  max-width: 360px;
+  align-self: flex-start;
+  min-width: 240px;
+}
+
 .collaborator-owner {
   display: flex;
   gap: 0.65rem;
@@ -350,7 +367,7 @@
 .floating-delete {
   position: absolute;
   bottom: 1.25rem;
-  left: 1.25rem;
+  right: 1.25rem;
 }
 
 .icon-delete {

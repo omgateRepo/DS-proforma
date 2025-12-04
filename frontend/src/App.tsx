@@ -1589,36 +1589,40 @@ useEffect(() => {
               </div>
 
               {activeTab === 'general' && (
-                <>
-                <GeneralTab
-                  form={generalForm}
-                  generalStatus={generalStatus}
-                  onSubmit={handleGeneralSave}
-                  onFieldChange={handleGeneralFieldChange}
-                  addressQuery={addressQuery}
-                  onAddressQueryChange={handleAddressInputChange}
-                  addressSuggestions={addressSuggestions}
-                  addressSearchStatus={addressSearchStatus}
-                  addressSearchError={addressSearchError}
-                  onAddressInputFocus={handleAddressInputFocus}
-                  onAddressSelect={handleAddressSelect}
-                  selectedCoords={selectedCoords}
-                  apiOrigin={apiOrigin}
-                />
-                  <CollaboratorsPanel
-                    ownerName={ownerName}
-                    ownerEmail={selectedProject.owner?.email || ''}
-                    collaborators={selectedProject.collaborators || []}
-                    canEdit={canEditCollaborators}
-                    selectedUserId={collaboratorSelection}
-                    availableUsers={availableUsers}
-                    status={collaboratorStatus}
-                    error={collaboratorError}
-                    onSelectionChange={setCollaboratorSelection}
-                    onSubmit={handleCollaboratorSubmit}
-                    onRemove={handleCollaboratorRemove}
-                  />
-                </>
+                <div className="general-layout">
+                  <div className="general-form-wrapper">
+                    <GeneralTab
+                      form={generalForm}
+                      generalStatus={generalStatus}
+                      onSubmit={handleGeneralSave}
+                      onFieldChange={handleGeneralFieldChange}
+                      addressQuery={addressQuery}
+                      onAddressQueryChange={handleAddressInputChange}
+                      addressSuggestions={addressSuggestions}
+                      addressSearchStatus={addressSearchStatus}
+                      addressSearchError={addressSearchError}
+                      onAddressInputFocus={handleAddressInputFocus}
+                      onAddressSelect={handleAddressSelect}
+                      selectedCoords={selectedCoords}
+                      apiOrigin={apiOrigin}
+                    />
+                  </div>
+                  <div className="general-collaborators-wrapper">
+                    <CollaboratorsPanel
+                      ownerName={ownerName}
+                      ownerEmail={selectedProject.owner?.email || ''}
+                      collaborators={selectedProject.collaborators || []}
+                      canEdit={canEditCollaborators}
+                      selectedUserId={collaboratorSelection}
+                      availableUsers={availableUsers}
+                      status={collaboratorStatus}
+                      error={collaboratorError}
+                      onSelectionChange={setCollaboratorSelection}
+                      onSubmit={handleCollaboratorSubmit}
+                      onRemove={handleCollaboratorRemove}
+                    />
+                  </div>
+                </div>
               )}
 
               {activeTab === 'revenue' && (
