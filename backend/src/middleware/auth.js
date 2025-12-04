@@ -83,6 +83,17 @@ export default function createAuthMiddleware({ enabled = true, bypass = [] } = {
           }
           return next()
         }
+        const superAdmin = await prisma.users.findFirst({ where: { is_super_admin: true }, orderBy: { created_at: 'asc' } })
+        if (superAdmin) {
+          req.user = {
+            id: superAdmin.id,
+            email: superAdmin.email,
+            displayName: superAdmin.display_name || envUsername,
+            isSuperAdmin: true,
+            synthetic: false,
+          }
+          return next()
+        }
       }
       req.user = baseUser
       return next()
