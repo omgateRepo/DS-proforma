@@ -4,6 +4,21 @@ export type Nullable<T> = T | null
 export type EntityId = string | number
 export type ProjectStage = 'new' | 'offer_submitted' | 'under_contract' | 'in_development' | 'stabilized'
 
+export interface UserSummary {
+  id: EntityId
+  email: string
+  displayName: string
+  isSuperAdmin: boolean
+  createdAt?: string | null
+}
+
+export interface ProjectCollaborator {
+  id: string
+  userId: string
+  email: string | null
+  displayName: string | null
+}
+
 export interface ProjectSummary {
   id: EntityId
   name: string
@@ -12,6 +27,8 @@ export interface ProjectSummary {
   state?: string | null
   targetUnits?: number | null
   purchasePriceUsd?: number | null
+  ownerId?: EntityId | null
+  owner?: UserSummary | null
 }
 
 export interface ProjectGeneral {
@@ -60,6 +77,9 @@ export type ProjectDetail = ProjectSummary & {
   hardCosts: HardCostRow[]
   carryingCosts: CarryingCostRow[]
   cashflow: CashflowRow[]
+  owner?: UserSummary | null
+  ownerId?: EntityId | null
+  collaborators: ProjectCollaborator[]
 }
 
 export const SOFT_COST_CATEGORY_IDS: readonly [
@@ -242,10 +262,13 @@ export interface CashflowRow {
 
 export interface WeatherReading {
   city: string
+  label?: string
   temperature_c: number
   windspeed_kmh: number
   sampled_at: string
   source: string
+  latitude?: number
+  longitude?: number
 }
 
 export declare const projectCreateSchema: z.ZodType<{ name: string }>

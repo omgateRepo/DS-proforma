@@ -7,28 +7,34 @@ type ApiModule = typeof import('../api.js')
 type UnauthorizedRef = { current: null | (() => void) }
 type MockApi = {
   mockFetchProjects: ReturnType<typeof vi.fn>
-  mockFetchPhiladelphiaWeather: ReturnType<typeof vi.fn>
+  mockFetchCurrentUser: ReturnType<typeof vi.fn>
+  mockFetchWeather: ReturnType<typeof vi.fn>
   mockSetAuthCredentials: ReturnType<typeof vi.fn>
   mockGetAuthCredentials: ReturnType<typeof vi.fn>
   mockClearAuthCredentials: ReturnType<typeof vi.fn>
+  mockFetchUsers: ReturnType<typeof vi.fn>
   unauthorizedRef: UnauthorizedRef
 }
 
 const mockApi = vi.hoisted<MockApi>(() => ({
   mockFetchProjects: vi.fn(),
-  mockFetchPhiladelphiaWeather: vi.fn(),
+  mockFetchCurrentUser: vi.fn(),
+  mockFetchWeather: vi.fn(),
   mockSetAuthCredentials: vi.fn(),
   mockGetAuthCredentials: vi.fn(),
   mockClearAuthCredentials: vi.fn(),
+  mockFetchUsers: vi.fn(),
   unauthorizedRef: { current: null },
 }))
 
 const {
   mockFetchProjects,
-  mockFetchPhiladelphiaWeather,
+  mockFetchCurrentUser,
+  mockFetchWeather,
   mockSetAuthCredentials,
   mockGetAuthCredentials,
   mockClearAuthCredentials,
+  mockFetchUsers,
   unauthorizedRef,
 } = mockApi
 
@@ -37,7 +43,9 @@ vi.mock('../api.js', async (importOriginal) => {
   return {
     ...actual,
     fetchProjects: mockApi.mockFetchProjects,
-    fetchPhiladelphiaWeather: mockApi.mockFetchPhiladelphiaWeather,
+    fetchCurrentUser: mockApi.mockFetchCurrentUser,
+    fetchWeather: mockApi.mockFetchWeather,
+    fetchUsers: mockApi.mockFetchUsers,
     getAuthCredentials: mockApi.mockGetAuthCredentials,
     setAuthCredentials: mockApi.mockSetAuthCredentials,
     clearAuthCredentials: mockApi.mockClearAuthCredentials,
@@ -54,13 +62,28 @@ import App from '../App'
 
 describe('App auth overlay', () => {
   beforeEach(() => {
+    mockFetchProjects.mockReset()
+    mockFetchCurrentUser.mockReset()
+    mockFetchWeather.mockReset()
+    mockFetchUsers.mockReset()
     mockFetchProjects.mockResolvedValue([])
-    mockFetchPhiladelphiaWeather.mockResolvedValue({
+    mockFetchCurrentUser.mockResolvedValue({
+      id: 'user-1',
+      email: 'ds@example.com',
+      displayName: 'Admin User',
+      isSuperAdmin: true,
+    })
+    mockFetchWeather.mockResolvedValue({
       city: 'Philadelphia',
+      label: 'Philadelphia',
       temperature_c: 20,
       windspeed_kmh: 5,
       sampled_at: '2025-01-01T00:00:00Z',
+      source: 'open-meteo',
+      latitude: 0,
+      longitude: 0,
     })
+    mockFetchUsers.mockResolvedValue([])
     mockSetAuthCredentials.mockReset()
     mockGetAuthCredentials.mockReset()
     mockClearAuthCredentials.mockReset()

@@ -15,6 +15,8 @@ export type {
   CashflowRow,
   AddressSuggestion,
   WeatherReading,
+  UserSummary,
+  ProjectCollaborator,
   CostPaymentMode,
   MeasurementUnit,
   CarryingType,

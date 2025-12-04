@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import fetch from 'node-fetch'
+import bcrypt from 'bcryptjs'
 import prisma from './prisma.js'
 import {
   projectCreateSchema,
@@ -33,8 +34,9 @@ import {
 
 const router = Router()
 const SKIP_DB = process.env.SKIP_DB === 'true'
-const WEATHER_URL =
-  'https://api.open-meteo.com/v1/forecast?latitude=39.9526&longitude=-75.1652&current_weather=true&timezone=America%2FNew_York'
+const HASH_ROUNDS = Number(process.env.AUTH_HASH_ROUNDS || 10)
+const WEATHER_DEFAULT_LOCATION = { lat: 39.9526, lon: -75.1652, label: 'Philadelphia' }
+const WEATHER_URL_BASE = 'https://api.open-meteo.com/v1/forecast'
 
 const STAGES = ['new', 'offer_submitted', 'under_contract', 'in_development', 'stabilized']
 const STAGE_LABELS = {
@@ -88,6 +90,14 @@ const HARD_COST_CATEGORIES = [
 ]
 const MEASUREMENT_UNITS = ['none', 'sqft', 'linear_feet', 'apartment', 'building']
 const PAYMENT_MODES = ['single', 'range', 'multi']
+const stubUser = {
+  id: 'stub-user',
+  email: 'ds',
+  display_name: 'Stub Admin',
+  displayName: 'Stub Admin',
+  isSuperAdmin: true,
+  synthetic: true,
+}
 const stubProject = {
   id: 'stub-1',
   name: 'Sample Multifamily Deal',
@@ -96,6 +106,8 @@ const stubProject = {
   state: 'PA',
   targetUnits: 42,
   purchasePriceUsd: 7500000,
+  ownerId: stubUser.id,
+  owner: stubUser,
   general: {
     addressLine1: '123 Market St',
     city: 'Philadelphia',
@@ -158,7 +170,26 @@ const stubProject = {
   softCosts: [],
   carryingCosts: [],
   cashflow: [],
+  collaborators: [],
 }
+
+const userSelectFields = {
+  id: true,
+  email: true,
+  display_name: true,
+  is_super_admin: true,
+  created_at: true,
+}
+
+const normalizeEmail = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '')
+
+const sanitizeUserRow = (row) => ({
+  id: row.id,
+  email: row.email,
+  displayName: row.display_name,
+  isSuperAdmin: Boolean(row.is_super_admin),
+  createdAt: row.created_at,
+})
 
 const projectFieldMap = {
   name: 'name',
@@ -320,6 +351,27 @@ function normalizeHardCostPayload(body) {
   }
 }
 
+const mapUserSummary = (row) =>
+  row
+    ? {
+        id: row.id,
+        email: row.email,
+        displayName: row.display_name,
+        isSuperAdmin: Boolean(row.is_super_admin),
+        createdAt: row.created_at || null,
+      }
+    : null
+
+const mapCollaboratorRow = (row) => {
+  const user = row.user || row.users || null
+  return {
+    id: row.id,
+    userId: row.user_id,
+    email: user?.email || null,
+    displayName: user?.display_name || null,
+  }
+}
+
 const mapProjectRow = (row) => ({
   id: row.id,
   name: row.name,
@@ -328,12 +380,16 @@ const mapProjectRow = (row) => ({
   state: row.state,
   targetUnits: toInt(row.target_units),
   purchasePriceUsd: toNumber(row.purchase_price_usd),
+  ownerId: row.owner_id,
+  owner: row.owner ? mapUserSummary(row.owner) : null,
 })
 
 const mapProjectDetail = (row) => ({
   id: row.id,
   name: row.name,
   stage: row.stage,
+  ownerId: row.owner_id ?? row.ownerId ?? null,
+  owner: row.owner ? mapUserSummary(row.owner) : null,
   general: {
     addressLine1: row.addressLine1,
     addressLine2: row.addressLine2,
@@ -359,6 +415,11 @@ const mapProjectDetail = (row) => ({
     turnoverPct: toNumber(row.retailTurnoverPct),
     turnoverCostUsd: toNumber(row.retailTurnoverCostUsd),
   },
+  collaborators: Array.isArray(row.collaborators)
+    ? row.collaborators
+    : row.project_collaborators
+    ? row.project_collaborators.map(mapCollaboratorRow)
+    : [],
 })
 
 const mapRevenueRow = (row) => ({
@@ -444,6 +505,245 @@ const mapCashflowRow = (row) => ({
 const getContextValue = (feature, prefix) =>
   feature?.context?.find((entry) => entry.id?.startsWith(prefix))?.text || null
 
+const isPublicRoute = (req) => {
+  const path = (req.path || req.originalUrl || '').toLowerCase()
+  return path.startsWith('/geocode/')
+}
+
+router.use((req, res, next) => {
+  if (isPublicRoute(req)) {
+    return next()
+  }
+  if (!req.user && SKIP_DB) {
+    req.user = stubUser
+  }
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+  return next()
+})
+
+router.get('/me', (req, res) => {
+  res.json(mapCurrentUser(req.user))
+})
+
+router.get('/users', async (req, res) => {
+  if (!ensureSuperAdmin(req, res)) return
+  if (SKIP_DB) {
+    return res.json([
+      sanitizeUserRow({
+        ...stubUser,
+        id: 'stub-user',
+        created_at: new Date().toISOString(),
+      }),
+    ])
+  }
+  try {
+    const users = await prisma.users.findMany({
+      orderBy: { created_at: 'asc' },
+      select: userSelectFields,
+    })
+    res.json(users.map(sanitizeUserRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load users', details: err.message })
+  }
+})
+
+router.post('/users', async (req, res) => {
+  if (!ensureSuperAdmin(req, res)) return
+  if (SKIP_DB) {
+    return res.status(201).json(
+      sanitizeUserRow({
+        ...stubUser,
+        id: `stub-${Date.now()}`,
+        email: req.body?.email || stubUser.email,
+        display_name: req.body?.displayName || stubUser.display_name,
+        is_super_admin: Boolean(req.body?.isSuperAdmin),
+        created_at: new Date().toISOString(),
+      }),
+    )
+  }
+  const email = normalizeEmail(req.body?.email)
+  const displayName = typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : ''
+  const password = typeof req.body?.password === 'string' ? req.body.password.trim() : ''
+  const isSuperAdmin = Boolean(req.body?.isSuperAdmin)
+  if (!email || !displayName || !password) {
+    return res.status(400).json({ error: 'email, displayName, and password are required' })
+  }
+  try {
+    const passwordHash = await bcrypt.hash(password, HASH_ROUNDS)
+    const created = await prisma.users.create({
+      data: {
+        email,
+        display_name: displayName,
+        password_hash: passwordHash,
+        is_super_admin: isSuperAdmin,
+      },
+      select: userSelectFields,
+    })
+    res.status(201).json(sanitizeUserRow(created))
+  } catch (err) {
+    if (err.code === 'P2002') {
+      return res.status(409).json({ error: 'Email already exists' })
+    }
+    res.status(500).json({ error: 'Failed to create user', details: err.message })
+  }
+})
+
+router.patch('/users/:userId', async (req, res) => {
+  if (!ensureSuperAdmin(req, res)) return
+  if (SKIP_DB) {
+    return res.json(
+      sanitizeUserRow({
+        ...stubUser,
+        id: req.params.userId,
+        email: req.body?.email || stubUser.email,
+        display_name: req.body?.displayName || stubUser.display_name,
+        is_super_admin: req.body?.isSuperAdmin ?? stubUser.isSuperAdmin,
+        created_at: new Date().toISOString(),
+      }),
+    )
+  }
+  const data = {}
+  if (typeof req.body?.displayName === 'string' && req.body.displayName.trim()) {
+    data.display_name = req.body.displayName.trim()
+  }
+  if (typeof req.body?.isSuperAdmin === 'boolean') {
+    data.is_super_admin = req.body.isSuperAdmin
+  }
+  if (typeof req.body?.password === 'string' && req.body.password.trim()) {
+    data.password_hash = await bcrypt.hash(req.body.password.trim(), HASH_ROUNDS)
+  }
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' })
+  }
+  try {
+    const updated = await prisma.users.update({
+      where: { id: req.params.userId },
+      data,
+      select: userSelectFields,
+    })
+    res.json(sanitizeUserRow(updated))
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    res.status(500).json({ error: 'Failed to update user', details: err.message })
+  }
+})
+
+router.delete('/users/:userId', async (req, res) => {
+  if (!ensureSuperAdmin(req, res)) return
+  if (SKIP_DB) {
+    return res.json({ id: req.params.userId, deleted: true })
+  }
+  if (req.user?.id === req.params.userId) {
+    return res.status(400).json({ error: 'You cannot delete your own account' })
+  }
+  try {
+    await prisma.users.delete({ where: { id: req.params.userId } })
+    res.json({ id: req.params.userId, deleted: true })
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    res.status(500).json({ error: 'Failed to delete user', details: err.message })
+  }
+})
+
+router.use('/projects/:id', async (req, res, next) => {
+  if (SKIP_DB) {
+    req.project = stubProject
+    return next()
+  }
+
+  const projectId = req.params.id
+  if (!isUuid(projectId)) {
+    return res.status(400).json({ error: 'Invalid project id' })
+  }
+
+  try {
+    const project = await prisma.projects.findFirst({
+      where: { id: projectId, deleted_at: null, ...projectAccessWhere(req.user) },
+      select: { id: true, owner_id: true },
+    })
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' })
+    }
+    req.project = project
+    return next()
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to verify project access', details: err.message })
+  }
+})
+
+const projectAccessWhere = (user) => {
+  if (user?.isSuperAdmin) return {}
+  const filters = []
+  if (user?.id && !user.synthetic) {
+    filters.push({ owner_id: user.id })
+    filters.push({
+      project_collaborators: {
+        some: { user_id: user.id },
+      },
+    })
+  } else {
+    // synthetic env/stub users get super-admin access
+    return {}
+  }
+  return filters.length ? { OR: filters } : {}
+}
+
+const canUseUserId = (user) => Boolean(user && !user.synthetic && user.id)
+
+const mapCurrentUser = (user) =>
+  user
+    ? {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        isSuperAdmin: Boolean(user.isSuperAdmin),
+      }
+    : null
+
+const isUuid = (value) =>
+  typeof value === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+
+const canManageCollaborators = (user, project) => {
+  if (user?.isSuperAdmin) return true
+  if (!project?.owner_id) return false
+  return canUseUserId(user) && project.owner_id === user.id
+}
+
+const ensureSuperAdmin = (req, res) => {
+  if (!req.user?.isSuperAdmin) {
+    res.status(403).json({ error: 'Super admin access required' })
+    return false
+  }
+  return true
+}
+
+const fetchProjectCollaborators = (projectId) =>
+  prisma.project_collaborators.findMany({
+    where: { project_id: projectId },
+    orderBy: { created_at: 'asc' },
+    include: {
+      users: {
+        select: userSelectFields,
+      },
+    },
+  })
+
+const buildWeatherUrl = (lat, lon) => {
+  const url = new URL(WEATHER_URL_BASE)
+  url.searchParams.set('latitude', String(lat))
+  url.searchParams.set('longitude', String(lon))
+  url.searchParams.set('current_weather', 'true')
+  url.searchParams.set('timezone', 'UTC')
+  return url
+}
+
 router.get('/health', async (_req, res) => {
   if (SKIP_DB) return res.json({ ok: true, mode: 'stub' })
   try {
@@ -454,13 +754,13 @@ router.get('/health', async (_req, res) => {
   }
 })
 
-router.get('/projects', async (_req, res) => {
+router.get('/projects', async (req, res) => {
   if (SKIP_DB) {
     return res.json([stubProject])
   }
   try {
     const projects = await prisma.projects.findMany({
-      where: { deleted_at: null },
+      where: { deleted_at: null, ...projectAccessWhere(req.user) },
       orderBy: { created_at: 'desc' },
       select: {
         id: true,
@@ -470,6 +770,16 @@ router.get('/projects', async (_req, res) => {
         state: true,
         target_units: true,
         purchase_price_usd: true,
+        owner_id: true,
+        owner: {
+          select: {
+            id: true,
+            email: true,
+            display_name: true,
+            is_super_admin: true,
+            created_at: true,
+          },
+        },
       },
     })
     res.json(projects.map(mapProjectRow))
@@ -484,11 +794,21 @@ router.get('/projects/:id', async (req, res) => {
   }
   try {
     const projectRow = await prisma.projects.findFirst({
-      where: { id: req.params.id, deleted_at: null },
+      where: { id: req.params.id, deleted_at: null, ...projectAccessWhere(req.user) },
       select: {
         id: true,
         name: true,
         stage: true,
+        owner_id: true,
+        owner: {
+          select: {
+            id: true,
+            email: true,
+            display_name: true,
+            is_super_admin: true,
+            created_at: true,
+          },
+        },
         address_line1: true,
         address_line2: true,
         city: true,
@@ -508,6 +828,13 @@ router.get('/projects/:id', async (req, res) => {
         retail_turnover_cost: true,
         start_leasing_date: true,
         stabilized_date: true,
+        project_collaborators: {
+          include: {
+            users: {
+              select: userSelectFields,
+            },
+          },
+        },
       },
     })
     if (!projectRow) return res.status(404).json({ error: 'Project not found' })
@@ -527,6 +854,9 @@ router.get('/projects/:id', async (req, res) => {
       retailTurnoverCostUsd: projectRow.retail_turnover_cost,
       startLeasingDate: projectRow.start_leasing_date,
       stabilizedDate: projectRow.stabilized_date,
+      owner: projectRow.owner,
+      ownerId: projectRow.owner_id,
+      collaborators: projectRow.project_collaborators,
     })
 
     const [revenue, retail, parking, contributions, costs, cashflow] = await Promise.all([
@@ -572,6 +902,18 @@ router.get('/projects/:id', async (req, res) => {
   }
 })
 
+router.get('/projects/:id/collaborators', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json(stubProject.collaborators)
+  }
+  try {
+    const rows = await fetchProjectCollaborators(req.params.id)
+    res.json(rows.map(mapCollaboratorRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load collaborators', details: err.message })
+  }
+})
+
 router.post('/projects', async (req, res) => {
   const payload = parseBody(projectCreateSchema, req.body, res)
   if (!payload) return
@@ -586,13 +928,18 @@ router.post('/projects', async (req, res) => {
         city: 'Philadelphia',
         state: 'PA',
         targetUnits: 0,
+        ownerId: stubProject.ownerId,
+        owner: stubProject.owner,
+        collaborators: [],
       })
   }
   try {
+    const ownerData = canUseUserId(req.user) ? { owner_id: req.user.id } : {}
     const project = await prisma.projects.create({
       data: {
         name,
         stage: 'new',
+        ...ownerData,
       },
       select: {
         id: true,
@@ -602,11 +949,86 @@ router.post('/projects', async (req, res) => {
         state: true,
         target_units: true,
         purchase_price_usd: true,
+        owner_id: true,
+        owner: {
+          select: {
+            id: true,
+            email: true,
+            display_name: true,
+            is_super_admin: true,
+            created_at: true,
+          },
+        },
       },
     })
     res.status(201).json(mapProjectRow(project))
   } catch (err) {
     res.status(500).json({ error: 'Failed to create project', details: err.message })
+  }
+})
+
+router.post('/projects/:id/collaborators', async (req, res) => {
+  if (SKIP_DB) {
+    return res.status(201).json(stubProject.collaborators)
+  }
+  const project = req.project
+  if (!canManageCollaborators(req.user, project)) {
+    return res.status(403).json({ error: 'Only owners or super admins can manage collaborators' })
+  }
+  const email = normalizeEmail(req.body?.email)
+  if (!email) {
+    return res.status(400).json({ error: 'email is required' })
+  }
+  try {
+    const user = await prisma.users.findUnique({
+      where: { email },
+      select: userSelectFields,
+    })
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    if (user.id === project.owner_id) {
+      return res.status(400).json({ error: 'Owner already has access' })
+    }
+    const existing = await prisma.project_collaborators.findFirst({
+      where: { project_id: project.id, user_id: user.id },
+    })
+    if (existing) {
+      return res.status(400).json({ error: 'User already added to this project' })
+    }
+    await prisma.project_collaborators.create({
+      data: {
+        project_id: project.id,
+        user_id: user.id,
+      },
+    })
+    const collaborators = await fetchProjectCollaborators(project.id)
+    res.status(201).json(collaborators.map(mapCollaboratorRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add collaborator', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/collaborators/:collaboratorId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json(stubProject.collaborators)
+  }
+  const project = req.project
+  if (!canManageCollaborators(req.user, project)) {
+    return res.status(403).json({ error: 'Only owners or super admins can manage collaborators' })
+  }
+  try {
+    const collaborator = await prisma.project_collaborators.findFirst({
+      where: { id: req.params.collaboratorId, project_id: project.id },
+    })
+    if (!collaborator) {
+      return res.status(404).json({ error: 'Collaborator not found' })
+    }
+    await prisma.project_collaborators.delete({ where: { id: collaborator.id } })
+    const collaborators = await fetchProjectCollaborators(project.id)
+    res.json(collaborators.map(mapCollaboratorRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove collaborator', details: err.message })
   }
 })
 
@@ -650,6 +1072,16 @@ router.patch('/projects/:id', async (req, res) => {
         id: true,
         name: true,
         stage: true,
+        owner_id: true,
+        owner: {
+          select: {
+            id: true,
+            email: true,
+            display_name: true,
+            is_super_admin: true,
+            created_at: true,
+          },
+        },
         address_line1: true,
         address_line2: true,
         city: true,
@@ -669,6 +1101,13 @@ router.patch('/projects/:id', async (req, res) => {
         stabilized_date: true,
         retail_turnover_pct: true,
         retail_turnover_cost: true,
+        project_collaborators: {
+          include: {
+            users: {
+              select: userSelectFields,
+            },
+          },
+        },
       },
     })
     res.json(
@@ -687,6 +1126,9 @@ router.patch('/projects/:id', async (req, res) => {
         retailTurnoverCostUsd: updated.retail_turnover_cost,
         startLeasingDate: updated.start_leasing_date,
         stabilizedDate: updated.stabilized_date,
+        owner: updated.owner,
+        ownerId: updated.owner_id,
+        collaborators: updated.project_collaborators,
       }),
     )
   } catch (err) {
@@ -1567,23 +2009,34 @@ router.get('/geocode/satellite', async (req, res) => {
   }
 })
 
-router.get('/weather', async (_req, res) => {
+router.get('/weather', async (req, res) => {
+  const requestedLat = Number.parseFloat(req.query.lat)
+  const requestedLon = Number.parseFloat(req.query.lon)
+  const label =
+    (typeof req.query.label === 'string' && req.query.label.trim()) || WEATHER_DEFAULT_LOCATION.label
+  const latitude = Number.isFinite(requestedLat) ? requestedLat : WEATHER_DEFAULT_LOCATION.lat
+  const longitude = Number.isFinite(requestedLon) ? requestedLon : WEATHER_DEFAULT_LOCATION.lon
+
   try {
-    const response = await fetch(WEATHER_URL)
+    const weatherUrl = buildWeatherUrl(latitude, longitude)
+    const response = await fetch(weatherUrl.href)
     if (!response.ok) throw new Error(`Weather request failed (${response.status})`)
     const payload = await response.json()
     const current = payload?.current_weather
     if (!current) throw new Error('Weather payload missing current_weather')
     res.json({
-      city: 'Philadelphia',
+      city: label,
+      label,
       temperature_c: current.temperature,
       windspeed_kmh: current.windspeed,
       sampled_at: current.time,
       source: 'open-meteo',
+      latitude,
+      longitude,
     })
   } catch (err) {
     console.error('Weather fetch failed', err)
-    res.status(500).json({ error: 'Failed to fetch Philadelphia temperature', details: err.message })
+    res.status(500).json({ error: 'Failed to fetch weather', details: err.message })
   }
 })
 

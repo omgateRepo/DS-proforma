@@ -1,21 +1,29 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 import {
   API_BASE,
+  addProjectCollaborator,
   clearAuthCredentials,
   createProject,
+  createUser,
   deleteProject,
-  fetchPhiladelphiaWeather,
+  deleteUser,
+  fetchCurrentUser,
   fetchProjectDetail,
+  fetchProjectCollaborators,
   fetchProjects,
+  fetchUsers,
+  fetchWeather,
   getAuthCredentials,
   onUnauthorized,
+  removeProjectCollaborator,
   searchAddresses,
   setAuthCredentials,
   stageLabels,
   updateProjectGeneral,
   updateProjectStage,
+  updateUser,
 } from './api.js'
 import { RevenueSection } from './features/revenue/RevenueSection'
 import { HardCostsSection } from './features/costs/HardCostsSection'
@@ -45,9 +53,11 @@ import type {
   GpContributionRow,
   IntervalUnit,
   ParkingRevenueRow,
+  ProjectCollaborator,
   ProjectDetail,
   ProjectStage,
   ProjectSummary,
+  UserSummary,
   WeatherReading,
 } from './types'
 
@@ -90,13 +100,322 @@ const defaultGeneralForm: GeneralFormState = {
   description: '',
 }
 
+type ProjectWeatherCardProps = {
+  status: LoadStatus
+  weather: WeatherReading | null
+  error: string
+  hasCoords: boolean
+}
+
+function ProjectWeatherCard({ status, weather, error, hasCoords }: ProjectWeatherCardProps) {
+  let body = null
+  if (!hasCoords) {
+    body = <p className="muted tiny">Add latitude/longitude to view this project&apos;s local weather.</p>
+  } else if (status === 'loading') {
+    body = <p className="muted tiny">Updating forecast…</p>
+  } else if (status === 'error') {
+    body = <p className="error tiny">{error}</p>
+  } else if (status === 'loaded' && weather) {
+    body = (
+      <>
+        <strong className="weather-temp">{Math.round(weather.temperature_c)}°C</strong>
+        <p className="muted tiny">{weather.label || weather.city}</p>
+        <p className="muted tiny">Wind {Math.round(weather.windspeed_kmh)} km/h</p>
+      </>
+    )
+  } else {
+    body = <p className="muted tiny">Select a project to view the forecast.</p>
+  }
+  return (
+    <div className="project-weather-card">
+      <p className="eyebrow tiny">Local Weather</p>
+      {body}
+    </div>
+  )
+}
+
+type CollaboratorsPanelProps = {
+  ownerName: string
+  ownerEmail: string
+  collaborators: ProjectCollaborator[]
+  canEdit: boolean
+  inputValue: string
+  status: RequestStatus
+  error: string
+  onInputChange: (value: string) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onRemove: (id: string) => void
+}
+
+function CollaboratorsPanel({
+  ownerName,
+  ownerEmail,
+  collaborators,
+  canEdit,
+  inputValue,
+  status,
+  error,
+  onInputChange,
+  onSubmit,
+  onRemove,
+}: CollaboratorsPanelProps) {
+  return (
+    <section className="collaborators-panel">
+      <div className="section-header">
+        <h4>Collaborators</h4>
+        {canEdit && <p className="muted tiny">Owners and super admins can invite teammates.</p>}
+      </div>
+      <div className="collaborator-owner">
+        <span className="pill">Owner</span>
+        <div>
+          <strong>{ownerName}</strong>
+          <p className="muted tiny">{ownerEmail}</p>
+        </div>
+      </div>
+      <ul className="collaborator-list">
+        {collaborators.length === 0 && <li className="muted tiny">No collaborators yet.</li>}
+        {collaborators.map((collab) => (
+          <li key={collab.id}>
+            <div>
+              <strong>{collab.displayName || collab.email || 'User'}</strong>
+              <p className="muted tiny">{collab.email}</p>
+            </div>
+            {canEdit && (
+              <button type="button" className="ghost tiny" onClick={() => onRemove(collab.id)}>
+                Remove
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {canEdit && (
+        <form onSubmit={onSubmit} className="collaborator-form">
+          <label>
+            <span className="muted tiny">Invite collaborator</span>
+            <input
+              type="email"
+              value={inputValue}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder="user@example.com"
+              disabled={status === 'saving'}
+            />
+          </label>
+          {error && <p className="error tiny">{error}</p>}
+          <button type="submit" className="primary" disabled={status === 'saving'}>
+            {status === 'saving' ? 'Adding…' : 'Add collaborator'}
+          </button>
+        </form>
+      )}
+    </section>
+  )
+}
+
+type AccountSettingsModalProps = {
+  currentUser: UserSummary
+  isAdmin: boolean
+  onClose: () => void
+  onLogout: () => void
+  users: UserSummary[]
+  usersStatus: LoadStatus
+  usersError: string
+  userActionStatus: RequestStatus
+  userActionError: string
+  onRefreshUsers: () => Promise<void>
+  onCreateUser: (payload: { email: string; displayName: string; password: string; isSuperAdmin: boolean }) => Promise<void>
+  onToggleAdmin: (userId: EntityId, nextValue: boolean) => Promise<void>
+  onResetPassword: (userId: EntityId, password: string) => Promise<void>
+  onDeleteUser: (userId: EntityId) => Promise<void>
+}
+
+function AccountSettingsModal({
+  currentUser,
+  isAdmin,
+  onClose,
+  onLogout,
+  users,
+  usersStatus,
+  usersError,
+  userActionStatus,
+  userActionError,
+  onRefreshUsers,
+  onCreateUser,
+  onToggleAdmin,
+  onResetPassword,
+  onDeleteUser,
+}: AccountSettingsModalProps) {
+  const [form, setForm] = useState({
+    email: '',
+    displayName: '',
+    password: '',
+    isSuperAdmin: false,
+  })
+  const [localError, setLocalError] = useState('')
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!form.email.trim() || !form.displayName.trim() || !form.password.trim()) {
+      setLocalError('All fields are required')
+      return
+    }
+    setLocalError('')
+    await onCreateUser({
+      email: form.email.trim(),
+      displayName: form.displayName.trim(),
+      password: form.password.trim(),
+      isSuperAdmin: form.isSuperAdmin,
+    })
+    setForm({ email: '', displayName: '', password: '', isSuperAdmin: false })
+  }
+
+  const handleToggleRole = async (user: UserSummary) => {
+    await onToggleAdmin(user.id, !user.isSuperAdmin)
+  }
+
+  const handleResetPasswordClick = async (user: UserSummary) => {
+    const nextPassword = window.prompt(`Enter a new password for ${user.email}`)
+    if (!nextPassword || !nextPassword.trim()) return
+    await onResetPassword(user.id, nextPassword.trim())
+  }
+
+  const handleDeleteUserClick = async (user: UserSummary) => {
+    if (!window.confirm(`Remove ${user.email}?`)) return
+    await onDeleteUser(user.id)
+  }
+
+  return (
+    <div className="modal-backdrop account-settings-backdrop">
+      <div className="account-modal">
+        <header>
+          <div>
+            <h3>Account settings</h3>
+            <p className="muted tiny">{currentUser.email}</p>
+          </div>
+          <button type="button" className="ghost" onClick={onClose}>
+            ✕
+          </button>
+        </header>
+
+        <section className="account-section">
+          <h4>Profile</h4>
+          <p>{currentUser.displayName || currentUser.email}</p>
+          <p className="muted tiny">{currentUser.isSuperAdmin ? 'Super admin' : 'Collaborator'}</p>
+          <button type="button" className="ghost tiny" onClick={onLogout}>
+            Sign out
+          </button>
+        </section>
+
+        {isAdmin && (
+          <section className="account-section">
+            <div className="section-header">
+              <h4>Manage Users</h4>
+              <button type="button" className="ghost tiny" onClick={onRefreshUsers} disabled={usersStatus === 'loading'}>
+                Refresh
+              </button>
+            </div>
+            <form className="add-user-form" onSubmit={handleSubmit}>
+              <input
+                type="email"
+                placeholder="Email"
+                value={form.email}
+                onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                disabled={userActionStatus === 'saving'}
+              />
+              <input
+                type="text"
+                placeholder="Display name"
+                value={form.displayName}
+                onChange={(e) => setForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                disabled={userActionStatus === 'saving'}
+              />
+              <input
+                type="password"
+                placeholder="Temporary password"
+                value={form.password}
+                onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+                disabled={userActionStatus === 'saving'}
+              />
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={form.isSuperAdmin}
+                  onChange={(e) => setForm((prev) => ({ ...prev, isSuperAdmin: e.target.checked }))}
+                  disabled={userActionStatus === 'saving'}
+                />
+                <span>Super admin</span>
+              </label>
+              {(localError || userActionError) && (
+                <p className="error tiny">{localError || userActionError}</p>
+              )}
+              <button type="submit" className="primary" disabled={userActionStatus === 'saving'}>
+                {userActionStatus === 'saving' ? 'Creating…' : 'Create user'}
+              </button>
+            </form>
+
+            {usersStatus === 'error' && <p className="error tiny">{usersError}</p>}
+            {usersStatus === 'loading' && <p className="muted tiny">Loading users…</p>}
+            {usersStatus === 'loaded' && users.length === 0 && (
+              <p className="muted tiny">No users yet.</p>
+            )}
+            {usersStatus === 'loaded' && users.length > 0 && (
+              <table className="users-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id}>
+                      <td>
+                        <div>
+                          <strong>{user.displayName || user.email}</strong>
+                          <p className="muted tiny">{user.email}</p>
+                        </div>
+                      </td>
+                      <td>{user.isSuperAdmin ? 'Super admin' : 'User'}</td>
+                      <td>
+                        <div className="user-actions">
+                          <button type="button" className="ghost tiny" onClick={() => handleToggleRole(user)}>
+                            {user.isSuperAdmin ? 'Revoke admin' : 'Make admin'}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost tiny"
+                            onClick={() => handleResetPasswordClick(user)}
+                          >
+                            Reset password
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost tiny"
+                            onClick={() => handleDeleteUserClick(user)}
+                            disabled={currentUser.id === user.id}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default App
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const getCoordKey = (id: EntityId) => String(id)
 
 function App() {
   const initialAuth = getAuthCredentials()
   const initialProjectsStatus: LoadStatus = initialAuth ? 'loading' : 'idle'
-  const initialWeatherStatus: LoadStatus = initialAuth ? 'loading' : 'idle'
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectsStatus, setProjectsStatus] = useState<LoadStatus>(initialProjectsStatus)
   const [projectsError, setProjectsError] = useState('')
@@ -111,9 +430,6 @@ function App() {
   const [createStatus, setCreateStatus] = useState<RequestStatus>('idle')
   const [createError, setCreateError] = useState('')
   const [deleteError, setDeleteError] = useState('')
-  const [weather, setWeather] = useState<WeatherReading | null>(null)
-  const [weatherStatus, setWeatherStatus] = useState<LoadStatus>(initialWeatherStatus)
-  const [weatherError, setWeatherError] = useState('')
   const [stageUpdatingFor, setStageUpdatingFor] = useState<EntityId | null>(null)
   const [addressQuery, setAddressQuery] = useState('')
   const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([])
@@ -134,6 +450,21 @@ function App() {
   const [authError, setAuthError] = useState('')
   const [isAuthReady, setIsAuthReady] = useState(Boolean(initialAuth))
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(!initialAuth)
+  const [currentUser, setCurrentUser] = useState<UserSummary | null>(null)
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
+  const [users, setUsers] = useState<UserSummary[]>([])
+  const [usersStatus, setUsersStatus] = useState<LoadStatus>('idle')
+  const [usersError, setUsersError] = useState('')
+  const [userActionStatus, setUserActionStatus] = useState<RequestStatus>('idle')
+  const [userActionError, setUserActionError] = useState('')
+  const [projectWeather, setProjectWeather] = useState<WeatherReading | null>(null)
+  const [projectWeatherStatus, setProjectWeatherStatus] = useState<LoadStatus>('idle')
+  const [projectWeatherError, setProjectWeatherError] = useState('')
+  const [collaboratorInput, setCollaboratorInput] = useState('')
+  const [collaboratorStatus, setCollaboratorStatus] = useState<RequestStatus>('idle')
+  const [collaboratorError, setCollaboratorError] = useState('')
+  const accountMenuRef = useRef<HTMLDivElement | null>(null)
 
   const stageOptions = stageLabels() as Array<{ id: ProjectStage; label: string }>
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
@@ -202,6 +533,24 @@ function App() {
     const parsed = Number(value)
     return Number.isNaN(parsed) ? null : parsed
   }
+
+  const parseCoordinateValue = (value: number | string | null | undefined) => {
+    if (value === null || value === undefined) return null
+    const parsed = typeof value === 'string' ? Number(value) : value
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const ownerName = selectedProject?.owner?.displayName || selectedProject?.owner?.email || 'Owner'
+  const canEditCollaborators =
+    Boolean(currentUser?.isSuperAdmin) ||
+    Boolean(currentUser && selectedProject?.ownerId && selectedProject.ownerId === currentUser.id)
+  const latForWeather = parseCoordinateValue(
+    selectedCoords?.lat ?? selectedProject?.general?.latitude ?? null,
+  )
+  const lonForWeather = parseCoordinateValue(
+    selectedCoords?.lon ?? selectedProject?.general?.longitude ?? null,
+  )
+  const hasWeatherCoords = latForWeather !== null && lonForWeather !== null
 
   const getOffsetFromDate = useCallback(
     (value: string | null | undefined) => {
@@ -449,14 +798,14 @@ function App() {
     }, {} as Record<ProjectStage, ProjectSummary[]>)
   }, [projects, stageOptions])
   const isKanbanView = !selectedProjectId
-  const showSignOut = isAuthReady && !isAuthModalOpen
+  const showAccountMenu = isAuthReady && !isAuthModalOpen && Boolean(currentUser)
 
   const loadProjects = async () => {
     setProjectsStatus('loading')
     setProjectsError('')
     try {
       const rows = (await fetchProjects()) as ProjectSummary[]
-      setProjects(rows)
+        setProjects(rows)
       if (selectedProjectId && !rows.some((row) => row.id === selectedProjectId)) {
         setSelectedProjectId(null)
         setSelectedProject(null)
@@ -468,18 +817,95 @@ function App() {
     }
   }
 
-  const loadWeather = async () => {
-    setWeatherStatus('loading')
-    setWeatherError('')
+  const loadCurrentUser = useCallback(async () => {
     try {
-      const reading = (await fetchPhiladelphiaWeather()) as WeatherReading
-      setWeather(reading)
-      setWeatherStatus('loaded')
+      const me = (await fetchCurrentUser()) as UserSummary
+      setCurrentUser(me)
     } catch (err) {
-      setWeatherError(getErrorMessage(err))
-      setWeatherStatus('error')
+      setCurrentUser(null)
     }
-  }
+  }, [])
+
+  const refreshUsers = useCallback(async () => {
+    if (!currentUser?.isSuperAdmin) return
+    setUsersStatus('loading')
+    setUsersError('')
+    try {
+      const list = (await fetchUsers()) as UserSummary[]
+      setUsers(list)
+      setUsersStatus('loaded')
+    } catch (err) {
+      setUsersError(getErrorMessage(err))
+      setUsersStatus('error')
+    }
+  }, [currentUser?.isSuperAdmin])
+
+  const handleCreateUserAccount = useCallback(
+    async (payload: { email: string; displayName: string; password: string; isSuperAdmin: boolean }) => {
+      if (!currentUser?.isSuperAdmin) return
+      setUserActionStatus('saving')
+      setUserActionError('')
+      try {
+        await createUser(payload)
+        await refreshUsers()
+        setUserActionStatus('idle')
+      } catch (err) {
+        setUserActionStatus('error')
+        setUserActionError(getErrorMessage(err))
+      }
+    },
+    [currentUser?.isSuperAdmin, refreshUsers],
+  )
+
+  const handleToggleUserAdmin = useCallback(
+    async (userId: EntityId, nextValue: boolean) => {
+      if (!currentUser?.isSuperAdmin) return
+      setUserActionStatus('saving')
+      setUserActionError('')
+      try {
+        await updateUser(userId, { isSuperAdmin: nextValue })
+        await refreshUsers()
+        setUserActionStatus('idle')
+      } catch (err) {
+        setUserActionStatus('error')
+        setUserActionError(getErrorMessage(err))
+      }
+    },
+    [currentUser?.isSuperAdmin, refreshUsers],
+  )
+
+  const handleResetUserPassword = useCallback(
+    async (userId: EntityId, password: string) => {
+      if (!currentUser?.isSuperAdmin) return
+      setUserActionStatus('saving')
+      setUserActionError('')
+      try {
+        await updateUser(userId, { password })
+        setUserActionStatus('idle')
+      } catch (err) {
+        setUserActionStatus('error')
+        setUserActionError(getErrorMessage(err))
+      }
+    },
+    [currentUser?.isSuperAdmin],
+  )
+
+  const handleDeleteUserAccount = useCallback(
+    async (userId: EntityId) => {
+      if (!currentUser?.isSuperAdmin) return
+      setUserActionStatus('saving')
+      setUserActionError('')
+      try {
+        await deleteUser(userId)
+        await refreshUsers()
+        setUserActionStatus('idle')
+      } catch (err) {
+        setUserActionStatus('error')
+        setUserActionError(getErrorMessage(err))
+      }
+    },
+    [currentUser?.isSuperAdmin, refreshUsers],
+  )
 
   const loadProjectDetail = async (projectId: EntityId) => {
     if (!projectId) return
@@ -492,6 +918,7 @@ function App() {
       detail.gpContributions = detail.gpContributions || []
       detail.apartmentTurnover = detail.apartmentTurnover || { turnoverPct: null, turnoverCostUsd: null }
       detail.retailTurnover = detail.retailTurnover || { turnoverPct: null, turnoverCostUsd: null }
+      detail.collaborators = detail.collaborators || []
       setSelectedProject(detail)
       setGeneralForm({
         ...defaultGeneralForm,
@@ -534,12 +961,28 @@ function App() {
   useEffect(() => {
     if (!isAuthReady) return
     loadProjects()
-    loadWeather()
-  }, [isAuthReady])
+    loadCurrentUser()
+  }, [isAuthReady, loadCurrentUser])
+
+useEffect(() => {
+  if (!isAccountSettingsOpen || !currentUser?.isSuperAdmin) return
+  refreshUsers()
+}, [isAccountSettingsOpen, currentUser?.isSuperAdmin, refreshUsers])
 
   useEffect(() => {
     setExpandedCashflowRows(new Set())
   }, [selectedProjectId])
+
+  useEffect(() => {
+    if (!accountMenuOpen) return
+    const handleClick = (event: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setAccountMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [accountMenuOpen])
 
   useEffect(() => {
     const unsubscribe = onUnauthorized(() => {
@@ -549,6 +992,9 @@ function App() {
       setAuthStatus('error')
       setAuthError('Authentication required. Please sign in again.')
       setAuthForm((prev) => ({ ...prev, password: '' }))
+      setCurrentUser(null)
+      setAccountMenuOpen(false)
+      setIsAccountSettingsOpen(false)
     })
     return unsubscribe
   }, [])
@@ -558,6 +1004,51 @@ function App() {
       loadProjectDetail(selectedProjectId)
     }
   }, [selectedProjectId])
+
+useEffect(() => {
+  if (!selectedProject) {
+    setProjectWeather(null)
+    setProjectWeatherStatus('idle')
+    setProjectWeatherError('')
+    return
+  }
+  const latCandidate = selectedCoords?.lat ?? selectedProject.general.latitude
+  const lonCandidate = selectedCoords?.lon ?? selectedProject.general.longitude
+  const lat = parseCoordinateValue(latCandidate)
+  const lon = parseCoordinateValue(lonCandidate)
+  if (lat === null || lon === null) {
+    setProjectWeather(null)
+    setProjectWeatherStatus('idle')
+    setProjectWeatherError('')
+    return
+  }
+  let cancelled = false
+  setProjectWeatherStatus('loading')
+  setProjectWeatherError('')
+  fetchWeather(lat, lon, selectedProject.name)
+    .then((reading) => {
+      if (!cancelled) {
+        setProjectWeather(reading as WeatherReading)
+        setProjectWeatherStatus('loaded')
+      }
+    })
+    .catch((err) => {
+      if (!cancelled) {
+        setProjectWeather(null)
+        setProjectWeatherStatus('error')
+        setProjectWeatherError(getErrorMessage(err))
+      }
+    })
+  return () => {
+    cancelled = true
+  }
+}, [
+  selectedProject,
+  selectedCoords?.lat,
+  selectedCoords?.lon,
+  selectedProject?.general.latitude,
+  selectedProject?.general.longitude,
+])
 
   useEffect(() => {
     if (!addressInputTouched) return
@@ -598,8 +1089,7 @@ function App() {
       setIsAuthReady(true)
       setIsAuthModalOpen(false)
       setAuthStatus('idle')
-      await loadProjects()
-      await loadWeather()
+      await Promise.all([loadProjects(), loadCurrentUser()])
     } catch (err) {
       clearAuthCredentials()
       setAuthStatus('error')
@@ -613,6 +1103,9 @@ function App() {
     setIsAuthModalOpen(true)
     setAuthForm({ username: '', password: '' })
     setAuthError('')
+    setCurrentUser(null)
+    setAccountMenuOpen(false)
+    setIsAccountSettingsOpen(false)
   }
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
@@ -635,6 +1128,61 @@ function App() {
       setCreateError(getErrorMessage(err))
       setCreateStatus('error')
     }
+  }
+
+  async function handleCollaboratorSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedProjectId) return
+    if (!collaboratorInput.trim()) {
+      setCollaboratorError('Email is required')
+      setCollaboratorStatus('error')
+      return
+    }
+    setCollaboratorStatus('saving')
+    setCollaboratorError('')
+    try {
+      const list = (await addProjectCollaborator(
+        selectedProjectId,
+        collaboratorInput.trim(),
+      )) as ProjectCollaborator[]
+      setSelectedProject((prev) => (prev ? { ...prev, collaborators: list } : prev))
+      setCollaboratorInput('')
+      setCollaboratorStatus('idle')
+    } catch (err) {
+      setCollaboratorStatus('error')
+      setCollaboratorError(getErrorMessage(err))
+    }
+  }
+
+  async function handleCollaboratorRemove(collaboratorId: string) {
+    if (!selectedProjectId) return
+    setCollaboratorStatus('saving')
+    setCollaboratorError('')
+    try {
+      const list = (await removeProjectCollaborator(
+        selectedProjectId,
+        collaboratorId,
+      )) as ProjectCollaborator[]
+      setSelectedProject((prev) => (prev ? { ...prev, collaborators: list } : prev))
+      setCollaboratorStatus('idle')
+    } catch (err) {
+      setCollaboratorStatus('error')
+      setCollaboratorError(getErrorMessage(err))
+    }
+  }
+
+  const handleAccountMenuToggle = () => {
+    setAccountMenuOpen((prev) => !prev)
+  }
+
+  const handleOpenAccountSettings = () => {
+    setAccountMenuOpen(false)
+    setIsAccountSettingsOpen(true)
+  }
+
+  const handleCloseAccountSettings = () => {
+    setIsAccountSettingsOpen(false)
+    setUserActionError('')
   }
 
   function openCreateModal() {
@@ -731,7 +1279,18 @@ function App() {
       })
       const updated = (await updateProjectGeneral(selectedProjectId, payload)) as ProjectDetail
       setSelectedProject((prev) =>
-        prev ? { ...prev, name: updated.name, general: updated.general, apartmentTurnover: updated.apartmentTurnover } : prev,
+        prev
+          ? {
+              ...prev,
+              name: updated.name,
+              general: updated.general,
+              apartmentTurnover: updated.apartmentTurnover,
+              retailTurnover: updated.retailTurnover,
+              owner: updated.owner ?? prev.owner,
+              ownerId: updated.ownerId ?? prev.ownerId,
+              collaborators: updated.collaborators ?? prev.collaborators,
+            }
+          : prev,
       )
       setAddressQuery(updated.general.addressLine1 || '')
       setGeneralForm((prev) => ({
@@ -787,13 +1346,28 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="session-actions">
-        {showSignOut && (
-          <button type="button" className="ghost tiny" onClick={handleLogout}>
-            Sign out
+    <div className="session-actions">
+      {showAccountMenu && currentUser && (
+        <div className="user-menu" ref={accountMenuRef}>
+          <button type="button" className="avatar-button" onClick={handleAccountMenuToggle}>
+            <span className="avatar-chip">
+              {(currentUser.displayName || currentUser.email || '?').charAt(0).toUpperCase()}
+            </span>
+            <span className="user-name">{currentUser.displayName || currentUser.email}</span>
           </button>
-        )}
-      </div>
+          {accountMenuOpen && (
+            <div className="user-menu-dropdown">
+              <button type="button" onClick={handleOpenAccountSettings}>
+                Account settings
+              </button>
+              <button type="button" onClick={handleLogout}>
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
       {isKanbanView ? (
         <KanbanBoard
           stageOptions={stageOptions}
@@ -802,9 +1376,6 @@ function App() {
           onStageChange={handleStageChange}
           stageUpdatingFor={stageUpdatingFor}
           onAddProject={openCreateModal}
-          weather={weather}
-          weatherStatus={weatherStatus}
-          weatherError={weatherError}
         />
       ) : (
         <section className="detail-section detail-full">
@@ -822,7 +1393,26 @@ function App() {
                   <p className="eyebrow">Project</p>
                   <h2>{selectedProject.name}</h2>
                 </div>
+                  <ProjectWeatherCard
+                    status={projectWeatherStatus}
+                    weather={projectWeather}
+                    error={projectWeatherError}
+                    hasCoords={hasWeatherCoords}
+                  />
               </div>
+
+                <CollaboratorsPanel
+                  ownerName={ownerName}
+                  ownerEmail={selectedProject.owner?.email || ''}
+                  collaborators={selectedProject.collaborators || []}
+                  canEdit={canEditCollaborators}
+                  inputValue={collaboratorInput}
+                  status={collaboratorStatus}
+                  error={collaboratorError}
+                  onInputChange={setCollaboratorInput}
+                  onSubmit={handleCollaboratorSubmit}
+                  onRemove={handleCollaboratorRemove}
+                />
 
               <div className="tabs">
                 {TABS.map((tab) => (
@@ -988,6 +1578,25 @@ function App() {
         </div>
       )}
 
+      {isAccountSettingsOpen && currentUser && (
+        <AccountSettingsModal
+          currentUser={currentUser}
+          isAdmin={Boolean(currentUser.isSuperAdmin)}
+          onClose={handleCloseAccountSettings}
+          onLogout={handleLogout}
+          users={users}
+          usersStatus={usersStatus}
+          usersError={usersError}
+          userActionStatus={userActionStatus}
+          userActionError={userActionError}
+          onRefreshUsers={refreshUsers}
+          onCreateUser={handleCreateUserAccount}
+          onToggleAdmin={handleToggleUserAdmin}
+          onResetPassword={handleResetUserPassword}
+          onDeleteUser={handleDeleteUserAccount}
+        />
+      )}
+
       {isAuthModalOpen && (
         <div className="auth-overlay">
           <div className="auth-panel">
@@ -1041,5 +1650,3 @@ function App() {
     </div>
   )
 }
-
-export default App

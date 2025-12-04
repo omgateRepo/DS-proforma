@@ -124,9 +124,19 @@ export async function fetchProjectDetail(id) {
   return handleJsonResponse(res, 'Failed to load project detail')
 }
 
-export async function fetchPhiladelphiaWeather() {
-  const res = await request('/api/weather')
-  return handleJsonResponse(res, 'Failed to load Philadelphia weather')
+export async function fetchCurrentUser() {
+  const res = await request('/api/me')
+  return handleJsonResponse(res, 'Failed to load current user')
+}
+
+export async function fetchWeather(lat, lon, label) {
+  const params = new URLSearchParams()
+  if (typeof lat === 'number' && Number.isFinite(lat)) params.set('lat', String(lat))
+  if (typeof lon === 'number' && Number.isFinite(lon)) params.set('lon', String(lon))
+  if (label) params.set('label', label)
+  const query = params.toString()
+  const res = await request(`/api/weather${query ? `?${query}` : ''}`)
+  return handleJsonResponse(res, 'Failed to load weather')
 }
 
 export async function createProject(name) {
@@ -142,6 +152,34 @@ export async function createProject(name) {
 export async function deleteProject(id) {
   const res = await request(`/api/projects/${id}`, { method: 'DELETE' })
   return handleJsonResponse(res, 'Failed to delete project')
+}
+
+export async function fetchUsers() {
+  const res = await request('/api/users')
+  return handleJsonResponse(res, 'Failed to load users')
+}
+
+export async function createUser(payload) {
+  const res = await request('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create user')
+}
+
+export async function updateUser(userId, payload) {
+  const res = await request(`/api/users/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update user')
+}
+
+export async function deleteUser(userId) {
+  const res = await request(`/api/users/${userId}`, { method: 'DELETE' })
+  return handleJsonResponse(res, 'Failed to delete user')
 }
 
 export async function updateProjectGeneral(id, payload) {
@@ -160,6 +198,27 @@ export async function updateProjectStage(id, stage) {
     body: JSON.stringify({ stage }),
   })
   return handleJsonResponse(res, 'Failed to update stage')
+}
+
+export async function fetchProjectCollaborators(projectId) {
+  const res = await request(`/api/projects/${projectId}/collaborators`)
+  return handleJsonResponse(res, 'Failed to load collaborators')
+}
+
+export async function addProjectCollaborator(projectId, email) {
+  const res = await request(`/api/projects/${projectId}/collaborators`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  return handleJsonResponse(res, 'Failed to add collaborator')
+}
+
+export async function removeProjectCollaborator(projectId, collaboratorId) {
+  const res = await request(`/api/projects/${projectId}/collaborators/${collaboratorId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to remove collaborator')
 }
 
 export async function createRevenueItem(projectId, payload) {

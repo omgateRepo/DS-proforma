@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react'
-import type { EntityId, ProjectStage, ProjectSummary, WeatherReading } from '../../types'
+import type { EntityId, ProjectStage, ProjectSummary } from '../../types'
 
 type StageOption = {
   id: ProjectStage
@@ -13,9 +13,6 @@ type KanbanBoardProps = {
   onStageChange: (projectId: EntityId, stage: ProjectStage) => void
   stageUpdatingFor: EntityId | null
   onAddProject: () => void
-  weather: WeatherReading | null
-  weatherStatus: 'idle' | 'loading' | 'loaded' | 'error'
-  weatherError: string
 }
 
 export function KanbanBoard({
@@ -25,9 +22,6 @@ export function KanbanBoard({
   onStageChange,
   stageUpdatingFor,
   onAddProject,
-  weather,
-  weatherStatus,
-  weatherError,
 }: KanbanBoardProps) {
   const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>, projectId: EntityId) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -44,17 +38,6 @@ export function KanbanBoard({
           <h1>DS Proforma</h1>
         </div>
         <div className="header-actions">
-          <div className="weather-card">
-            <h3>Philadelphia Weather</h3>
-            {weatherStatus === 'loading' && <p>Sampling temperature…</p>}
-            {weatherStatus === 'error' && <p className="error">{weatherError}</p>}
-            {weatherStatus === 'loaded' && weather && (
-              <>
-                <p className="weather-temp">{weather.temperature_c}°C</p>
-                <p className="muted">Sampled at {new Date(weather.sampled_at).toLocaleTimeString('en-US')}</p>
-              </>
-            )}
-          </div>
           <button className="primary" type="button" onClick={onAddProject}>
             + Add Project
           </button>

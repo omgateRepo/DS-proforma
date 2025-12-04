@@ -47,6 +47,14 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
 
 ## 6. Tab-Level Requirements
 
+### 6.0 Accounts, Roles, and Sharing
+- **Users Table** – every login is now backed by a `users` row (`email`, `display_name`, `password_hash`, `is_super_admin`, timestamps). The initial super-admin (`ds / ds1`) is seeded automatically so the current workflow keeps working.
+- **Project Ownership** – `projects.owner_id` references the user who created/owns the deal. Owners (and super admins) can manage sharing, edit all tabs, and archive projects.
+- **Collaborators** – `project_collaborators` joins users to projects with (future) role metadata. For now collaborators have full read/write access, matching the owner’s capabilities.
+- **Authentication** – Basic Auth credentials are validated against the `users` table; the `RENDER_AUTH_*` env vars remain as a fallback so builds never fail if the DB isn’t seeded yet.
+- **Permissions** – every `/projects/*` API route will soon enforce “owner or collaborator” access; super admins bypass the filter for support/ops. Until the frontend ships the sharing UI, all existing projects default to the super-admin owner.
+- **Account Menu & Manage Users** – The header now shows a user avatar that opens Account Settings. Everyone can review their profile and sign out; super admins also see a “Manage Users” section where they can add accounts, toggle super-admin status, reset passwords, or delete users without leaving the app.
+
 ### 6.1 General Tab
 - Fields:
   - `address_line1`, `address_line2`, `city`, `state`, `zip`.
@@ -58,8 +66,10 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
     - Management fees (including the auto-generated turnover line) default their start month to the Start Leasing Date.
     - All revenue rows ramp linearly from 0 at the Start Leasing Date to full run-rate at the Stabilized Date; before leasing begins they contribute 0 to cashflow.
   - `latitude`, `longitude` – captured from the address autocomplete (editable if adjustments needed). Used for satellite preview and mapping context.
+    - Once coordinates exist, the tab displays a **Local Weather** card that pulls from `/api/weather?lat=…&lon=…` so each project shows live conditions.
   - `target_units`, `target_sqft`.
   - `sponsor` (future, for LP/GP tracking).
+- **Collaborators panel** – Owners and super admins can invite/remove collaborators by email directly from the General tab. All collaborators (plus the owner) are listed so it’s obvious who has access to the project.
 - Actions: edit inline, save/cancel, upload hero photo (future).
 
 #### 6.1.1 Stage-based validation

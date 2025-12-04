@@ -5,7 +5,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
 import routes from './routes.js'
-import createBasicAuthMiddleware from './middleware/basicAuth.js'
+import createAuthMiddleware from './middleware/auth.js'
 
 const app = express()
 const port = process.env.PORT || 8080
@@ -16,8 +16,6 @@ const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '1mb'
 const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000)
 const rateLimitMax = Number(process.env.RATE_LIMIT_MAX || 300)
 const skipRateLimit = process.env.SKIP_RATE_LIMIT === 'true'
-const authUser = process.env.RENDER_AUTH_USER || process.env.BASIC_AUTH_USER
-const authPassword = process.env.RENDER_AUTH_PASSWORD || process.env.BASIC_AUTH_PASSWORD
 const skipAuth = process.env.SKIP_AUTH === 'true'
 
 app.disable('x-powered-by')
@@ -45,18 +43,12 @@ const apiLimiter = rateLimit({
   },
 })
 
-const basicAuth = createBasicAuthMiddleware({
-  username: authUser,
-  password: authPassword,
+const authMiddleware = createAuthMiddleware({
   enabled: !skipAuth,
-  bypass: ['/api/geocode/satellite'],
+  bypass: ['/api/geocode/satellite', '/geocode/satellite', '/api/geocode/search', '/geocode/search'],
 })
 
-if (!authUser || !authPassword) {
-  console.warn('Basic auth credentials missing; set RENDER_AUTH_USER and RENDER_AUTH_PASSWORD')
-}
-
-app.use('/api', basicAuth, apiLimiter, routes)
+app.use('/api', authMiddleware, apiLimiter, routes)
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })

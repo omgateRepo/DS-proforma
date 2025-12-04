@@ -18,6 +18,72 @@
   gap: 1.5rem;
 }
 
+.session-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.avatar-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem 0.35rem 0.35rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.avatar-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.user-menu-dropdown {
+  position: absolute;
+  top: 115%;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 170px;
+  z-index: 10;
+}
+
+.user-menu-dropdown button {
+  border: none;
+  background: none;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.user-menu-dropdown button:hover {
+  background: #f1f5f9;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -48,17 +114,12 @@
   font-size: 0.75rem;
 }
 
-.weather-card {
+.project-weather-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem 1.25rem;
   min-width: 220px;
-}
-
-.weather-card h3 {
-  margin: 0 0 0.5rem;
-  font-size: 0.95rem;
 }
 
 .weather-temp {
@@ -209,6 +270,64 @@
   align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.collaborators-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  background: #f8fafc;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.collaborator-owner {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.collaborator-owner .pill {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.collaborator-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.collaborator-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.45rem 0.25rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.collaborator-list li:last-child {
+  border-bottom: none;
+}
+
+.collaborator-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.project-weather-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  min-width: 230px;
+  max-width: 260px;
 }
 
 .danger {
@@ -770,6 +889,92 @@ textarea {
   gap: 0.75rem;
 }
 
+.account-settings-backdrop {
+  z-index: 30;
+}
+
+.account-modal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 1.5rem;
+  width: min(720px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 40px 80px rgba(15, 23, 42, 0.3);
+}
+
+.account-modal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.account-section {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  background: #f8fafc;
+}
+
+.account-section h4 {
+  margin-top: 0;
+  margin-bottom: 0.35rem;
+}
+
+.account-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.add-user-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.add-user-form input {
+  width: 100%;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.users-table th,
+.users-table td {
+  text-align: left;
+  padding: 0.5rem 0.35rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.user-actions button {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+}
+
 .revenue-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1001,15 +1206,6 @@ td {
   .kanban {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }
-}
-
-.session-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.session-actions .ghost {
-  font-size: 0.85rem;
 }
 
 .auth-overlay {
