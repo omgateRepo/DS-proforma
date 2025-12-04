@@ -510,14 +510,9 @@ export function FundingTab({
                     Partner
                     <select value={gpForm.partner} onChange={(e) => setGpForm((prev) => ({ ...prev, partner: e.target.value }))}>
                       <option value="">Select partner</option>
-                      {project?.owner && (
-                        <option key={project.owner.id} value={project.owner.id as string}>
-                          {project.owner.displayName || project.owner.email || 'Owner'}
-                        </option>
-                      )}
-                      {project?.collaborators?.map((collab) => (
-                        <option key={collab.id} value={collab.userId}>
-                          {collab.displayName || collab.email || 'Collaborator'}
+                      {partnerOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
                         </option>
                       ))}
                     </select>
