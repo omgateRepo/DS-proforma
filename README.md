@@ -15,6 +15,21 @@ Docs-driven starter for a project management app with:
 - `render.yaml` – Render blueprint (backend web service + frontend static site + PostgreSQL service instructions)
 
 ## Getting Started
+
+### Quick Start (Fresh Machine)
+After cloning, run the bootstrap script:
+```bash
+chmod +x scripts/bootstrap-local.sh
+./scripts/bootstrap-local.sh
+```
+Then start the servers:
+```bash
+cd backend && npm run dev   # terminal 1
+cd frontend && npm run dev  # terminal 2
+```
+Login with `ds / ds1` (or customize in the script).
+
+### Manual Setup
 See `docs/README.md` for authoring flow and `backend/README.md`, `frontend/README.md` for setup details.
 
 ## Render Auto Deploy

@@ -1,7 +1,7 @@
 # Real Estate Project Manager
 status: Draft  
 owner: Product  
-last_updated: 2025-11-26
+last_updated: 2025-12-05
 
 ## 1. Overview
 Operate a single web application that tracks multifamily real-estate deals from sourcing through stabilization. Users can add/delete projects, manage their position on a Kanban board, and capture detailed revenue/cost data for each project.
@@ -13,8 +13,9 @@ Operate a single web application that tracks multifamily real-estate deals from 
 
 ## 3. Non-Goals
 - Debt/equity capital stack modeling (future enhancement).
-- Investor portal, document storage, or e-signatures.
+- Investor portal or e-signatures.
 - Automated market comps or rent forecasting.
+- Native file upload/storage (documents are linked via external URLs, e.g., Google Drive).
 
 ## 4. Users
 Two co-founders (you and your partner) share the same workspace. No role-based access or permissions are required at this stage; everyone can perform every action (create/delete projects, edit data, move cards).
@@ -44,6 +45,7 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
    - **Soft Costs** – professional services, permits, etc.  
    - **Carrying Costs** – debt service, insurance, taxes while project is underway.  
    - **Cashflow** – aggregates all inflows/outflows, supports budget vs actual tracking.
+   - **Docs** – external document links (Google Drive, etc.) organized by category.
 
 ## 6. Tab-Level Requirements
 
@@ -258,7 +260,104 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 - Allow manual adjustments (e.g., equity injection).  
 - Export to CSV later.
 
-### 6.8 Shared API Types (`@ds-proforma/types`)
+### 6.8 Docs Tab
+The Docs tab provides a central place to link external documents (Google Drive, Dropbox, etc.) related to the project. No files are uploaded or stored in the app—only URLs and metadata are persisted.
+
+#### 6.8.1 Document Categories
+Each document belongs to one category. Starting set:
+- **Contracts** – purchase agreements, LOIs, closing docs.
+- **Permits** – building permits, zoning approvals.
+- **Plans** – architectural drawings, engineering specs.
+- **Financials** – loan documents, pro forma exports, investor decks.
+- **Legal** – title reports, entity formation docs.
+- **Other** – anything that doesn't fit above.
+
+Categories are fixed for MVP; a future enhancement could allow custom categories.
+
+#### 6.8.2 Document Fields
+- `title` (required) – user-friendly name (e.g., "Purchase Agreement v2").
+- `url` (required) – full URL to the external document (must start with `https://`).
+- `category` (required) – one of the predefined categories.
+- `description` (optional) – brief notes about the document.
+- `uploaded_at` / `updated_at` – timestamps for audit trail.
+
+#### 6.8.3 UI Behavior
+- **Listing View**
+  - Documents are grouped by category with collapsible sections.
+  - Each row shows: Title (clickable, opens URL in new tab), Category badge, Description snippet, Date added, Actions (Edit / Delete).
+  - Empty state prompts: "No documents yet. Add your first document."
+- **Add Document Modal**
+  - Fields: Title, URL, Category dropdown, Description (textarea, optional).
+  - URL validation: must be a valid `https://` URL; show inline error if invalid.
+  - Save is disabled until required fields pass validation.
+- **Edit Document Modal**
+  - Same fields as Add, pre-populated with existing values.
+- **Delete Confirmation**
+  - Standard confirmation modal: "Are you sure you want to remove this document link?"
+  - Deleting only removes the link from the database; the external file is unaffected.
+
+#### 6.8.4 Data Model
+New table: `project_documents`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID | Primary key, auto-generated. |
+| `project_id` | UUID | FK → `projects.id`, ON DELETE CASCADE. |
+| `title` | TEXT | Required. |
+| `url` | TEXT | Required, validated as HTTPS URL. |
+| `category` | TEXT | One of the predefined categories. |
+| `description` | TEXT | Optional. |
+| `created_at` | TIMESTAMPTZ | Auto-set on insert. |
+| `updated_at` | TIMESTAMPTZ | Auto-set on insert/update. |
+
+**Migration safety notes:**
+- This is an additive-only migration (new table, no ALTER on existing tables).
+- No foreign keys to new tables, only to existing `projects`.
+- Rollback is safe: `DROP TABLE project_documents` has no side effects.
+
+#### 6.8.5 API Endpoints
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/projects/:id/documents` | List all documents for a project. |
+| `POST` | `/api/projects/:id/documents` | Create a new document link. |
+| `PATCH` | `/api/projects/:id/documents/:docId` | Update an existing document. |
+| `DELETE` | `/api/projects/:id/documents/:docId` | Remove a document link. |
+
+**Payload schemas** (to be added to `@ds-proforma/types`):
+- `documentInputSchema`: `{ title: string, url: string (https), category: enum, description?: string }`
+- `documentUpdateSchema`: partial of input schema.
+
+#### 6.8.6 Implementation Phases
+
+**Phase 1: Database Migration (Low Risk)**
+- Create `project_documents` table via Prisma migration.
+- Migration is additive; no existing tables touched.
+- **Test:** Run `prisma migrate deploy`, verify table exists, confirm existing app still works.
+
+**Phase 2: Backend API**
+- Add CRUD routes following existing patterns (see soft-costs, hard-costs).
+- Add Zod schemas to `@ds-proforma/types`.
+- **Test:** Backend unit tests for document endpoints (create, read, update, delete). Smoke test: create a project, add a document, verify it persists.
+
+**Phase 3: Frontend UI**
+- Add "Docs" tab to project detail view.
+- Implement listing, add/edit modals, delete confirmation.
+- **Test:** RTL tests for modal validation, category grouping. Manual QA: full CRUD flow.
+
+**Phase 4: Integration & Polish**
+- Wire frontend to backend.
+- Add document count badge to tab header (optional).
+- **Test:** End-to-end flow (create project → add doc → edit → delete). Regression: ensure other tabs still work.
+
+#### 6.8.7 Rollback Plan
+If the feature causes issues:
+1. Frontend: revert the Docs tab commit (tab disappears, no user impact).
+2. Backend: revert routes (endpoints return 404, frontend already gone).
+3. Database: `DROP TABLE project_documents` (orphan data is acceptable; no other tables reference it).
+
+No existing functionality depends on this table, so rollback is clean.
+
+### 6.9 Shared API Types (`@ds-proforma/types`)
 - The repo now ships a dedicated workspace that exports Zod schemas for every major payload (project create/update, apartment/parking revenue, GP contributions, etc.).
 - The backend uses those schemas to validate incoming JSON before touching Prisma, while the frontend can import the same definitions (or their inferred TypeScript types) to keep forms and API clients aligned.
 - Whenever you introduce a new field or endpoint, update the shared schema first; both client and server should rely on it instead of duplicating validation logic.
@@ -274,12 +373,14 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 | `apartment_types` | `id`, `project_id`, `type_label`, `unit_sqft`, `unit_count`, `rent_budget`, `rent_actual` | Revenue tab rows. |
 | `cost_items` | `id`, `project_id`, `category` (`hard`, `soft`, `carrying`), `cost_name`, `amount_usd`, `payment_month`, `start_month`, `end_month`, `carrying_type`, `loan_mode`, `loan_amount_usd`, `loan_term_months`, `interest_rate_pct`, `funding_month`, `repayment_start_month`, `interval_unit` | Carrying rows now track richer attributes per type; hard/soft rows continue to use scheduling + measurement columns documented above. |
 | `cashflow_entries` | `id`, `project_id`, `month_index`, `budget_inflows`, `budget_outflows`, `actual_inflows`, `actual_outflows`, `notes` | Derived but persisted for overrides. |
+| `project_documents` | `id`, `project_id`, `title`, `url`, `category`, `description`, `created_at`, `updated_at` | External document links (Google Drive, etc.). |
 
 ### 7.2 Relationships
 - `projects 1..n apartment_types`.
 - `projects 1..n cost_items`.
 - `projects 1..n cashflow_entries`.
 - `projects 1..n stage_history`.
+- `projects 1..n project_documents`.
 
 ### 7.3 Example JSON (Project Detail)
 ```json
@@ -317,6 +418,7 @@ Each bucket renders its own table with per-line totals plus a modal for add/edit
 3. Cashflow time horizon defaults (36 vs 60 months)?
 
 ## 9. Changelog
+- `2025-12-05` – Added Docs tab specification (§6.8) for external document links with phased implementation plan.
 - `2025-11-26` – Drafted initial specification covering Kanban workflow, detailed tabs, and schema outline.
 
 ## 10. Engineering Guidelines & Refactor Plan
