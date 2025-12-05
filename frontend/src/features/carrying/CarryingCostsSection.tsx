@@ -9,7 +9,6 @@ import {
   intervalLabels,
   intervalUnitOptions,
   propertyTaxPhaseLabels,
-  propertyTaxPhaseOptions,
 } from './carryingHelpers.js'
 import type { CarryingCostRow, CarryingType, EntityId, IntervalUnit, ProjectDetail, PropertyTaxPhase } from '../../types'
 
@@ -64,7 +63,7 @@ const toNumberOrNull = (value: string | number | null | undefined) => {
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 const intervalLabelMap = intervalLabels as Record<IntervalUnit, string>
 const propertyPhaseLabelMap = propertyTaxPhaseLabels as Record<PropertyTaxPhase, string>
-const DEFAULT_PROPERTY_TAX_PHASE: PropertyTaxPhase = 'construction'
+const DEFAULT_PROPERTY_TAX_PHASE: PropertyTaxPhase = 'stabilized'
 
 export function CarryingCostsSection({
   project,
@@ -105,24 +104,20 @@ export function CarryingCostsSection({
     [],
   )
 
-  const isPropertyRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'property_tax' } =>
-    row.carryingType === 'property_tax'
   const isManagementRow = (row: CarryingCostRow): row is CarryingCostRow & { carryingType: 'management' } =>
     row.carryingType === 'management'
 
-  const propertyRows = useMemo(() => carryingRows.filter(isPropertyRow), [carryingRows])
+  const propertyRows = useMemo(
+    () =>
+      carryingRows.filter(
+        (row) =>
+          row.carryingType === 'property_tax' &&
+          ((row.propertyTaxPhase as PropertyTaxPhase | undefined) ?? DEFAULT_PROPERTY_TAX_PHASE) ===
+            DEFAULT_PROPERTY_TAX_PHASE,
+      ),
+    [carryingRows],
+  )
   const managementRows = useMemo(() => carryingRows.filter(isManagementRow), [carryingRows])
-  const { missingPropertyPhases, nextPropertyPhase } = useMemo(() => {
-    const used = new Set<PropertyTaxPhase>()
-    propertyRows.forEach((row) => {
-      if (row.propertyTaxPhase) {
-        used.add(row.propertyTaxPhase as PropertyTaxPhase)
-      }
-    })
-    const missing = propertyTaxPhaseOptions.filter((option) => !used.has(option.id as PropertyTaxPhase))
-    const nextPhase = (missing[0]?.id ?? DEFAULT_PROPERTY_TAX_PHASE) as PropertyTaxPhase
-    return { missingPropertyPhases: missing, nextPropertyPhase: nextPhase }
-  }, [propertyRows])
 
   const autoManagementMonthlyTotal = useMemo(() => {
     return autoManagementRows.reduce((sum, row) => sum + (row.monthlyAmount || 0), 0)
@@ -143,13 +138,13 @@ export function CarryingCostsSection({
 
   const resetForms = useCallback(() => {
     setPropertyForm(
-      createDefaultRecurringForm('property_tax', { propertyTaxPhase: nextPropertyPhase }) as RecurringFormState,
+      createDefaultRecurringForm('property_tax', { propertyTaxPhase: DEFAULT_PROPERTY_TAX_PHASE }) as RecurringFormState,
     )
     setManagementForm(buildDefaultManagementForm())
     setEditingId(null)
     setModalError('')
     setStatus('idle')
-  }, [nextPropertyPhase, buildDefaultManagementForm])
+  }, [buildDefaultManagementForm])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -194,7 +189,7 @@ export function CarryingCostsSection({
       setPropertyForm(
         row
           ? (buildRecurringFormFromRow(row, formatOffsetForInput) as RecurringFormState)
-          : (createDefaultRecurringForm('property_tax', { propertyTaxPhase: nextPropertyPhase }) as RecurringFormState),
+          : (createDefaultRecurringForm('property_tax', { propertyTaxPhase: DEFAULT_PROPERTY_TAX_PHASE }) as RecurringFormState),
       )
     } else {
       setManagementForm(
@@ -225,7 +220,7 @@ export function CarryingCostsSection({
     const startMonth = requireMonth(form.startMonth, 'Start month is required.')
     const payload: RecurringPayload = {
       carryingType: type,
-      costName: form.costName.trim() || (type === 'property_tax' ? 'Property Tax' : 'Management Fee'),
+      costName: form.costName.trim() || (type === 'property_tax' ? 'Stabilized RE Tax' : 'Management Fee'),
       amountUsd: amount,
       intervalUnit: form.intervalUnit,
       startMonth,
@@ -235,8 +230,7 @@ export function CarryingCostsSection({
       throw new Error('End month cannot be earlier than start month.')
     }
     if (type === 'property_tax') {
-      const propertyTaxPhase = form.propertyTaxPhase || nextPropertyPhase
-      payload.propertyTaxPhase = propertyTaxPhase
+      payload.propertyTaxPhase = DEFAULT_PROPERTY_TAX_PHASE
     }
     return payload
   }
@@ -303,25 +297,20 @@ export function CarryingCostsSection({
     const monthLabel = formatOffsetForInput(normalized)
     const calendarHint = getCalendarLabelForInput(normalized)
     return (
-      <div className="month-label">
+    <div className="month-label">
         <span>{`Month ${monthLabel}`}</span>
         <span className="month-calendar">{calendarHint}</span>
-      </div>
-    )
+    </div>
+  )
   }
 
   const renderPropertyTaxTable = () => (
     <section className="carrying-section">
       <div className="section-header">
-        <h4>Property Tax</h4>
+        <h4>Stabilized RE Tax</h4>
         <p className="muted tiny">
-          Track Construction vs Stabilized separately. Construction feeds loan sizing; Stabilized flows into metrics/NOI.
+          Focus on stabilized RE tax once the asset is leased; it feeds the metrics/NOI pages.
         </p>
-        {missingPropertyPhases.length > 0 && (
-          <p className="muted tiny">
-            Missing phases: {missingPropertyPhases.map((phase) => phase.label).join(' & ')}.
-          </p>
-        )}
       </div>
       <div className="table-scroll">
         <table>
@@ -428,41 +417,11 @@ export function CarryingCostsSection({
 
   const renderModalBody = () => {
     if (!activeModal) return null
-    const isPropertyModal = activeModal === 'property_tax'
-    const form = isPropertyModal ? propertyForm : managementForm
-    const setter = isPropertyModal ? setPropertyForm : setManagementForm
-    const selectedPhase = (form.propertyTaxPhase as PropertyTaxPhase | undefined) ?? nextPropertyPhase
+    const form = activeModal === 'property_tax' ? propertyForm : managementForm
+    const setter = activeModal === 'property_tax' ? setPropertyForm : setManagementForm
 
     return (
       <>
-        {isPropertyModal && (
-          <label>
-            Tax Phase
-            <select
-              value={selectedPhase}
-              onChange={(e) => {
-                const phase = e.target.value as PropertyTaxPhase
-                setter((prev) => {
-                  const prevPhase = prev.propertyTaxPhase as PropertyTaxPhase | undefined
-                  const prevDefault = prevPhase ? propertyPhaseLabelMap[prevPhase] : ''
-                  const nextDefault = propertyPhaseLabelMap[phase]
-                  const shouldResetTitle = !prev.costName || prev.costName === prevDefault
-                  return {
-                    ...prev,
-                    propertyTaxPhase: phase,
-                    costName: shouldResetTitle ? nextDefault : prev.costName,
-                  }
-                })
-              }}
-            >
-              {propertyTaxPhaseOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         <label>
           Title
           <input type="text" value={form.costName} onChange={(e) => setter((prev) => ({ ...prev, costName: e.target.value }))} />
@@ -516,7 +475,7 @@ export function CarryingCostsSection({
     <>
       <div className="carrying-tab">
         <div className="carrying-header">
-          <h3>Carrying Costs</h3>
+          <h3>Stabilized Carrying Costs</h3>
           <div className="add-menu" ref={addMenuRef}>
             <button type="button" className="primary" onClick={() => setMenuOpen((prev) => !prev)}>
               + Add

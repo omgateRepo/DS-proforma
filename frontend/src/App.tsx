@@ -41,6 +41,8 @@ import {
   buildCarryingSeries,
 } from './features/cashflow/cashflowHelpers.js'
 import { CarryingCostsSection } from './features/carrying/CarryingCostsSection'
+import { ConstructionCarryingCostsSection } from './features/carrying/ConstructionCarryingCostsSection'
+import { ConstructionDebtServiceSection } from './features/carrying/ConstructionDebtServiceSection'
 import { FundingTab } from './features/funding/FundingTab'
 import { MetricsTab } from './features/metrics/MetricsTab'
 import type {
@@ -64,10 +66,10 @@ import type {
 
 const TABS = [
   { id: 'general', label: 'General' },
-  { id: 'revenue', label: 'Revenue' },
-  { id: 'dev-costs', label: 'Dev Costs' },
   { id: 'funding', label: 'Funding' },
-  { id: 'carrying', label: 'Carrying Costs' },
+  { id: 'dev-costs', label: 'Construction Costs' },
+  { id: 'revenue', label: 'Stabilized Revenues' },
+  { id: 'carrying', label: 'Stabilized Carrying Costs' },
   { id: 'cashflow', label: 'Cashflow' },
   { id: 'metrics', label: 'Metrics & Sensitivities' },
 ] as const
@@ -1590,21 +1592,21 @@ useEffect(() => {
               {activeTab === 'general' && (
                 <div className="general-layout">
                   <div className="general-form-wrapper">
-                    <GeneralTab
-                      form={generalForm}
-                      generalStatus={generalStatus}
-                      onSubmit={handleGeneralSave}
-                      onFieldChange={handleGeneralFieldChange}
-                      addressQuery={addressQuery}
-                      onAddressQueryChange={handleAddressInputChange}
-                      addressSuggestions={addressSuggestions}
-                      addressSearchStatus={addressSearchStatus}
-                      addressSearchError={addressSearchError}
-                      onAddressInputFocus={handleAddressInputFocus}
-                      onAddressSelect={handleAddressSelect}
-                      selectedCoords={selectedCoords}
-                      apiOrigin={apiOrigin}
-                    />
+                <GeneralTab
+                  form={generalForm}
+                  generalStatus={generalStatus}
+                  onSubmit={handleGeneralSave}
+                  onFieldChange={handleGeneralFieldChange}
+                  addressQuery={addressQuery}
+                  onAddressQueryChange={handleAddressInputChange}
+                  addressSuggestions={addressSuggestions}
+                  addressSearchStatus={addressSearchStatus}
+                  addressSearchError={addressSearchError}
+                  onAddressInputFocus={handleAddressInputFocus}
+                  onAddressSelect={handleAddressSelect}
+                  selectedCoords={selectedCoords}
+                  apiOrigin={apiOrigin}
+                />
                   </div>
                   <div className="general-collaborators-wrapper">
                     <CollaboratorsPanel
@@ -1639,23 +1641,37 @@ useEffect(() => {
 
               {activeTab === 'dev-costs' && (
                 <div className="dev-costs-tab">
-                  <HardCostsSection
-                    project={selectedProject}
-                    projectId={selectedProjectId}
-                    onProjectRefresh={loadProjectDetail}
-                    formatOffsetForInput={formatOffsetForInput}
-                    convertMonthInputToOffset={convertMonthInputToOffset}
-                    getCalendarLabelForInput={getCalendarLabelForInput}
-                    getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                <HardCostsSection
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                  formatOffsetForInput={formatOffsetForInput}
+                  convertMonthInputToOffset={convertMonthInputToOffset}
+                  getCalendarLabelForInput={getCalendarLabelForInput}
+                  getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                />
+                <SoftCostsSection
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                  formatOffsetForInput={formatOffsetForInput}
+                  convertMonthInputToOffset={convertMonthInputToOffset}
+                  getCalendarLabelForInput={getCalendarLabelForInput}
+                  getCalendarLabelsForListInput={getCalendarLabelsForListInput}
                   />
-                  <SoftCostsSection
+                  <ConstructionCarryingCostsSection
                     project={selectedProject}
                     projectId={selectedProjectId}
                     onProjectRefresh={loadProjectDetail}
                     formatOffsetForInput={formatOffsetForInput}
                     convertMonthInputToOffset={convertMonthInputToOffset}
                     getCalendarLabelForInput={getCalendarLabelForInput}
-                    getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                  />
+                  <ConstructionDebtServiceSection
+                    project={selectedProject}
+                    projectId={selectedProjectId}
+                    formatOffsetForInput={formatOffsetForInput}
+                    getCalendarLabelForInput={getCalendarLabelForInput}
                   />
                 </div>
               )}
