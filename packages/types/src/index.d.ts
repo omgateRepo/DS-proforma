@@ -77,6 +77,7 @@ export type ProjectDetail = ProjectSummary & {
   hardCosts: HardCostRow[]
   carryingCosts: CarryingCostRow[]
   cashflow: CashflowRow[]
+  documents: Document[]
   owner?: UserSummary | null
   ownerId?: EntityId | null
   collaborators: ProjectCollaborator[]
@@ -124,8 +125,10 @@ export const CARRYING_TYPES: readonly ['loan', 'property_tax', 'management']
 export const LOAN_MODES: readonly ['interest_only', 'amortizing']
 export const INTERVAL_UNITS: readonly ['monthly', 'quarterly', 'yearly']
 export const PROPERTY_TAX_PHASES: readonly ['construction', 'stabilized']
+export const DOCUMENT_CATEGORIES: readonly ['contracts', 'permits', 'plans', 'financials', 'legal', 'other']
 
 export type CostPaymentMode = typeof COST_PAYMENT_MODES[number]
+export type DocumentCategory = typeof DOCUMENT_CATEGORIES[number]
 export type MeasurementUnit = typeof MEASUREMENT_UNITS[number]
 export type CarryingType = typeof CARRYING_TYPES[number]
 export type LoanMode = typeof LOAN_MODES[number]
@@ -271,6 +274,19 @@ export interface WeatherReading {
   longitude?: number
 }
 
+export interface DocumentInput {
+  title: string
+  url: string
+  category: DocumentCategory
+  description?: string
+}
+
+export interface Document extends DocumentInput {
+  id: EntityId
+  createdAt: string
+  updatedAt: string
+}
+
 export declare const projectCreateSchema: z.ZodType<{ name: string }>
 export declare const projectUpdateSchema: z.ZodTypeAny
 export declare const apartmentRevenueInputSchema: z.ZodType<ApartmentRevenueInput>
@@ -287,6 +303,8 @@ export declare const hardCostInputSchema: z.ZodType<HardCostInput>
 export declare const hardCostUpdateSchema: z.ZodType<Partial<HardCostInput>>
 export declare const loanCarryingInputSchema: z.ZodType<LoanCarryingInput>
 export declare const recurringCarryingInputSchema: z.ZodType<RecurringCarryingInput>
+export declare const documentInputSchema: z.ZodType<DocumentInput>
+export declare const documentUpdateSchema: z.ZodType<Partial<DocumentInput>>
 export declare const formatZodErrors: (error: z.ZodError) => string
 
 export { z } from 'zod'

@@ -13,6 +13,8 @@ import {
   parkingRevenueUpdateSchema,
   gpContributionInputSchema,
   gpContributionUpdateSchema,
+  documentInputSchema,
+  documentUpdateSchema,
   formatZodErrors,
 } from '@ds-proforma/types'
 import {
@@ -172,6 +174,7 @@ const stubProject = {
   carryingCosts: [],
   cashflow: [],
   collaborators: [],
+  documents: [],
 }
 
 const userSelectFields = {
@@ -998,7 +1001,7 @@ router.get('/projects/:id', async (req, res) => {
       collaborators: projectRow.project_collaborators,
     })
 
-    const [revenue, retail, parking, contributions, costs, cashflow] = await Promise.all([
+    const [revenue, retail, parking, contributions, costs, cashflow, documents] = await Promise.all([
       prisma.apartment_types.findMany({
         where: { project_id: req.params.id },
         orderBy: { created_at: 'asc' },
@@ -1023,6 +1026,10 @@ router.get('/projects/:id', async (req, res) => {
         where: { project_id: req.params.id },
         orderBy: { month_index: 'asc' },
       }),
+      prisma.project_documents.findMany({
+        where: { project_id: req.params.id },
+        orderBy: { created_at: 'desc' },
+      }),
     ])
 
     project.revenue = revenue.map(mapRevenueRow)
@@ -1034,6 +1041,7 @@ router.get('/projects/:id', async (req, res) => {
     project.softCosts = costRows.filter((row) => row.category === 'soft')
     project.carryingCosts = costRows.filter((row) => row.category === 'carrying')
     project.cashflow = cashflow.map(mapCashflowRow)
+    project.documents = documents.map(mapDocumentRow)
 
     res.json(project)
   } catch (err) {
@@ -2075,6 +2083,119 @@ router.delete('/projects/:id/gp-contributions/:contributionId', async (req, res)
     res.json({ id: req.params.contributionId, deleted: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete GP contribution', details: err.message })
+  }
+})
+
+// ============================================================================
+// Project Documents
+// ============================================================================
+
+const mapDocumentRow = (row) => ({
+  id: row.id,
+  title: row.title,
+  url: row.url,
+  category: row.category,
+  description: row.description,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+router.get('/projects/:id/documents', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json([])
+  }
+  try {
+    const documents = await prisma.project_documents.findMany({
+      where: { project_id: req.params.id },
+      orderBy: { created_at: 'desc' },
+    })
+    res.json(documents.map(mapDocumentRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load documents', details: err.message })
+  }
+})
+
+router.post('/projects/:id/documents', async (req, res) => {
+  const payload = parseBody(documentInputSchema, req.body, res)
+  if (!payload) return
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `doc-${Date.now()}`,
+      ...payload,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.project_documents.create({
+      data: {
+        project_id: req.params.id,
+        title: payload.title,
+        url: payload.url,
+        category: payload.category,
+        description: payload.description || null,
+      },
+    })
+    res.status(201).json(mapDocumentRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add document', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/documents/:docId', async (req, res) => {
+  const payload = parseBody(documentUpdateSchema, req.body, res)
+  if (!payload) return
+  if (Object.keys(payload).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' })
+  }
+  if (SKIP_DB) {
+    return res.json({
+      id: req.params.docId,
+      title: payload.title || 'Document',
+      url: payload.url || 'https://example.com',
+      category: payload.category || 'other',
+      description: payload.description || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const data = {}
+    if (payload.title !== undefined) data.title = payload.title
+    if (payload.url !== undefined) data.url = payload.url
+    if (payload.category !== undefined) data.category = payload.category
+    if (payload.description !== undefined) data.description = payload.description || null
+    
+    const row = await prisma.project_documents.update({
+      where: { id: req.params.docId },
+      data,
+    })
+    if (row.project_id !== req.params.id) {
+      return res.status(404).json({ error: 'Document not found' })
+    }
+    res.json(mapDocumentRow(row))
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Document not found' })
+    }
+    res.status(500).json({ error: 'Failed to update document', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/documents/:docId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.docId, deleted: true })
+  }
+  try {
+    const result = await prisma.project_documents.deleteMany({
+      where: { id: req.params.docId, project_id: req.params.id },
+    })
+    if (result.count === 0) {
+      return res.status(404).json({ error: 'Document not found' })
+    }
+    res.json({ id: req.params.docId, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete document', details: err.message })
   }
 })
 

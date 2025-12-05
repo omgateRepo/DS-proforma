@@ -44,6 +44,7 @@ const carryingTypes = ['loan', 'property_tax', 'management']
 const loanModes = ['interest_only', 'amortizing']
 const intervalUnits = ['monthly', 'quarterly', 'yearly']
 const propertyTaxPhases = ['construction', 'stabilized']
+const documentCategories = ['contracts', 'permits', 'plans', 'financials', 'legal', 'other']
 
 export const SOFT_COST_CATEGORY_IDS = [...softCostCategories]
 export const HARD_COST_CATEGORY_IDS = [...hardCostCategories]
@@ -53,6 +54,7 @@ export const CARRYING_TYPES = [...carryingTypes]
 export const LOAN_MODES = [...loanModes]
 export const INTERVAL_UNITS = [...intervalUnits]
 export const PROPERTY_TAX_PHASES = [...propertyTaxPhases]
+export const DOCUMENT_CATEGORIES = [...documentCategories]
 
 const costScheduleBaseFields = {
   costName: nonEmptyString,
@@ -244,6 +246,19 @@ export const gpContributionInputSchema = z.object({
 })
 
 export const gpContributionUpdateSchema = gpContributionInputSchema.partial()
+
+const httpsUrl = z.string().url().refine((url) => url.startsWith('https://'), {
+  message: 'URL must use HTTPS',
+})
+
+export const documentInputSchema = z.object({
+  title: nonEmptyString,
+  url: httpsUrl,
+  category: z.enum(documentCategories),
+  description: optionalString,
+})
+
+export const documentUpdateSchema = documentInputSchema.partial()
 
 export const formatZodErrors = (error) =>
   error.issues

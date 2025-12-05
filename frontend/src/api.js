@@ -411,6 +411,37 @@ export async function deleteGpContribution(projectId, contributionId) {
   return handleJsonResponse(res, 'Failed to delete GP contribution')
 }
 
+// Documents
+export async function fetchDocuments(projectId) {
+  const res = await request(`/api/projects/${projectId}/documents`)
+  return handleJsonResponse(res, 'Failed to load documents')
+}
+
+export async function createDocument(projectId, payload) {
+  const res = await request(`/api/projects/${projectId}/documents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add document')
+}
+
+export async function updateDocument(projectId, docId, payload) {
+  const res = await request(`/api/projects/${projectId}/documents/${docId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update document')
+}
+
+export async function deleteDocument(projectId, docId) {
+  const res = await request(`/api/projects/${projectId}/documents/${docId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete document')
+}
+
 export async function searchAddresses(query) {
   if (!query.trim()) return []
   const res = await request(`/api/geocode/search?q=${encodeURIComponent(query)}`)

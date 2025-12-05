@@ -23,6 +23,9 @@ export type {
   LoanMode,
   IntervalUnit,
   PropertyTaxPhase,
+  DocumentCategory,
+  DocumentInput,
+  Document as DocumentRow,
 } from '@ds-proforma/types'
 
 export {
@@ -34,6 +37,7 @@ export {
   LOAN_MODES,
   INTERVAL_UNITS,
   PROPERTY_TAX_PHASES,
+  DOCUMENT_CATEGORIES,
 } from '@ds-proforma/types'
 
 export type GeneralFormState = {
