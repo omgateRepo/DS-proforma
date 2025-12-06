@@ -198,10 +198,10 @@ export function ConstructionCarryingCostsSection({
 
   return (
     <>
-      <section className="carrying-section">
-        <div className="section-header">
+      <div className="soft-tab">
+        <div className="soft-header">
           <div>
-            <h4>Construction carrying costs</h4>
+            <h3>Construction Carrying Costs</h3>
             <p className="muted tiny">Track the construction-phase RE tax plus insurance/other expenses.</p>
           </div>
           <div className="add-menu" ref={addMenuRef}>
@@ -272,7 +272,7 @@ export function ConstructionCarryingCostsSection({
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
 
       {isModalOpen && (
         <div className="modal-backdrop">

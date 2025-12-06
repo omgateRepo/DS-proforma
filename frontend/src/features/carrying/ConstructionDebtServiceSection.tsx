@@ -25,17 +25,17 @@ export function ConstructionDebtServiceSection({
 
   if (!project || !projectId) {
     return (
-      <section className="carrying-section">
+      <div className="soft-tab">
         <p className="muted">Select a project to view debt service.</p>
-      </section>
+      </div>
     )
   }
 
   return (
-    <section className="carrying-section">
-      <div className="section-header">
+    <div className="soft-tab">
+      <div className="soft-header">
         <div>
-          <h4>Debt Service</h4>
+          <h3>Debt Service</h3>
           <p className="muted tiny">Annualized payments derived from the construction loans entered under funding.</p>
         </div>
       </div>
@@ -84,7 +84,7 @@ export function ConstructionDebtServiceSection({
           </tbody>
         </table>
       </div>
-    </section>
+    </div>
   )
 }
 
