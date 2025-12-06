@@ -45,6 +45,7 @@ import { ConstructionCarryingCostsSection } from './features/carrying/Constructi
 import { ConstructionDebtServiceSection } from './features/carrying/ConstructionDebtServiceSection'
 import { FundingTab } from './features/funding/FundingTab'
 import { MetricsTab } from './features/metrics/MetricsTab'
+import { DocsTab } from './features/docs/DocsTab'
 import type {
   AddressSuggestion,
   ApartmentRevenueRow,
@@ -72,6 +73,7 @@ const TABS = [
   { id: 'carrying', label: 'Stabilized Carrying Costs' },
   { id: 'cashflow', label: 'Cashflow' },
   { id: 'metrics', label: 'Metrics & Sensitivities' },
+  { id: 'docs', label: 'Docs' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -1713,6 +1715,14 @@ useEffect(() => {
 
               {activeTab === 'metrics' && (
                 <MetricsTab project={selectedProject} projectId={selectedProjectId} />
+              )}
+
+              {activeTab === 'docs' && (
+                <DocsTab
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                />
               )}
 
               {activeTab === 'general' && (
