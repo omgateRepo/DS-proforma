@@ -26,6 +26,20 @@ export type {
   DocumentCategory,
   DocumentInput,
   Document as DocumentRow,
+  // Business Projects
+  BusinessStage,
+  BusinessProjectSummary,
+  BusinessProjectDetail,
+  BusinessFounder,
+  BusinessMonthlyMetrics,
+  BusinessStageCriterion,
+  BusinessCollaborator,
+  BusinessProjectCreateInput,
+  BusinessProjectUpdateInput,
+  BusinessFounderInput,
+  BusinessMetricsInput,
+  ProjectCounts,
+  LegalEntityType,
 } from '@ds-proforma/types'
 
 export {
@@ -38,6 +52,9 @@ export {
   INTERVAL_UNITS,
   PROPERTY_TAX_PHASES,
   DOCUMENT_CATEGORIES,
+  // Business Projects
+  BUSINESS_STAGES,
+  BUSINESS_STAGE_LABELS,
 } from '@ds-proforma/types'
 
 export type GeneralFormState = {

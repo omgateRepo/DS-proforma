@@ -291,6 +291,146 @@ export interface Document {
   updatedAt: string
 }
 
+// ============================================
+// BUSINESS PROJECTS TYPES
+// ============================================
+
+export type BusinessStage = 'exploring' | 'product_market_fit' | 'unit_economics' | 'sustainable_growth'
+
+export declare const BUSINESS_STAGES: readonly BusinessStage[]
+
+export declare const BUSINESS_STAGE_LABELS: Record<BusinessStage, string>
+
+export type LegalEntityType = 'llc' | 'c_corp' | 's_corp' | 'partnership' | 'sole_prop'
+
+export interface BusinessProjectSummary {
+  id: EntityId
+  name: string
+  description?: string | null
+  stage: BusinessStage
+  stageEnteredAt: string
+  legalEntityName?: string | null
+  legalEntityType?: LegalEntityType | null
+  jurisdiction?: string | null
+  formedAt?: string | null
+  industry: string
+  targetMarket?: string | null
+  totalInvested?: number | null
+  currentMrr?: number | null
+  currentRunway?: number | null
+  ownerId?: EntityId | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BusinessFounder {
+  id: EntityId
+  name: string
+  role: string
+  equityPercent?: number | null
+  createdAt: string
+}
+
+export interface BusinessMonthlyMetrics {
+  id: EntityId
+  month: string // YYYY-MM
+  mrr?: number | null
+  arr?: number | null
+  revenueGrowthPct?: number | null
+  totalCustomers?: number | null
+  newCustomers?: number | null
+  churnedCustomers?: number | null
+  churnRatePct?: number | null
+  cac?: number | null
+  ltv?: number | null
+  ltvCacRatio?: number | null
+  grossMarginPct?: number | null
+  cashBalance?: number | null
+  burnRate?: number | null
+  runwayMonths?: number | null
+  teamSize?: number | null
+  notes?: string | null
+  createdAt: string
+}
+
+export interface BusinessStageCriterion {
+  id: EntityId
+  stage: BusinessStage
+  criterionKey: string
+  description: string
+  completed: boolean
+  completedAt?: string | null
+  notes?: string | null
+  createdAt: string
+}
+
+export interface BusinessCollaborator {
+  id: EntityId
+  email: string
+  displayName: string
+}
+
+export interface BusinessProjectDetail extends BusinessProjectSummary {
+  founders: BusinessFounder[]
+  monthlyMetrics: BusinessMonthlyMetrics[]
+  stageCriteria: BusinessStageCriterion[]
+  documents: Document[]
+  collaborators: BusinessCollaborator[]
+}
+
+export interface BusinessProjectCreateInput {
+  name: string
+  description?: string
+  industry?: string
+  targetMarket?: string
+}
+
+export interface BusinessProjectUpdateInput {
+  name?: string
+  description?: string | null
+  stage?: BusinessStage
+  legalEntityName?: string | null
+  legalEntityType?: LegalEntityType | null
+  jurisdiction?: string | null
+  formedAt?: string | null
+  industry?: string
+  targetMarket?: string | null
+  totalInvested?: number | null
+  currentMrr?: number | null
+  currentRunway?: number | null
+}
+
+export interface BusinessFounderInput {
+  name: string
+  role?: string
+  equityPercent?: number | null
+}
+
+export interface BusinessMetricsInput {
+  month: string
+  mrr?: number | null
+  arr?: number | null
+  revenueGrowthPct?: number | null
+  totalCustomers?: number | null
+  newCustomers?: number | null
+  churnedCustomers?: number | null
+  churnRatePct?: number | null
+  cac?: number | null
+  ltv?: number | null
+  ltvCacRatio?: number | null
+  grossMarginPct?: number | null
+  cashBalance?: number | null
+  burnRate?: number | null
+  runwayMonths?: number | null
+  teamSize?: number | null
+  notes?: string | null
+}
+
+export interface ProjectCounts {
+  realEstate: number
+  business: number
+}
+
 export declare const projectCreateSchema: z.ZodType<{ name: string }>
 export declare const projectUpdateSchema: z.ZodTypeAny
 export declare const apartmentRevenueInputSchema: z.ZodType<ApartmentRevenueInput>

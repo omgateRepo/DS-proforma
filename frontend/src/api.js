@@ -447,3 +447,157 @@ export async function searchAddresses(query) {
   const res = await request(`/api/geocode/search?q=${encodeURIComponent(query)}`)
   return handleJsonResponse(res, 'Failed to search addresses')
 }
+
+// ============================================
+// BUSINESS PROJECTS API
+// ============================================
+
+export async function fetchProjectCounts() {
+  const res = await request('/api/project-counts')
+  return handleJsonResponse(res, 'Failed to load project counts')
+}
+
+export async function fetchBusinessProjects() {
+  const res = await request('/api/business-projects')
+  return handleJsonResponse(res, 'Failed to load business projects')
+}
+
+export async function fetchBusinessProject(projectId) {
+  const res = await request(`/api/business-projects/${projectId}`)
+  return handleJsonResponse(res, 'Failed to load business project')
+}
+
+export async function createBusinessProject(payload) {
+  const res = await request('/api/business-projects', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create business project')
+}
+
+export async function updateBusinessProject(projectId, payload) {
+  const res = await request(`/api/business-projects/${projectId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update business project')
+}
+
+export async function deleteBusinessProject(projectId) {
+  const res = await request(`/api/business-projects/${projectId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete business project')
+}
+
+// Business Project Collaborators
+export async function addBusinessCollaborator(projectId, email) {
+  const res = await request(`/api/business-projects/${projectId}/collaborators`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  return handleJsonResponse(res, 'Failed to add collaborator')
+}
+
+export async function removeBusinessCollaborator(projectId, userId) {
+  const res = await request(`/api/business-projects/${projectId}/collaborators/${userId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to remove collaborator')
+}
+
+// Business Project Founders
+export async function addBusinessFounder(projectId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/founders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add founder')
+}
+
+export async function updateBusinessFounder(projectId, founderId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/founders/${founderId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update founder')
+}
+
+export async function deleteBusinessFounder(projectId, founderId) {
+  const res = await request(`/api/business-projects/${projectId}/founders/${founderId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete founder')
+}
+
+// Business Project Monthly Metrics
+export async function saveBusinessMetrics(projectId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/metrics`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to save metrics')
+}
+
+export async function deleteBusinessMetrics(projectId, metricId) {
+  const res = await request(`/api/business-projects/${projectId}/metrics/${metricId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete metrics')
+}
+
+// Business Project Stage Criteria
+export async function saveBusinessCriterion(projectId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/criteria`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to save criterion')
+}
+
+export async function updateBusinessCriterion(projectId, criterionId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/criteria/${criterionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update criterion')
+}
+
+// Business Project Documents
+export async function fetchBusinessDocuments(projectId) {
+  const res = await request(`/api/business-projects/${projectId}/documents`)
+  return handleJsonResponse(res, 'Failed to load documents')
+}
+
+export async function createBusinessDocument(projectId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/documents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add document')
+}
+
+export async function updateBusinessDocument(projectId, docId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/documents/${docId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update document')
+}
+
+export async function deleteBusinessDocument(projectId, docId) {
+  const res = await request(`/api/business-projects/${projectId}/documents/${docId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete document')
+}

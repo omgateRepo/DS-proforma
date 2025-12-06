@@ -2430,4 +2430,741 @@ router.get('/weather', async (req, res) => {
   }
 })
 
+// ============================================
+// BUSINESS PROJECTS API
+// ============================================
+
+const BUSINESS_STAGES = ['exploring', 'product_market_fit', 'unit_economics', 'sustainable_growth']
+const BUSINESS_STAGE_LABELS = {
+  exploring: 'Exploring',
+  product_market_fit: 'Product-Market Fit',
+  unit_economics: 'Positive Unit Economics',
+  sustainable_growth: 'Sustainable Growth',
+}
+
+const mapBusinessProjectRow = (row) => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  stage: row.stage,
+  stageEnteredAt: row.stage_entered_at,
+  legalEntityName: row.legal_entity_name,
+  legalEntityType: row.legal_entity_type,
+  jurisdiction: row.jurisdiction,
+  formedAt: row.formed_at,
+  industry: row.industry,
+  targetMarket: row.target_market,
+  totalInvested: toNumber(row.total_invested),
+  currentMrr: toNumber(row.current_mrr),
+  currentRunway: row.current_runway,
+  ownerId: row.owner_id,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapBusinessFounderRow = (row) => ({
+  id: row.id,
+  name: row.name,
+  role: row.role,
+  equityPercent: toNumber(row.equity_percent),
+  createdAt: row.created_at,
+})
+
+const mapBusinessMetricsRow = (row) => ({
+  id: row.id,
+  month: row.month,
+  mrr: toNumber(row.mrr),
+  arr: toNumber(row.arr),
+  revenueGrowthPct: toNumber(row.revenue_growth_pct),
+  totalCustomers: row.total_customers,
+  newCustomers: row.new_customers,
+  churnedCustomers: row.churned_customers,
+  churnRatePct: toNumber(row.churn_rate_pct),
+  cac: toNumber(row.cac),
+  ltv: toNumber(row.ltv),
+  ltvCacRatio: toNumber(row.ltv_cac_ratio),
+  grossMarginPct: toNumber(row.gross_margin_pct),
+  cashBalance: toNumber(row.cash_balance),
+  burnRate: toNumber(row.burn_rate),
+  runwayMonths: row.runway_months,
+  teamSize: row.team_size,
+  notes: row.notes,
+  createdAt: row.created_at,
+})
+
+const mapBusinessCriterionRow = (row) => ({
+  id: row.id,
+  stage: row.stage,
+  criterionKey: row.criterion_key,
+  description: row.description,
+  completed: row.completed,
+  completedAt: row.completed_at,
+  notes: row.notes,
+  createdAt: row.created_at,
+})
+
+const mapBusinessDocumentRow = (row) => ({
+  id: row.id,
+  title: row.title,
+  url: row.url,
+  category: row.category,
+  description: row.description,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const stubBusinessProject = {
+  id: 'stub-biz-1',
+  name: 'Sample Retail SaaS',
+  description: 'A sample business project',
+  stage: 'exploring',
+  stageEnteredAt: new Date().toISOString(),
+  legalEntityName: null,
+  legalEntityType: null,
+  jurisdiction: null,
+  formedAt: null,
+  industry: 'retail_saas',
+  targetMarket: 'SMB Retail',
+  totalInvested: 0,
+  currentMrr: 0,
+  currentRunway: null,
+  ownerId: 'stub-user',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  founders: [],
+  monthlyMetrics: [],
+  stageCriteria: [],
+  documents: [],
+  collaborators: [],
+}
+
+// List all business projects (for current user)
+router.get('/business-projects', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json([stubBusinessProject])
+  }
+  try {
+    const userId = req.user?.id
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const projects = await prisma.business_projects.findMany({
+      where: {
+        deleted_at: null,
+        OR: [
+          { owner_id: userId },
+          { collaborators: { some: { user_id: userId } } },
+        ],
+      },
+      orderBy: { created_at: 'desc' },
+    })
+
+    res.json(projects.map(mapBusinessProjectRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load business projects', details: err.message })
+  }
+})
+
+// Get business project detail
+router.get('/business-projects/:id', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json(stubBusinessProject)
+  }
+  try {
+    const userId = req.user?.id
+    const row = await prisma.business_projects.findFirst({
+      where: {
+        id: req.params.id,
+        deleted_at: null,
+        OR: [
+          { owner_id: userId },
+          { collaborators: { some: { user_id: userId } } },
+        ],
+      },
+    })
+
+    if (!row) {
+      return res.status(404).json({ error: 'Business project not found' })
+    }
+
+    const [founders, monthlyMetrics, stageCriteria, documents, collaborators] = await Promise.all([
+      prisma.business_project_founders.findMany({
+        where: { project_id: req.params.id },
+        orderBy: { created_at: 'asc' },
+      }),
+      prisma.business_project_monthly_metrics.findMany({
+        where: { project_id: req.params.id },
+        orderBy: { month: 'desc' },
+      }),
+      prisma.business_project_stage_criteria.findMany({
+        where: { project_id: req.params.id },
+        orderBy: { created_at: 'asc' },
+      }),
+      prisma.business_project_documents.findMany({
+        where: { project_id: req.params.id },
+        orderBy: { created_at: 'asc' },
+      }),
+      prisma.business_project_collaborators.findMany({
+        where: { project_id: req.params.id },
+        include: { user: { select: { id: true, email: true, display_name: true } } },
+      }),
+    ])
+
+    const project = mapBusinessProjectRow(row)
+    project.founders = founders.map(mapBusinessFounderRow)
+    project.monthlyMetrics = monthlyMetrics.map(mapBusinessMetricsRow)
+    project.stageCriteria = stageCriteria.map(mapBusinessCriterionRow)
+    project.documents = documents.map(mapBusinessDocumentRow)
+    project.collaborators = collaborators.map((c) => ({
+      id: c.user.id,
+      email: c.user.email,
+      displayName: c.user.display_name,
+    }))
+
+    res.json(project)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load business project', details: err.message })
+  }
+})
+
+// Create business project
+router.post('/business-projects', async (req, res) => {
+  const { name, description, industry, targetMarket } = req.body || {}
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: 'Name is required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      ...stubBusinessProject,
+      id: `stub-biz-${Date.now()}`,
+      name: name.trim(),
+      description: description || null,
+      industry: industry || 'retail_saas',
+      targetMarket: targetMarket || null,
+    })
+  }
+  try {
+    const userId = req.user?.id
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const row = await prisma.business_projects.create({
+      data: {
+        name: name.trim(),
+        description: description?.trim() || null,
+        industry: industry || 'retail_saas',
+        target_market: targetMarket?.trim() || null,
+        owner_id: userId,
+      },
+    })
+
+    // Record initial stage history
+    await prisma.business_project_stage_history.create({
+      data: {
+        project_id: row.id,
+        from_stage: null,
+        to_stage: 'exploring',
+      },
+    })
+
+    const project = mapBusinessProjectRow(row)
+    project.founders = []
+    project.monthlyMetrics = []
+    project.stageCriteria = []
+    project.documents = []
+    project.collaborators = []
+
+    res.status(201).json(project)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create business project', details: err.message })
+  }
+})
+
+// Update business project
+router.patch('/business-projects/:id', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ ...stubBusinessProject, ...req.body })
+  }
+  try {
+    const userId = req.user?.id
+    const existing = await prisma.business_projects.findFirst({
+      where: {
+        id: req.params.id,
+        deleted_at: null,
+        OR: [
+          { owner_id: userId },
+          { collaborators: { some: { user_id: userId } } },
+        ],
+      },
+    })
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Business project not found' })
+    }
+
+    const {
+      name,
+      description,
+      stage,
+      legalEntityName,
+      legalEntityType,
+      jurisdiction,
+      formedAt,
+      industry,
+      targetMarket,
+      totalInvested,
+      currentMrr,
+      currentRunway,
+    } = req.body || {}
+
+    const updateData = {}
+    if (name !== undefined) updateData.name = name?.trim() || existing.name
+    if (description !== undefined) updateData.description = description?.trim() || null
+    if (legalEntityName !== undefined) updateData.legal_entity_name = legalEntityName?.trim() || null
+    if (legalEntityType !== undefined) updateData.legal_entity_type = legalEntityType || null
+    if (jurisdiction !== undefined) updateData.jurisdiction = jurisdiction?.trim() || null
+    if (formedAt !== undefined) updateData.formed_at = formedAt ? new Date(formedAt) : null
+    if (industry !== undefined) updateData.industry = industry || 'retail_saas'
+    if (targetMarket !== undefined) updateData.target_market = targetMarket?.trim() || null
+    if (totalInvested !== undefined) updateData.total_invested = totalInvested
+    if (currentMrr !== undefined) updateData.current_mrr = currentMrr
+    if (currentRunway !== undefined) updateData.current_runway = currentRunway
+
+    // Handle stage change
+    if (stage && stage !== existing.stage) {
+      if (!BUSINESS_STAGES.includes(stage)) {
+        return res.status(400).json({ error: `Invalid stage: ${stage}` })
+      }
+      updateData.stage = stage
+      updateData.stage_entered_at = new Date()
+
+      // Record stage history
+      await prisma.business_project_stage_history.create({
+        data: {
+          project_id: req.params.id,
+          from_stage: existing.stage,
+          to_stage: stage,
+        },
+      })
+    }
+
+    updateData.updated_at = new Date()
+
+    const row = await prisma.business_projects.update({
+      where: { id: req.params.id },
+      data: updateData,
+    })
+
+    res.json(mapBusinessProjectRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update business project', details: err.message })
+  }
+})
+
+// Delete business project (soft delete)
+router.delete('/business-projects/:id', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  try {
+    const userId = req.user?.id
+    const existing = await prisma.business_projects.findFirst({
+      where: {
+        id: req.params.id,
+        owner_id: userId, // Only owner can delete
+        deleted_at: null,
+      },
+    })
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Business project not found or not authorized' })
+    }
+
+    await prisma.business_projects.update({
+      where: { id: req.params.id },
+      data: { deleted_at: new Date() },
+    })
+
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete business project', details: err.message })
+  }
+})
+
+// ---- Business Project Collaborators ----
+
+router.post('/business-projects/:id/collaborators', async (req, res) => {
+  const { email } = req.body || {}
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Email is required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({ id: 'stub-user', email, displayName: email })
+  }
+  try {
+    const userId = req.user?.id
+    const project = await prisma.business_projects.findFirst({
+      where: { id: req.params.id, owner_id: userId, deleted_at: null },
+    })
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found or not authorized' })
+    }
+
+    const targetUser = await prisma.users.findUnique({ where: { email: email.toLowerCase().trim() } })
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    if (targetUser.id === userId) {
+      return res.status(400).json({ error: 'Cannot add yourself as collaborator' })
+    }
+
+    await prisma.business_project_collaborators.upsert({
+      where: { project_id_user_id: { project_id: req.params.id, user_id: targetUser.id } },
+      create: { project_id: req.params.id, user_id: targetUser.id },
+      update: {},
+    })
+
+    res.status(201).json({ id: targetUser.id, email: targetUser.email, displayName: targetUser.display_name })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add collaborator', details: err.message })
+  }
+})
+
+router.delete('/business-projects/:id/collaborators/:userId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  try {
+    const ownerId = req.user?.id
+    const project = await prisma.business_projects.findFirst({
+      where: { id: req.params.id, owner_id: ownerId, deleted_at: null },
+    })
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found or not authorized' })
+    }
+
+    await prisma.business_project_collaborators.deleteMany({
+      where: { project_id: req.params.id, user_id: req.params.userId },
+    })
+
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove collaborator', details: err.message })
+  }
+})
+
+// ---- Business Project Founders ----
+
+router.post('/business-projects/:id/founders', async (req, res) => {
+  const { name, role, equityPercent } = req.body || {}
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ error: 'Name is required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `founder-${Date.now()}`,
+      name: name.trim(),
+      role: role || '',
+      equityPercent: equityPercent || null,
+      createdAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.business_project_founders.create({
+      data: {
+        project_id: req.params.id,
+        name: name.trim(),
+        role: role?.trim() || '',
+        equity_percent: equityPercent || null,
+      },
+    })
+    res.status(201).json(mapBusinessFounderRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add founder', details: err.message })
+  }
+})
+
+router.patch('/business-projects/:id/founders/:founderId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.founderId, ...req.body })
+  }
+  try {
+    const { name, role, equityPercent } = req.body || {}
+    const updateData = {}
+    if (name !== undefined) updateData.name = name?.trim()
+    if (role !== undefined) updateData.role = role?.trim() || ''
+    if (equityPercent !== undefined) updateData.equity_percent = equityPercent
+
+    const row = await prisma.business_project_founders.update({
+      where: { id: req.params.founderId },
+      data: updateData,
+    })
+    res.json(mapBusinessFounderRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update founder', details: err.message })
+  }
+})
+
+router.delete('/business-projects/:id/founders/:founderId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  try {
+    await prisma.business_project_founders.delete({ where: { id: req.params.founderId } })
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete founder', details: err.message })
+  }
+})
+
+// ---- Business Project Monthly Metrics ----
+
+router.post('/business-projects/:id/metrics', async (req, res) => {
+  const { month, ...metrics } = req.body || {}
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).json({ error: 'Month is required (YYYY-MM format)' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({ id: `metric-${Date.now()}`, month, ...metrics, createdAt: new Date().toISOString() })
+  }
+  try {
+    const row = await prisma.business_project_monthly_metrics.upsert({
+      where: { project_id_month: { project_id: req.params.id, month } },
+      create: {
+        project_id: req.params.id,
+        month,
+        mrr: metrics.mrr,
+        arr: metrics.arr,
+        revenue_growth_pct: metrics.revenueGrowthPct,
+        total_customers: metrics.totalCustomers,
+        new_customers: metrics.newCustomers,
+        churned_customers: metrics.churnedCustomers,
+        churn_rate_pct: metrics.churnRatePct,
+        cac: metrics.cac,
+        ltv: metrics.ltv,
+        ltv_cac_ratio: metrics.ltvCacRatio,
+        gross_margin_pct: metrics.grossMarginPct,
+        cash_balance: metrics.cashBalance,
+        burn_rate: metrics.burnRate,
+        runway_months: metrics.runwayMonths,
+        team_size: metrics.teamSize,
+        notes: metrics.notes,
+      },
+      update: {
+        mrr: metrics.mrr,
+        arr: metrics.arr,
+        revenue_growth_pct: metrics.revenueGrowthPct,
+        total_customers: metrics.totalCustomers,
+        new_customers: metrics.newCustomers,
+        churned_customers: metrics.churnedCustomers,
+        churn_rate_pct: metrics.churnRatePct,
+        cac: metrics.cac,
+        ltv: metrics.ltv,
+        ltv_cac_ratio: metrics.ltvCacRatio,
+        gross_margin_pct: metrics.grossMarginPct,
+        cash_balance: metrics.cashBalance,
+        burn_rate: metrics.burnRate,
+        runway_months: metrics.runwayMonths,
+        team_size: metrics.teamSize,
+        notes: metrics.notes,
+      },
+    })
+    res.status(201).json(mapBusinessMetricsRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save metrics', details: err.message })
+  }
+})
+
+router.delete('/business-projects/:id/metrics/:metricId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  try {
+    await prisma.business_project_monthly_metrics.delete({ where: { id: req.params.metricId } })
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete metrics', details: err.message })
+  }
+})
+
+// ---- Business Project Stage Criteria ----
+
+router.post('/business-projects/:id/criteria', async (req, res) => {
+  const { stage, criterionKey, description } = req.body || {}
+  if (!stage || !criterionKey || !description) {
+    return res.status(400).json({ error: 'Stage, criterionKey, and description are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `criterion-${Date.now()}`,
+      stage,
+      criterionKey,
+      description,
+      completed: false,
+      completedAt: null,
+      notes: null,
+      createdAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.business_project_stage_criteria.upsert({
+      where: { project_id_stage_criterion_key: { project_id: req.params.id, stage, criterion_key: criterionKey } },
+      create: {
+        project_id: req.params.id,
+        stage,
+        criterion_key: criterionKey,
+        description,
+      },
+      update: { description },
+    })
+    res.status(201).json(mapBusinessCriterionRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save criterion', details: err.message })
+  }
+})
+
+router.patch('/business-projects/:id/criteria/:criterionId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.criterionId, ...req.body })
+  }
+  try {
+    const { completed, notes } = req.body || {}
+    const updateData = {}
+    if (completed !== undefined) {
+      updateData.completed = completed
+      updateData.completed_at = completed ? new Date() : null
+    }
+    if (notes !== undefined) updateData.notes = notes
+
+    const row = await prisma.business_project_stage_criteria.update({
+      where: { id: req.params.criterionId },
+      data: updateData,
+    })
+    res.json(mapBusinessCriterionRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update criterion', details: err.message })
+  }
+})
+
+// ---- Business Project Documents ----
+
+router.get('/business-projects/:id/documents', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json([])
+  }
+  try {
+    const documents = await prisma.business_project_documents.findMany({
+      where: { project_id: req.params.id },
+      orderBy: { created_at: 'asc' },
+    })
+    res.json(documents.map(mapBusinessDocumentRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load documents', details: err.message })
+  }
+})
+
+router.post('/business-projects/:id/documents', async (req, res) => {
+  const payload = parseBody(documentInputSchema, req.body, res)
+  if (!payload) return
+  const title = payload.title?.trim() || await fetchTitleFromUrl(payload.url) || deriveTitleFromUrl(payload.url)
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `doc-${Date.now()}`,
+      ...payload,
+      title,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.business_project_documents.create({
+      data: {
+        project_id: req.params.id,
+        title,
+        url: payload.url,
+        category: payload.category,
+        description: payload.description || null,
+      },
+    })
+    res.status(201).json(mapBusinessDocumentRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add document', details: err.message })
+  }
+})
+
+router.patch('/business-projects/:id/documents/:docId', async (req, res) => {
+  const payload = parseBody(documentUpdateSchema, req.body, res)
+  if (!payload) return
+  if (SKIP_DB) {
+    return res.json({ id: req.params.docId, ...payload, updatedAt: new Date().toISOString() })
+  }
+  try {
+    const updateData = { updated_at: new Date() }
+    if (payload.title !== undefined) updateData.title = payload.title
+    if (payload.url !== undefined) updateData.url = payload.url
+    if (payload.category !== undefined) updateData.category = payload.category
+    if (payload.description !== undefined) updateData.description = payload.description || null
+
+    const row = await prisma.business_project_documents.update({
+      where: { id: req.params.docId },
+      data: updateData,
+    })
+    res.json(mapBusinessDocumentRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update document', details: err.message })
+  }
+})
+
+router.delete('/business-projects/:id/documents/:docId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  try {
+    await prisma.business_project_documents.delete({ where: { id: req.params.docId } })
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete document', details: err.message })
+  }
+})
+
+// Get project counts for board visibility
+router.get('/project-counts', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ realEstate: 1, business: 1 })
+  }
+  try {
+    const userId = req.user?.id
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+
+    const [realEstateCount, businessCount] = await Promise.all([
+      prisma.projects.count({
+        where: {
+          deleted_at: null,
+          OR: [
+            { owner_id: userId },
+            { project_collaborators: { some: { user_id: userId } } },
+          ],
+        },
+      }),
+      prisma.business_projects.count({
+        where: {
+          deleted_at: null,
+          OR: [
+            { owner_id: userId },
+            { collaborators: { some: { user_id: userId } } },
+          ],
+        },
+      }),
+    ])
+
+    res.json({ realEstate: realEstateCount, business: businessCount })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get project counts', details: err.message })
+  }
+})
+
 export default router

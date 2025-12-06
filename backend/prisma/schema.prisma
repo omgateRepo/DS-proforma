@@ -150,15 +150,19 @@ model projects {
 }
 
 model users {
-  id               String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  email            String                  @unique
-  display_name     String
-  password_hash    String
-  is_super_admin   Boolean                 @default(false)
-  created_at       DateTime                @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime                @default(now()) @db.Timestamptz(6)
-  owned_projects   projects[]              @relation("projects_owner")
-  collaborations   project_collaborators[]
+  id                            String                           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                         String                           @unique
+  display_name                  String
+  password_hash                 String
+  is_super_admin                Boolean                          @default(false)
+  created_at                    DateTime                         @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime                         @default(now()) @db.Timestamptz(6)
+  // Real Estate projects
+  owned_projects                projects[]                       @relation("projects_owner")
+  collaborations                project_collaborators[]
+  // Business projects
+  owned_business_projects       business_projects[]              @relation("business_projects_owner")
+  business_collaborations       business_project_collaborators[]
 }
 
 model project_collaborators {
@@ -182,4 +186,142 @@ model project_documents {
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
   project     projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// BUSINESS PROJECTS (Company Building)
+// ============================================
+
+model business_projects {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name              String
+  description       String?
+  stage             String   @default("exploring") // exploring, product_market_fit, unit_economics, sustainable_growth
+  stage_entered_at  DateTime @default(now()) @db.Timestamptz(6)
+  
+  // Company info
+  legal_entity_name String?
+  legal_entity_type String?  // llc, c_corp, s_corp, partnership, sole_prop
+  jurisdiction      String?
+  formed_at         DateTime? @db.Date
+  
+  // Industry/Focus
+  industry          String   @default("retail_saas")
+  target_market     String?
+  
+  // Financials summary (denormalized for quick display)
+  total_invested    Decimal? @db.Decimal
+  current_mrr       Decimal? @db.Decimal
+  current_runway    Int?     // months
+  
+  // Ownership
+  owner_id          String?  @db.Uuid
+  
+  // Metadata
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+  deleted_at        DateTime? @db.Timestamptz(6)
+  
+  // Relations
+  owner             users?   @relation("business_projects_owner", fields: [owner_id], references: [id], onDelete: SetNull)
+  collaborators     business_project_collaborators[]
+  documents         business_project_documents[]
+  founders          business_project_founders[]
+  monthly_metrics   business_project_monthly_metrics[]
+  stage_criteria    business_project_stage_criteria[]
+  stage_history     business_project_stage_history[]
+}
+
+model business_project_collaborators {
+  id         String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id String            @db.Uuid
+  user_id    String            @db.Uuid
+  created_at DateTime          @default(now()) @db.Timestamptz(6)
+  project    business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  user       users             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, user_id])
+}
+
+model business_project_documents {
+  id          String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id  String            @db.Uuid
+  title       String
+  url         String
+  category    String
+  description String?
+  created_at  DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  project     business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model business_project_founders {
+  id             String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id     String            @db.Uuid
+  name           String
+  role           String
+  equity_percent Decimal?          @db.Decimal
+  created_at     DateTime          @default(now()) @db.Timestamptz(6)
+  project        business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+model business_project_monthly_metrics {
+  id                    String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id            String            @db.Uuid
+  month                 String            // YYYY-MM format
+  
+  // Revenue metrics
+  mrr                   Decimal?          @db.Decimal
+  arr                   Decimal?          @db.Decimal
+  revenue_growth_pct    Decimal?          @db.Decimal
+  
+  // Customer metrics
+  total_customers       Int?
+  new_customers         Int?
+  churned_customers     Int?
+  churn_rate_pct        Decimal?          @db.Decimal
+  
+  // Unit economics
+  cac                   Decimal?          @db.Decimal
+  ltv                   Decimal?          @db.Decimal
+  ltv_cac_ratio         Decimal?          @db.Decimal
+  gross_margin_pct      Decimal?          @db.Decimal
+  
+  // Cash metrics
+  cash_balance          Decimal?          @db.Decimal
+  burn_rate             Decimal?          @db.Decimal
+  runway_months         Int?
+  
+  // Team
+  team_size             Int?
+  
+  notes                 String?
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  project               business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, month])
+}
+
+model business_project_stage_criteria {
+  id           String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id   String            @db.Uuid
+  stage        String            // which stage this criterion belongs to
+  criterion_key String           // e.g., "regular_paying_customers", "low_churn"
+  description  String
+  completed    Boolean           @default(false)
+  completed_at DateTime?         @db.Timestamptz(6)
+  notes        String?
+  created_at   DateTime          @default(now()) @db.Timestamptz(6)
+  project      business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, stage, criterion_key])
+}
+
+model business_project_stage_history {
+  id         String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id String            @db.Uuid
+  from_stage String?
+  to_stage   String
+  changed_at DateTime          @default(now()) @db.Timestamptz(6)
+  project    business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
 }

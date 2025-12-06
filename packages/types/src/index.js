@@ -56,6 +56,16 @@ export const INTERVAL_UNITS = [...intervalUnits]
 export const PROPERTY_TAX_PHASES = [...propertyTaxPhases]
 export const DOCUMENT_CATEGORIES = [...documentCategories]
 
+// Business project constants
+const businessStages = ['exploring', 'product_market_fit', 'unit_economics', 'sustainable_growth']
+export const BUSINESS_STAGES = [...businessStages]
+export const BUSINESS_STAGE_LABELS = {
+  exploring: 'Exploring',
+  product_market_fit: 'Product-Market Fit',
+  unit_economics: 'Positive Unit Economics',
+  sustainable_growth: 'Sustainable Growth',
+}
+
 const costScheduleBaseFields = {
   costName: nonEmptyString,
   amountUsd: money,
