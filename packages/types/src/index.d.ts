@@ -275,14 +275,18 @@ export interface WeatherReading {
 }
 
 export interface DocumentInput {
-  title: string
+  title?: string
   url: string
   category: DocumentCategory
   description?: string
 }
 
-export interface Document extends DocumentInput {
+export interface Document {
   id: EntityId
+  title: string
+  url: string
+  category: DocumentCategory
+  description?: string
   createdAt: string
   updatedAt: string
 }

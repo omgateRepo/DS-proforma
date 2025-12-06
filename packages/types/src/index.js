@@ -252,7 +252,7 @@ const httpsUrl = z.string().url().refine((url) => url.startsWith('https://'), {
 })
 
 export const documentInputSchema = z.object({
-  title: nonEmptyString,
+  title: z.string().optional(),
   url: httpsUrl,
   category: z.enum(documentCategories),
   description: optionalString,

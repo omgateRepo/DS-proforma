@@ -2100,6 +2100,83 @@ const mapDocumentRow = (row) => ({
   updatedAt: row.updated_at,
 })
 
+const fetchTitleFromUrl = async (url) => {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000) // 5s timeout
+    
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; DocFetcher/1.0)',
+      },
+    })
+    clearTimeout(timeout)
+    
+    if (!response.ok) return null
+    
+    const html = await response.text()
+    
+    // Extract title from <title> tag
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+    if (titleMatch && titleMatch[1]) {
+      let title = titleMatch[1].trim()
+      
+      // Clean up Google-specific suffixes
+      title = title
+        .replace(/ - Google Docs$/i, '')
+        .replace(/ - Google Sheets$/i, '')
+        .replace(/ - Google Slides$/i, '')
+        .replace(/ - Google Drive$/i, '')
+        .replace(/ - Dropbox$/i, '')
+        .trim()
+      
+      if (title.length > 2 && title.length < 200) {
+        return title
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+const deriveTitleFromUrl = (url) => {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.replace('www.', '')
+    
+    // Try to get a meaningful name from the path
+    const pathParts = parsed.pathname.split('/').filter(Boolean)
+    
+    // For Google Drive/Docs URLs, use a friendly name
+    if (hostname.includes('google.com')) {
+      if (hostname.includes('drive')) return 'Google Drive Document'
+      if (hostname.includes('docs')) return 'Google Doc'
+      if (hostname.includes('sheets')) return 'Google Sheet'
+      return 'Google Document'
+    }
+    
+    // For Dropbox
+    if (hostname.includes('dropbox.com')) return 'Dropbox File'
+    
+    // For other URLs, try to get the last path segment
+    const lastSegment = pathParts[pathParts.length - 1]
+    if (lastSegment && lastSegment.length > 3 && lastSegment.length < 50) {
+      // Decode and clean up the segment
+      const decoded = decodeURIComponent(lastSegment)
+      // Remove common file extensions
+      const cleaned = decoded.replace(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx)$/i, '')
+      if (cleaned.length > 3) return cleaned
+    }
+    
+    // Fallback to hostname
+    return `Document from ${hostname}`
+  } catch {
+    return 'Untitled Document'
+  }
+}
+
 router.get('/projects/:id/documents', async (req, res) => {
   if (SKIP_DB) {
     return res.json([])
@@ -2118,10 +2195,18 @@ router.get('/projects/:id/documents', async (req, res) => {
 router.post('/projects/:id/documents', async (req, res) => {
   const payload = parseBody(documentInputSchema, req.body, res)
   if (!payload) return
+  
+  // Derive title: use provided title, or fetch from URL, or generate from URL
+  let title = payload.title?.trim()
+  if (!title) {
+    title = await fetchTitleFromUrl(payload.url) || deriveTitleFromUrl(payload.url)
+  }
+  
   if (SKIP_DB) {
     return res.status(201).json({
       id: `doc-${Date.now()}`,
       ...payload,
+      title,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -2130,7 +2215,7 @@ router.post('/projects/:id/documents', async (req, res) => {
     const row = await prisma.project_documents.create({
       data: {
         project_id: req.params.id,
-        title: payload.title,
+        title,
         url: payload.url,
         category: payload.category,
         description: payload.description || null,

@@ -109,7 +109,7 @@ export function DocsTab({ project, projectId, onProjectRefresh }: DocsTabProps) 
 
     try {
       const payload = {
-        title: form.title.trim(),
+        title: form.title.trim() || undefined,
         url: form.url.trim(),
         category: form.category as DocumentCategory,
         description: form.description.trim() || undefined,
@@ -247,13 +247,12 @@ export function DocsTab({ project, projectId, onProjectRefresh }: DocsTabProps) 
             <h3>{editingId ? 'Edit Document' : 'Add Document'}</h3>
             <form className="modal-form" onSubmit={handleSubmit}>
               <label>
-                Title *
+                Title
                 <input
                   type="text"
                   value={form.title}
                   onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g., Purchase Agreement v2"
-                  required
+                  placeholder="Auto-generated from URL if blank"
                 />
               </label>
 
