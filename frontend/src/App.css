@@ -1418,6 +1418,102 @@ td {
   }
 }
 
+/* Mobile tabs - wrap into grid of buttons */
+@media (max-width: 768px) {
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+  }
+
+  .tabs button {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    padding: 0.75rem 0.5rem;
+    font-size: 0.75rem;
+    text-transform: none;
+    font-weight: 500;
+  }
+
+  .tabs button:not(:last-child) {
+    border-right: 1px solid var(--border);
+  }
+
+  .tabs button:hover:not(.active) {
+    background: rgba(15, 23, 42, 0.06);
+    border-color: var(--muted);
+  }
+
+  .tabs button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+
+  /* Adjust detail panel for mobile */
+  .detail-panel {
+    padding: 1rem;
+  }
+
+  .detail-panel h2 {
+    font-size: 1.25rem;
+  }
+
+  /* Make general layout stack on mobile */
+  .general-layout {
+    flex-direction: column;
+  }
+
+  .general-form-wrapper,
+  .map-wrapper {
+    width: 100%;
+  }
+
+  /* Adjust modal for mobile */
+  .modal-panel {
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: 1rem;
+  }
+
+  /* Docs tab mobile adjustments */
+  .docs-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .docs-header button {
+    width: 100%;
+  }
+
+  .doc-card {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .doc-actions {
+    align-self: flex-end;
+  }
+}
+
+/* Very small screens - 3 columns for more tabs */
+@media (max-width: 480px) {
+  .tabs {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.35rem;
+  }
+
+  .tabs button {
+    padding: 0.6rem 0.25rem;
+    font-size: 0.7rem;
+  }
+}
+
 .auth-overlay {
   position: fixed;
   inset: 0;
