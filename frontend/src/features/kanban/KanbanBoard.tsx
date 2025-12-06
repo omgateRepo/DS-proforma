@@ -32,17 +32,6 @@ export function KanbanBoard({
 
   return (
     <>
-      <header className="app-header">
-        <div>
-          <p className="eyebrow">Real Estate Control Center</p>
-          <h1>DS Proforma</h1>
-        </div>
-        <div className="header-actions">
-          <button className="primary" type="button" onClick={onAddProject}>
-            + Add Project
-          </button>
-        </div>
-      </header>
       <section className="kanban-section">
         <div className="kanban">
           {stageOptions.map((stage) => {

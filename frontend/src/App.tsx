@@ -25,6 +25,13 @@ import {
   updateProjectGeneral,
   updateProjectStage,
   updateUser,
+  // Business projects
+  fetchProjectCounts,
+  fetchBusinessProjects,
+  fetchBusinessProject,
+  createBusinessProject,
+  updateBusinessProject,
+  deleteBusinessProject,
 } from './api.js'
 import { RevenueSection } from './features/revenue/RevenueSection'
 import { HardCostsSection } from './features/costs/HardCostsSection'
@@ -63,7 +70,13 @@ import type {
   ProjectSummary,
   UserSummary,
   WeatherReading,
+  // Business projects
+  BusinessProjectSummary,
+  BusinessProjectDetail,
+  BusinessStage,
+  ProjectCounts,
 } from './types'
+import { BUSINESS_STAGES, BUSINESS_STAGE_LABELS } from './types'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -83,6 +96,7 @@ type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
 type CashflowMonthMeta = { index: number; label: string; calendarLabel: string; year: number }
 type AuthFormState = { username: string; password: string }
+type BoardType = 'realEstate' | 'business'
 type AutoManagementRow = { id: string; label: string; monthlyAmount: number; startMonth: number | null }
 
 const CASHFLOW_MONTHS = 60
@@ -487,6 +501,10 @@ const getCoordKey = (id: EntityId) => String(id)
 function App() {
   const initialAuth = getAuthCredentials()
   const initialProjectsStatus: LoadStatus = initialAuth ? 'loading' : 'idle'
+  // Board type state
+  const [activeBoard, setActiveBoard] = useState<BoardType>('realEstate')
+  const [projectCounts, setProjectCounts] = useState<ProjectCounts>({ realEstate: 0, business: 0 })
+  // Real estate projects
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectsStatus, setProjectsStatus] = useState<LoadStatus>(initialProjectsStatus)
   const [projectsError, setProjectsError] = useState('')
@@ -540,6 +558,20 @@ function App() {
   const [collaboratorStatus, setCollaboratorStatus] = useState<RequestStatus>('idle')
   const [collaboratorError, setCollaboratorError] = useState('')
   const accountMenuRef = useRef<HTMLDivElement | null>(null)
+
+  // Business projects state
+  const [businessProjects, setBusinessProjects] = useState<BusinessProjectSummary[]>([])
+  const [businessProjectsStatus, setBusinessProjectsStatus] = useState<LoadStatus>('idle')
+  const [businessProjectsError, setBusinessProjectsError] = useState('')
+  const [selectedBusinessProjectId, setSelectedBusinessProjectId] = useState<EntityId | null>(null)
+  const [selectedBusinessProject, setSelectedBusinessProject] = useState<BusinessProjectDetail | null>(null)
+  const [businessDetailStatus, setBusinessDetailStatus] = useState<LoadStatus>('idle')
+  const [businessDetailError, setBusinessDetailError] = useState('')
+  const [newBusinessProjectName, setNewBusinessProjectName] = useState('')
+  const [businessCreateStatus, setBusinessCreateStatus] = useState<RequestStatus>('idle')
+  const [businessCreateError, setBusinessCreateError] = useState('')
+  const [isBusinessCreateModalOpen, setIsBusinessCreateModalOpen] = useState(false)
+  const [businessStageUpdatingFor, setBusinessStageUpdatingFor] = useState<EntityId | null>(null)
 
   const availableUsers = useMemo(() => {
     if (!selectedProject) return []
@@ -889,8 +921,36 @@ function App() {
       return acc
     }, {} as Record<ProjectStage, ProjectSummary[]>)
   }, [projects, stageOptions])
-  const isKanbanView = !selectedProjectId
+  const isKanbanView = activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId
   const showAccountMenu = isAuthReady && !isAuthModalOpen && Boolean(currentUser)
+  const isSuperAdmin = currentUser?.isSuperAdmin ?? false
+  // Super admins always see both tabs; regular users see tabs they have projects in OR both if they have none (to create first)
+  const hasAnyProjects = projectCounts.realEstate > 0 || projectCounts.business > 0
+  const showBoardSelector = true // Always show selector so users can switch/create
+  const showRealEstateTab = isSuperAdmin || !hasAnyProjects || projectCounts.realEstate > 0 || projects.length > 0
+  const showBusinessTab = isSuperAdmin || !hasAnyProjects || projectCounts.business > 0 || businessProjects.length > 0
+
+  // Business projects grouped by stage
+  const businessProjectsByStage = useMemo(() => {
+    const grouped: Record<BusinessStage, BusinessProjectSummary[]> = {
+      exploring: [],
+      product_market_fit: [],
+      unit_economics: [],
+      sustainable_growth: [],
+    }
+    businessProjects.forEach((project) => {
+      const stage = project.stage as BusinessStage
+      if (grouped[stage]) {
+        grouped[stage].push(project)
+      }
+    })
+    return grouped
+  }, [businessProjects])
+
+  const businessStageOptions: { value: BusinessStage; label: string }[] = BUSINESS_STAGES.map((s) => ({
+    value: s,
+    label: BUSINESS_STAGE_LABELS[s],
+  }))
 
   const loadProjects = async () => {
     setProjectsStatus('loading')
@@ -906,6 +966,98 @@ function App() {
     } catch (err) {
       setProjectsError(getErrorMessage(err))
       setProjectsStatus('error')
+    }
+  }
+
+  const loadProjectCounts = async () => {
+    try {
+      const counts = (await fetchProjectCounts()) as ProjectCounts
+      setProjectCounts(counts)
+      // Auto-select the board type that has projects
+      if (counts.realEstate === 0 && counts.business > 0) {
+        setActiveBoard('business')
+      } else if (counts.business === 0 && counts.realEstate > 0) {
+        setActiveBoard('realEstate')
+      }
+    } catch (err) {
+      console.error('Failed to load project counts', err)
+    }
+  }
+
+  const loadBusinessProjects = async () => {
+    setBusinessProjectsStatus('loading')
+    setBusinessProjectsError('')
+    try {
+      const rows = (await fetchBusinessProjects()) as BusinessProjectSummary[]
+      setBusinessProjects(rows)
+      if (selectedBusinessProjectId && !rows.some((row) => row.id === selectedBusinessProjectId)) {
+        setSelectedBusinessProjectId(null)
+        setSelectedBusinessProject(null)
+      }
+      setBusinessProjectsStatus('loaded')
+    } catch (err) {
+      setBusinessProjectsError(getErrorMessage(err))
+      setBusinessProjectsStatus('error')
+    }
+  }
+
+  const loadBusinessProjectDetail = async (projectId: EntityId) => {
+    setBusinessDetailStatus('loading')
+    setBusinessDetailError('')
+    try {
+      const detail = (await fetchBusinessProject(projectId)) as BusinessProjectDetail
+      setSelectedBusinessProject(detail)
+      setBusinessDetailStatus('loaded')
+    } catch (err) {
+      setBusinessDetailError(getErrorMessage(err))
+      setBusinessDetailStatus('error')
+    }
+  }
+
+  const handleCreateBusinessProject = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!newBusinessProjectName.trim()) return
+    setBusinessCreateStatus('saving')
+    setBusinessCreateError('')
+    try {
+      await createBusinessProject({ name: newBusinessProjectName.trim() })
+      setNewBusinessProjectName('')
+      setIsBusinessCreateModalOpen(false)
+      setBusinessCreateStatus('idle')
+      await loadBusinessProjects()
+      await loadProjectCounts()
+    } catch (err) {
+      setBusinessCreateError(getErrorMessage(err))
+      setBusinessCreateStatus('error')
+    }
+  }
+
+  const handleBusinessStageChange = async (projectId: EntityId, newStage: BusinessStage) => {
+    setBusinessStageUpdatingFor(projectId)
+    try {
+      await updateBusinessProject(projectId, { stage: newStage })
+      await loadBusinessProjects()
+      if (selectedBusinessProjectId === projectId) {
+        await loadBusinessProjectDetail(projectId)
+      }
+    } catch (err) {
+      console.error('Failed to change business stage', err)
+    } finally {
+      setBusinessStageUpdatingFor(null)
+    }
+  }
+
+  const handleDeleteBusinessProject = async (projectId: EntityId) => {
+    try {
+      await deleteBusinessProject(projectId)
+      if (selectedBusinessProjectId === projectId) {
+        setSelectedBusinessProjectId(null)
+        setSelectedBusinessProject(null)
+      }
+      await loadBusinessProjects()
+      await loadProjectCounts()
+    } catch (err) {
+      console.error('Failed to delete business project', err)
     }
   }
 
@@ -1128,6 +1280,8 @@ function App() {
   useEffect(() => {
     if (!isAuthReady) return
     loadProjects()
+    loadBusinessProjects()
+    loadProjectCounts()
     loadCurrentUser()
   }, [isAuthReady, loadCurrentUser])
 
@@ -1261,7 +1415,7 @@ useEffect(() => {
       setIsAuthReady(true)
       setIsAuthModalOpen(false)
       setAuthStatus('idle')
-      await Promise.all([loadProjects(), loadCurrentUser()])
+      await Promise.all([loadProjects(), loadBusinessProjects(), loadProjectCounts(), loadCurrentUser()])
     } catch (err) {
       clearAuthCredentials()
       setAuthStatus('error')
@@ -1546,7 +1700,43 @@ useEffect(() => {
         </div>
       )}
     </div>
-      {isKanbanView ? (
+      {/* Main app header with board selector */}
+      {isKanbanView && (
+        <header className="main-app-header">
+          <h1 className="app-title">Ventures Hub</h1>
+          {showBoardSelector && (showRealEstateTab || showBusinessTab) && (
+            <div className="board-selector">
+              {showRealEstateTab && (
+                <button
+                  type="button"
+                  className={activeBoard === 'realEstate' ? 'active' : ''}
+                  onClick={() => setActiveBoard('realEstate')}
+                >
+                  🏢 Real Estate ({projectCounts.realEstate})
+                </button>
+              )}
+              {showBusinessTab && (
+            <button
+              type="button"
+              className={activeBoard === 'business' ? 'active' : ''}
+              onClick={() => setActiveBoard('business')}
+            >
+              💼 Business ({projectCounts.business})
+            </button>
+          )}
+          <button
+            type="button"
+            className="add-board-project"
+            onClick={() => activeBoard === 'realEstate' ? openCreateModal() : setIsBusinessCreateModalOpen(true)}
+          >
+            + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
+          </button>
+            </div>
+          )}
+        </header>
+      )}
+
+      {isKanbanView && activeBoard === 'realEstate' ? (
         <KanbanBoard
           stageOptions={stageOptions}
           projectsByStage={projectsByStage}
@@ -1555,7 +1745,67 @@ useEffect(() => {
           stageUpdatingFor={stageUpdatingFor}
           onAddProject={openCreateModal}
         />
-      ) : (
+      ) : isKanbanView && activeBoard === 'business' ? (
+        <div className="business-kanban">
+          <section className="kanban-section">
+          {businessProjectsStatus === 'loading' && <p className="loading-message">Loading business projects…</p>}
+          {businessProjectsStatus === 'error' && <p className="error">{businessProjectsError}</p>}
+          {businessProjectsStatus === 'loaded' && (
+            <div className="kanban business-stages">
+              {businessStageOptions.map((stage) => (
+                <div key={stage.value} className="kanban-column">
+                  <h3 className="kanban-column-header">{stage.label}</h3>
+                  <div className="kanban-cards">
+                    {businessProjectsByStage[stage.value].map((project) => (
+                      <div
+                        key={project.id}
+                        className="kanban-card business-card"
+                        onClick={() => {
+                          setSelectedBusinessProjectId(project.id)
+                          loadBusinessProjectDetail(project.id)
+                        }}
+                      >
+                        <div className="card-header">
+                          <span className="card-title">{project.name}</span>
+                        </div>
+                        {project.currentMrr != null && project.currentMrr > 0 && (
+                          <div className="card-metric">
+                            <span className="metric-label">MRR</span>
+                            <span className="metric-value">${project.currentMrr.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {project.currentRunway != null && (
+                          <div className="card-metric">
+                            <span className="metric-label">Runway</span>
+                            <span className="metric-value">{project.currentRunway} mo</span>
+                          </div>
+                        )}
+                        <select
+                          className="stage-select"
+                          value={project.stage}
+                          onChange={(e) => handleBusinessStageChange(project.id, e.target.value as BusinessStage)}
+                          onClick={(e) => e.stopPropagation()}
+                          disabled={businessStageUpdatingFor === project.id}
+                        >
+                          {businessStageOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                    {businessProjectsByStage[stage.value].length === 0 && (
+                      <div className="kanban-empty">No projects</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          </section>
+        </div>
+      ) : activeBoard === 'realEstate' && selectedProjectId ? (
         <section className="detail-section detail-full">
           <div className="detail-nav">
             <button type="button" className="ghost" onClick={handleBackToKanban}>
@@ -1735,12 +1985,81 @@ useEffect(() => {
             </>
           )}
         </section>
-      )}
+      ) : activeBoard === 'business' && selectedBusinessProjectId ? (
+        <section className="detail-section detail-full business-detail">
+          <div className="detail-nav">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setSelectedBusinessProjectId(null)
+                setSelectedBusinessProject(null)
+              }}
+            >
+              ← Back to pipeline
+            </button>
+          </div>
+          {businessDetailStatus === 'loading' && <p>Loading project…</p>}
+          {businessDetailStatus === 'error' && <p className="error">{businessDetailError}</p>}
+          {businessDetailStatus === 'loaded' && selectedBusinessProject && (
+            <div className="business-project-detail">
+              <div className="detail-header">
+                <h2>{selectedBusinessProject.name}</h2>
+                <span className="stage-badge">{BUSINESS_STAGE_LABELS[selectedBusinessProject.stage as BusinessStage]}</span>
+              </div>
+              {selectedBusinessProject.description && (
+                <p className="project-description">{selectedBusinessProject.description}</p>
+              )}
+              <div className="business-metrics-summary">
+                {selectedBusinessProject.currentMrr != null && (
+                  <div className="metric-card">
+                    <span className="metric-label">MRR</span>
+                    <span className="metric-value">${selectedBusinessProject.currentMrr.toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedBusinessProject.currentRunway != null && (
+                  <div className="metric-card">
+                    <span className="metric-label">Runway</span>
+                    <span className="metric-value">{selectedBusinessProject.currentRunway} months</span>
+                  </div>
+                )}
+                {selectedBusinessProject.totalInvested != null && selectedBusinessProject.totalInvested > 0 && (
+                  <div className="metric-card">
+                    <span className="metric-label">Total Invested</span>
+                    <span className="metric-value">${selectedBusinessProject.totalInvested.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+              {selectedBusinessProject.legalEntityName && (
+                <div className="legal-entity-info">
+                  <h4>Legal Entity</h4>
+                  <p>{selectedBusinessProject.legalEntityName} ({selectedBusinessProject.legalEntityType || 'Unknown type'})</p>
+                  {selectedBusinessProject.jurisdiction && <p>Jurisdiction: {selectedBusinessProject.jurisdiction}</p>}
+                </div>
+              )}
+              <div className="business-actions">
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    if (confirm('Delete this business project?')) {
+                      handleDeleteBusinessProject(selectedBusinessProject.id)
+                    }
+                  }}
+                >
+                  🗑 Delete Project
+                </button>
+              </div>
+              <p className="muted tiny">Full business project management coming soon. For now, you can track stage and basic info.</p>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {isCreateModalOpen && (
         <div className="modal-backdrop">
           <div className="modal-panel">
-            <h3>Add Project</h3>
+            <h3>Add Real Estate Project</h3>
             <form onSubmit={handleCreateProject} className="modal-form">
               <input
                 type="text"
@@ -1758,7 +2077,43 @@ useEffect(() => {
                 <button type="submit" className="primary" disabled={createStatus === 'saving'}>
                   {createStatus === 'saving' ? 'Creating…' : 'Create'}
                 </button>
-    </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isBusinessCreateModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-panel">
+            <h3>Add Business Project</h3>
+            <form onSubmit={handleCreateBusinessProject} className="modal-form">
+              <input
+                type="text"
+                value={newBusinessProjectName}
+                onChange={(e) => setNewBusinessProjectName(e.target.value)}
+                placeholder="Business name"
+                required
+                disabled={businessCreateStatus === 'saving'}
+              />
+              {businessCreateError && <p className="error">{businessCreateError}</p>}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setIsBusinessCreateModalOpen(false)
+                    setNewBusinessProjectName('')
+                    setBusinessCreateError('')
+                  }}
+                  disabled={businessCreateStatus === 'saving'}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="primary" disabled={businessCreateStatus === 'saving'}>
+                  {businessCreateStatus === 'saving' ? 'Creating…' : 'Create'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
