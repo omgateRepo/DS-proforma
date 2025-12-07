@@ -343,10 +343,15 @@ function AccountSettingsModal({
           </div>
           <div className="profile-body">
             {!isEditingDisplayName && (
-              <>
-                <strong>{currentUser.displayName || currentUser.email}</strong>
-                <p className="muted tiny">{currentUser.isSuperAdmin ? 'Super admin' : 'Collaborator'}</p>
-              </>
+              <div className="profile-card">
+                <div className="avatar">
+                  {(currentUser.displayName || currentUser.email || '?')[0].toUpperCase()}
+                </div>
+                <div className="profile-info">
+                  <strong>{currentUser.displayName || currentUser.email}</strong>
+                  <p className="muted tiny">{currentUser.isSuperAdmin ? 'Super admin' : 'Collaborator'}</p>
+                </div>
+              </div>
             )}
             {isEditingDisplayName && (
               <form className="profile-form" onSubmit={onSaveDisplayName}>
@@ -366,7 +371,7 @@ function AccountSettingsModal({
                   </button>
                   <button
                     type="button"
-                    className="ghost tiny"
+                    className="ghost"
                     onClick={onCancelDisplayName}
                     disabled={displayNameStatus === 'saving'}
                   >
@@ -377,12 +382,12 @@ function AccountSettingsModal({
             )}
             <div className="profile-actions">
               {!isEditingDisplayName && (
-                <button type="button" className="ghost tiny" onClick={onEditDisplayName}>
-                  Edit display name
+                <button type="button" onClick={onEditDisplayName}>
+                  ✏️ Edit display name
                 </button>
               )}
-              <button type="button" className="ghost tiny" onClick={onLogout}>
-                Sign out
+              <button type="button" onClick={onLogout}>
+                🚪 Sign out
               </button>
             </div>
           </div>
