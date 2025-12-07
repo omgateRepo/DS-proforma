@@ -471,13 +471,14 @@ export function FundingTab({
                     <th>Funding</th>
                     <th>First Payment</th>
                     <th>Monthly Payment</th>
+                    <th>Yearly Return</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {loanRows.length === 0 && (
                     <tr>
-                      <td colSpan={9}>No loans yet.</td>
+                      <td colSpan={10}>No loans yet.</td>
                     </tr>
                   )}
                   {loanRows.map((row) => {
@@ -492,6 +493,7 @@ export function FundingTab({
                         <td>{formatMonthDisplay(row.fundingMonth)}</td>
                         <td>{formatMonthDisplay(row.repaymentStartMonth)}</td>
                         <td>{preview.monthlyPayment ? formatCurrency(preview.monthlyPayment) : '—'}</td>
+                        <td><strong>{preview.monthlyPayment ? formatCurrency(preview.monthlyPayment * 12) : '—'}</strong></td>
                         <td>
                           <div className="row-actions">
                             <button type="button" className="icon-button" onClick={() => openModal('loan', row)}>
