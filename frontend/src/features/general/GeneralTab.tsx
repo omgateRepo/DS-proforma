@@ -128,52 +128,82 @@ export function GeneralTab({
       </section>
 
       {/* Section 2: Key Dates */}
-      <section className="general-section">
+      <section className="general-section key-dates-section">
         <h3 className="section-title">📅 Key Dates</h3>
-        <div className="form-grid">
-          <label>
-            Closing Date
-            <input type="date" value={form.closingDate} onChange={(e) => onFieldChange('closingDate', e.target.value)} />
-          </label>
-          <label>
-            Start Leasing Date
+        <div className="key-dates-grid">
+          <div className="key-date-card">
+            <span className="key-date-label">Closing Date</span>
             <input
               type="date"
+              className="key-date-input"
+              value={form.closingDate}
+              onChange={(e) => onFieldChange('closingDate', e.target.value)}
+            />
+          </div>
+          <div className="key-date-card">
+            <span className="key-date-label">Start Leasing</span>
+            <input
+              type="date"
+              className="key-date-input"
               value={form.startLeasingDate}
               onChange={(e) => onFieldChange('startLeasingDate', e.target.value)}
             />
-          </label>
-          <label>
-            Stabilized Date
+          </div>
+          <div className="key-date-card">
+            <span className="key-date-label">Stabilized</span>
             <input
               type="date"
+              className="key-date-input"
               value={form.stabilizedDate}
               onChange={(e) => onFieldChange('stabilizedDate', e.target.value)}
             />
-          </label>
+          </div>
         </div>
       </section>
 
       {/* Section 3: Construction Fundamentals */}
-      <section className="general-section">
+      <section className="general-section fundamentals-section">
         <h3 className="section-title">🏗️ Construction Fundamentals</h3>
-        <div className="form-grid">
-          <label>
-            Purchase Price (USD)
-            <input
-              type="number"
-              value={form.purchasePriceUsd}
-              onChange={(e) => onFieldChange('purchasePriceUsd', e.target.value)}
-            />
-          </label>
-          <label>
-            Target Units
-            <input type="number" value={form.targetUnits} onChange={(e) => onFieldChange('targetUnits', e.target.value)} />
-          </label>
-          <label>
-            Target SqFt
-            <input type="number" value={form.targetSqft} onChange={(e) => onFieldChange('targetSqft', e.target.value)} />
-          </label>
+        <div className="fundamentals-grid">
+          <div className="fundamental-card">
+            <span className="fundamental-label">Purchase Price</span>
+            <div className="fundamental-input-wrapper">
+              <span className="fundamental-prefix">$</span>
+              <input
+                type="number"
+                className="fundamental-input"
+                value={form.purchasePriceUsd}
+                onChange={(e) => onFieldChange('purchasePriceUsd', e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="fundamental-card">
+            <span className="fundamental-label">Target Units</span>
+            <div className="fundamental-input-wrapper">
+              <input
+                type="number"
+                className="fundamental-input"
+                value={form.targetUnits}
+                onChange={(e) => onFieldChange('targetUnits', e.target.value)}
+                placeholder="0"
+              />
+              <span className="fundamental-suffix">units</span>
+            </div>
+          </div>
+          <div className="fundamental-card">
+            <span className="fundamental-label">Target SqFt</span>
+            <div className="fundamental-input-wrapper">
+              <input
+                type="number"
+                className="fundamental-input"
+                value={form.targetSqft}
+                onChange={(e) => onFieldChange('targetSqft', e.target.value)}
+                placeholder="0"
+              />
+              <span className="fundamental-suffix">sqft</span>
+            </div>
+          </div>
         </div>
       </section>
 
