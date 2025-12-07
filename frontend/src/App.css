@@ -2134,6 +2134,18 @@ td {
   font-weight: 700;
   color: var(--text);
   margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.app-version {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: rgba(100, 116, 139, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
 }
 
 .main-app-header .add-board-project {

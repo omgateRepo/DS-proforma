@@ -93,6 +93,8 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
+
+const APP_VERSION = '1.0.0'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -1773,7 +1775,7 @@ useEffect(() => {
       {isKanbanView && (
         <header className="main-app-header">
           <div className="main-header-top">
-            <h1 className="app-title">Ventures Hub</h1>
+            <h1 className="app-title">Ventures Hub <span className="app-version">v{APP_VERSION}</span></h1>
             <button
               type="button"
               className="add-board-project"
