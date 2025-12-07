@@ -7,6 +7,15 @@ export const softCostCategories = [
   { id: 'other', label: 'Other' },
 ]
 
+export const leaseupCostCategories = [
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'staging', label: 'Staging' },
+  { id: 'leasing_agent', label: 'Leasing Agent' },
+  { id: 'tenant_improvements', label: 'Tenant Improvements' },
+  { id: 'legal', label: 'Legal' },
+  { id: 'other', label: 'Other' },
+]
+
 export const hardCostCategories = [
   { id: 'structure', label: 'Structure' },
   { id: 'framing', label: 'Framing' },
@@ -81,6 +90,18 @@ export const getDefaultMeasurementForCategory = (categoryId) =>
 
 export const createDefaultSoftCostForm = () => ({
   softCategory: softCostCategories[0]?.id || 'other',
+  costName: '',
+  amountUsd: '',
+  paymentMode: 'single',
+  paymentMonth: '1',
+  rangeStartMonth: '1',
+  rangeEndMonth: '1',
+  monthsInput: '',
+  monthPercentagesInput: '',
+})
+
+export const createDefaultLeaseupCostForm = () => ({
+  leaseupCategory: leaseupCostCategories[0]?.id || 'other',
   costName: '',
   amountUsd: '',
   paymentMode: 'single',
@@ -212,6 +233,9 @@ export const softCategoryLabel = (value) =>
 
 export const hardCategoryLabel = (value) =>
   hardCostCategories.find((option) => option.id === value)?.label || 'Other'
+
+export const leaseupCategoryLabel = (value) =>
+  leaseupCostCategories.find((option) => option.id === value)?.label || 'Other'
 
 export const formatCostSchedule = (row) => {
   if (!row) return '—'

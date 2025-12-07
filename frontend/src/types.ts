@@ -10,6 +10,7 @@ export type {
   ParkingRevenue as ParkingRevenueRow,
   GpContribution as GpContributionRow,
   SoftCostRow,
+  LeaseupCostRow,
   HardCostRow,
   CarryingCostRow,
   CashflowRow,

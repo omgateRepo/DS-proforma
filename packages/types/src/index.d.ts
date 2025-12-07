@@ -74,6 +74,7 @@ export type ProjectDetail = ProjectSummary & {
   parkingRevenue: ParkingRevenue[]
   gpContributions: GpContribution[]
   softCosts: SoftCostRow[]
+  leaseupCosts: LeaseupCostRow[]
   hardCosts: HardCostRow[]
   carryingCosts: CarryingCostRow[]
   cashflow: CashflowRow[]
@@ -203,6 +204,11 @@ export interface HardCostInput extends SoftCostInput {
 }
 
 export interface SoftCostRow extends SoftCostInput {
+  id: EntityId
+  costGroup?: string | null
+}
+
+export interface LeaseupCostRow extends SoftCostInput {
   id: EntityId
   costGroup?: string | null
 }

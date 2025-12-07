@@ -308,6 +308,31 @@ export async function deleteSoftCost(projectId, costId) {
   return handleJsonResponse(res, 'Failed to delete soft cost')
 }
 
+export async function createLeaseupCost(projectId, payload) {
+  const res = await request(`/api/projects/${projectId}/leaseup-costs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add leaseup cost')
+}
+
+export async function updateLeaseupCost(projectId, costId, payload) {
+  const res = await request(`/api/projects/${projectId}/leaseup-costs/${costId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update leaseup cost')
+}
+
+export async function deleteLeaseupCost(projectId, costId) {
+  const res = await request(`/api/projects/${projectId}/leaseup-costs/${costId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete leaseup cost')
+}
+
 export async function createHardCost(projectId, payload) {
   const res = await request(`/api/projects/${projectId}/hard-costs`, {
     method: 'POST',

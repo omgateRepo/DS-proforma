@@ -67,6 +67,7 @@ const STAGE_FIELD_LABELS = {
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN
 const GOOGLE_STREET_VIEW_KEY = process.env.GOOGLE_STREET_VIEW_API_KEY
 const SOFT_COST_CATEGORIES = ['architect', 'legal', 'permits', 'consulting', 'marketing', 'other']
+const LEASEUP_COST_CATEGORIES = ['marketing', 'staging', 'leasing_agent', 'tenant_improvements', 'legal', 'other']
 const HARD_COST_CATEGORIES = [
   'structure',
   'framing',
@@ -171,6 +172,7 @@ const stubProject = {
   ],
   hardCosts: [],
   softCosts: [],
+  leaseupCosts: [],
   carryingCosts: [],
   cashflow: [],
   collaborators: [],
@@ -1039,6 +1041,7 @@ router.get('/projects/:id', async (req, res) => {
     const costRows = costs.map(mapCostRow)
     project.hardCosts = costRows.filter((row) => row.category === 'hard')
     project.softCosts = costRows.filter((row) => row.category === 'soft')
+    project.leaseupCosts = costRows.filter((row) => row.category === 'leaseup')
     project.carryingCosts = costRows.filter((row) => row.category === 'carrying')
     project.cashflow = cashflow.map(mapCashflowRow)
     project.documents = documents.map(mapDocumentRow)
@@ -1629,6 +1632,123 @@ router.delete('/projects/:id/soft-costs/:costId', async (req, res) => {
     res.json({ id: req.params.costId, deleted: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete soft cost', details: err.message })
+  }
+})
+
+// Leaseup Costs
+router.post('/projects/:id/leaseup-costs', async (req, res) => {
+  const normalized = normalizeScheduledCostPayload(req.body, {
+    categoryField: 'leaseupCategory',
+    allowedCategories: LEASEUP_COST_CATEGORIES,
+  })
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `leaseup-${Date.now()}`,
+      category: 'leaseup',
+      costName: normalized.costName,
+      costGroup: normalized.categoryValue,
+      amountUsd: normalized.amountUsd,
+      paymentMonth: normalized.paymentMonth,
+      startMonth: normalized.rangeStartMonth,
+      endMonth: normalized.rangeEndMonth,
+      paymentMode: normalized.paymentMode,
+      monthList: normalized.monthList,
+      monthPercentages: normalized.monthPercentages,
+    })
+  }
+
+  try {
+    const row = await prisma.cost_items.create({
+      data: {
+        project_id: req.params.id,
+        category: 'leaseup',
+        cost_name: normalized.costName,
+        cost_group: normalized.categoryValue,
+        amount_usd: normalized.amountUsd,
+        payment_month: normalized.paymentMonth,
+        start_month: normalized.rangeStartMonth,
+        end_month: normalized.rangeEndMonth,
+        payment_mode: normalized.paymentMode,
+        month_list: normalized.monthList ?? null,
+        month_percentages: normalized.monthPercentages ?? null,
+      },
+    })
+    res.status(201).json(mapCostRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create leaseup cost', details: err.message })
+  }
+})
+
+router.patch('/projects/:id/leaseup-costs/:costId', async (req, res) => {
+  const normalized = normalizeScheduledCostPayload(req.body, {
+    categoryField: 'leaseupCategory',
+    allowedCategories: LEASEUP_COST_CATEGORIES,
+  })
+  if (normalized.error) return res.status(400).json({ error: normalized.error })
+
+  if (SKIP_DB) {
+    return res.json({
+      id: req.params.costId,
+      category: 'leaseup',
+      costName: normalized.costName,
+      costGroup: normalized.categoryValue,
+      amountUsd: normalized.amountUsd,
+      paymentMonth: normalized.paymentMonth,
+      startMonth: normalized.rangeStartMonth,
+      endMonth: normalized.rangeEndMonth,
+      paymentMode: normalized.paymentMode,
+      monthList: normalized.monthList,
+      monthPercentages: normalized.monthPercentages,
+    })
+  }
+
+  try {
+    const row = await prisma.cost_items.update({
+      where: { id: req.params.costId },
+      data: {
+        cost_name: normalized.costName,
+        cost_group: normalized.categoryValue,
+        amount_usd: normalized.amountUsd,
+        payment_month: normalized.paymentMonth,
+        start_month: normalized.rangeStartMonth,
+        end_month: normalized.rangeEndMonth,
+        payment_mode: normalized.paymentMode,
+        month_list: normalized.monthList ?? null,
+        month_percentages: normalized.monthPercentages ?? null,
+      },
+    })
+    if (row.project_id !== req.params.id || row.category !== 'leaseup') {
+      return res.status(404).json({
+        error: 'Leaseup cost not found',
+        details: `Leaseup cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json(mapCostRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update leaseup cost', details: err.message })
+  }
+})
+
+router.delete('/projects/:id/leaseup-costs/:costId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ id: req.params.costId, deleted: true })
+  }
+
+  try {
+    const result = await prisma.cost_items.deleteMany({
+      where: { id: req.params.costId, project_id: req.params.id, category: 'leaseup' },
+    })
+    if (result.count === 0) {
+      return res.status(404).json({
+        error: 'Leaseup cost not found',
+        details: `Leaseup cost ${req.params.costId} does not exist for project ${req.params.id}`,
+      })
+    }
+    res.json({ id: req.params.costId, deleted: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete leaseup cost', details: err.message })
   }
 })
 

@@ -36,6 +36,7 @@ import {
 import { RevenueSection } from './features/revenue/RevenueSection'
 import { HardCostsSection } from './features/costs/HardCostsSection'
 import { SoftCostsSection } from './features/costs/SoftCostsSection'
+import { LeaseUpCostsSection } from './features/costs/LeaseUpCostsSection'
 import { GeneralTab } from './features/general/GeneralTab'
 import { KanbanBoard } from './features/kanban/KanbanBoard'
 import { CashflowBoard } from './features/cashflow/CashflowBoard'
@@ -50,6 +51,7 @@ import {
 import { CarryingCostsSection } from './features/carrying/CarryingCostsSection'
 import { ConstructionCarryingCostsSection } from './features/carrying/ConstructionCarryingCostsSection'
 import { ConstructionDebtServiceSection } from './features/carrying/ConstructionDebtServiceSection'
+import { calculateLoanPreview } from './features/carrying/carryingHelpers.js'
 import { FundingTab } from './features/funding/FundingTab'
 import { MetricsTab } from './features/metrics/MetricsTab'
 import { DocsTab } from './features/docs/DocsTab'
@@ -1966,8 +1968,64 @@ useEffect(() => {
                 />
               )}
 
-              {activeTab === 'dev-costs' && (
+              {activeTab === 'dev-costs' && (() => {
+                const hardCostsTotal = selectedProject?.hardCosts?.reduce((sum, row) => sum + (row.amountUsd || 0), 0) || 0
+                const softCostsTotal = selectedProject?.softCosts?.reduce((sum, row) => sum + (row.amountUsd || 0), 0) || 0
+                const leaseupCostsTotal = selectedProject?.leaseupCosts?.reduce((sum, row) => sum + (row.amountUsd || 0), 0) || 0
+                
+                // Calculate debt service (loan payments from repayment start to stabilized)
+                const loanRows = selectedProject?.carryingCosts?.filter(row => row.carryingType === 'loan') || []
+                const debtServiceTotal = stabilizedOffset ? loanRows.reduce((sum, row) => {
+                  const preview = calculateLoanPreview(row)
+                  if (!preview.monthlyPayment) return sum
+                  const repaymentStart = row.repaymentStartMonth ?? 0
+                  if (repaymentStart > stabilizedOffset) return sum
+                  const monthsOfPayments = stabilizedOffset - repaymentStart + 1
+                  return sum + (preview.monthlyPayment * monthsOfPayments)
+                }, 0) : 0
+                
+                const totalDevCosts = hardCostsTotal + softCostsTotal + leaseupCostsTotal + debtServiceTotal
+                
+                return (
                 <div className="dev-costs-tab">
+                  {/* Development Phase Costs Summary */}
+                  <section className="general-section fundamentals-section dev-costs-summary">
+                    <h4 className="section-title">💰 Development Phase Costs Summary</h4>
+                    <div className="fundamentals-grid funding-grid-5">
+                      <div className="fundamental-card">
+                        <span className="fundamental-label">Hard Costs</span>
+                        <div className="fundamental-value-display">
+                          ${hardCostsTotal.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="fundamental-card">
+                        <span className="fundamental-label">Soft Costs</span>
+                        <div className="fundamental-value-display">
+                          ${softCostsTotal.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="fundamental-card">
+                        <span className="fundamental-label">Lease-Up Costs</span>
+                        <div className="fundamental-value-display">
+                          ${leaseupCostsTotal.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="fundamental-card">
+                        <span className="fundamental-label">Debt Service*</span>
+                        <div className="fundamental-value-display">
+                          ${debtServiceTotal.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="fundamental-card total-highlight">
+                        <span className="fundamental-label">Total Dev Costs</span>
+                        <div className="fundamental-value-display">
+                          ${totalDevCosts.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="muted tiny funding-note">* Debt Service = loan payments from first payment until stabilized</p>
+                  </section>
+
                 <HardCostsSection
                   project={selectedProject}
                   projectId={selectedProjectId}
@@ -1985,7 +2043,16 @@ useEffect(() => {
                   convertMonthInputToOffset={convertMonthInputToOffset}
                   getCalendarLabelForInput={getCalendarLabelForInput}
                   getCalendarLabelsForListInput={getCalendarLabelsForListInput}
-                  />
+                />
+                <LeaseUpCostsSection
+                  project={selectedProject}
+                  projectId={selectedProjectId}
+                  onProjectRefresh={loadProjectDetail}
+                  formatOffsetForInput={formatOffsetForInput}
+                  convertMonthInputToOffset={convertMonthInputToOffset}
+                  getCalendarLabelForInput={getCalendarLabelForInput}
+                  getCalendarLabelsForListInput={getCalendarLabelsForListInput}
+                />
                   <ConstructionCarryingCostsSection
                     project={selectedProject}
                     projectId={selectedProjectId}
@@ -2002,7 +2069,7 @@ useEffect(() => {
                     getCalendarLabelForInput={getCalendarLabelForInput}
                   />
                 </div>
-              )}
+              )})()}
 
               {activeTab === 'funding' && (
                 <FundingTab
