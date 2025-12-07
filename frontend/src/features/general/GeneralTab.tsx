@@ -1,4 +1,4 @@
-import type { FormEventHandler } from 'react'
+import { useState, type FormEventHandler } from 'react'
 import type { AddressSuggestion, GeneralFormState } from '../../types'
 
 type SelectedCoords = { lat: number; lon: number } | null
@@ -34,6 +34,8 @@ export function GeneralTab({
   selectedCoords,
   apiOrigin,
 }: GeneralTabProps) {
+  const [isEditingAddress, setIsEditingAddress] = useState(false)
+
   const buildPreviewUrl = (endpoint: 'satellite' | 'front', extraParams?: Record<string, string>) => {
     if (!selectedCoords) return null
     const lat = String(selectedCoords.lat)
@@ -51,68 +53,82 @@ export function GeneralTab({
   const satelliteUrl = buildPreviewUrl('satellite')
   const buildingFrontUrl = buildPreviewUrl('front', { pitch: '60', bearing: '0' })
 
+  const hasAddress = form.addressLine1 || form.city || form.state
+  const showAddressSearch = !hasAddress || isEditingAddress
+
+  const handleAddressSelect = (suggestion: AddressSuggestion) => {
+    onAddressSelect(suggestion)
+    setIsEditingAddress(false)
+  }
+
   return (
     <form className="general-form" onSubmit={onSubmit}>
       {/* Section 1: Address */}
       <section className="general-section">
         <h3 className="section-title">📍 Address</h3>
-        <div className="form-grid">
-          <label>
-            Project Name
-            <input type="text" value={form.name} onChange={(e) => onFieldChange('name', e.target.value)} required />
-          </label>
-          <label className="address-autocomplete">
-            Address Line 1
-            <input
-              type="text"
-              value={addressQuery}
-              placeholder="Start typing address"
-              onFocus={onAddressInputFocus}
-              onChange={(e) => onAddressQueryChange(e.target.value)}
-            />
-            {addressSearchStatus === 'loading' && <span className="muted tiny">Searching…</span>}
-            {addressSuggestions.length > 0 && (
-              <ul className="address-suggestions">
-                {addressSuggestions.map((suggestion) => (
-                  <li key={suggestion.id} onMouseDown={() => onAddressSelect(suggestion)}>
-                    <strong>{suggestion.addressLine1}</strong>
-                    <span>{suggestion.label}</span>
-                  </li>
-                ))}
-              </ul>
+        
+        {showAddressSearch ? (
+          <div className="address-search-wrapper">
+            <label className="address-autocomplete address-autocomplete-full">
+              <input
+                type="text"
+                value={addressQuery}
+                placeholder="Search for address..."
+                onFocus={onAddressInputFocus}
+                onChange={(e) => onAddressQueryChange(e.target.value)}
+                className="address-search-input"
+                autoFocus={isEditingAddress}
+              />
+              {addressSearchStatus === 'loading' && <span className="muted tiny">Searching…</span>}
+              {addressSuggestions.length > 0 && (
+                <ul className="address-suggestions">
+                  {addressSuggestions.map((suggestion) => (
+                    <li key={suggestion.id} onMouseDown={() => handleAddressSelect(suggestion)}>
+                      <strong>{suggestion.addressLine1}</strong>
+                      <span>{suggestion.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {addressSearchStatus === 'error' && addressSearchError && <span className="error tiny">{addressSearchError}</span>}
+            </label>
+            {hasAddress && isEditingAddress && (
+              <button
+                type="button"
+                className="ghost address-cancel-btn"
+                onClick={() => setIsEditingAddress(false)}
+              >
+                Cancel
+              </button>
             )}
-            {addressSearchStatus === 'error' && addressSearchError && <span className="error tiny">{addressSearchError}</span>}
-          </label>
-          <label>
-            Address Line 2
-            <input type="text" value={form.addressLine2} onChange={(e) => onFieldChange('addressLine2', e.target.value)} />
-          </label>
-          <label>
-            City
-            <input type="text" value={form.city} onChange={(e) => onFieldChange('city', e.target.value)} />
-          </label>
-          <label>
-            State
-            <input type="text" value={form.state} onChange={(e) => onFieldChange('state', e.target.value)} />
-          </label>
-          <label>
-            ZIP
-            <input type="text" value={form.zip} onChange={(e) => onFieldChange('zip', e.target.value)} />
-          </label>
-          <label>
-            Latitude
-            <input type="number" step="any" value={form.latitude} onChange={(e) => onFieldChange('latitude', e.target.value)} />
-          </label>
-          <label>
-            Longitude
-            <input
-              type="number"
-              step="any"
-              value={form.longitude}
-              onChange={(e) => onFieldChange('longitude', e.target.value)}
-            />
-          </label>
-        </div>
+          </div>
+        ) : (
+          <div className="address-display">
+            <div className="address-display-content">
+              <div className="address-display-main">
+                {form.addressLine1 && <span className="address-line">{form.addressLine1}</span>}
+                {form.addressLine2 && <span className="address-line address-line2">{form.addressLine2}</span>}
+                <span className="address-city-state">
+                  {[form.city, form.state, form.zip].filter(Boolean).join(', ')}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="address-edit-btn"
+                onClick={() => setIsEditingAddress(true)}
+              >
+                ✏️ Edit
+              </button>
+            </div>
+            {(form.latitude || form.longitude) && (
+              <div className="address-coords">
+                <span className="coords-label">Coordinates:</span>
+                <span className="coords-value">{form.latitude}, {form.longitude}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {satelliteUrl && buildingFrontUrl && (
           <div className="preview-row">
             <div className="satellite-preview">

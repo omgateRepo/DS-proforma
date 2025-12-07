@@ -1819,7 +1819,13 @@ useEffect(() => {
               <div className="detail-header">
                 <div>
                   <p className="eyebrow">Project</p>
-                  <h2>{selectedProject.name}</h2>
+                  <input
+                    type="text"
+                    className="project-name-editable"
+                    value={generalForm.name}
+                    onChange={(e) => setGeneralForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Project name..."
+                  />
                 </div>
                   <ProjectWeatherCard
                     status={projectWeatherStatus}
