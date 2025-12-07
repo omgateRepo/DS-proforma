@@ -26,7 +26,7 @@ const baseForm: GeneralFormState = {
 const defaultProps = {
   form: baseForm,
   generalStatus: 'idle' as const,
-  onSubmit: vi.fn(),
+  onAutoSave: vi.fn(),
   onFieldChange: vi.fn(),
   addressQuery: baseForm.addressLine1,
   onAddressQueryChange: vi.fn(),
@@ -40,22 +40,15 @@ const defaultProps = {
 }
 
 describe('GeneralTab', () => {
-  it('submits the form with current values', async () => {
-    const user = userEvent.setup()
-    const handleSubmit = vi.fn((event) => event.preventDefault())
+  it('calls onFieldChange when a field is edited', async () => {
     const handleFieldChange = vi.fn()
-    renderWithProviders(<GeneralTab {...defaultProps} onSubmit={handleSubmit} onFieldChange={handleFieldChange} />)
+    renderWithProviders(<GeneralTab {...defaultProps} onFieldChange={handleFieldChange} />)
 
-    const nameInput = screen.getByLabelText(/project name/i)
-    fireEvent.change(nameInput, { target: { value: 'Updated Name' } })
+    // Click edit to show address field, then test a different field
+    const closingDateInput = screen.getByDisplayValue('2025-02-01')
+    fireEvent.change(closingDateInput, { target: { value: '2025-03-01' } })
 
-    await user.click(screen.getByRole('button', { name: /save/i }))
-
-    await waitFor(() => {
-      expect(handleSubmit).toHaveBeenCalledTimes(1)
-    })
-    const lastCall = handleFieldChange.mock.calls.at(-1)
-    expect(lastCall).toEqual(['name', 'Updated Name'])
+    expect(handleFieldChange).toHaveBeenCalledWith('closingDate', '2025-03-01')
   })
 
   it('shows satellite preview when coords exist', () => {
@@ -67,5 +60,14 @@ describe('GeneralTab', () => {
       expect.stringContaining('/api/geocode/satellite?lat=42.35&lon=-71.05'),
     )
   })
-})
 
+  it('shows auto-save status indicator', () => {
+    renderWithProviders(<GeneralTab {...defaultProps} generalStatus="idle" />)
+    expect(screen.getByText(/all changes saved/i)).toBeInTheDocument()
+  })
+
+  it('shows saving status when auto-saving', () => {
+    renderWithProviders(<GeneralTab {...defaultProps} generalStatus="saving" />)
+    expect(screen.getByText(/saving/i)).toBeInTheDocument()
+  })
+})

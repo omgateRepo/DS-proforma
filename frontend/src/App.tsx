@@ -183,7 +183,6 @@ function CollaboratorsPanel({
     <section className="collaborators-panel">
       <div className="section-header">
         <h4>Collaborators</h4>
-        {canEdit && <p className="muted tiny">Owners and super admins can invite teammates.</p>}
       </div>
       <div className="collaborator-owner">
         <span className="pill">Owner</span>
@@ -1653,6 +1652,69 @@ useEffect(() => {
     }
   }
 
+  const handleGeneralAutoSave = useCallback(async () => {
+    if (!selectedProjectId) return
+    setGeneralStatus('saving')
+    try {
+      const payload: Record<string, unknown> = {
+        name: generalForm.name.trim(),
+        addressLine1: generalForm.addressLine1.trim(),
+        purchasePriceUsd: generalForm.purchasePriceUsd ? Number(generalForm.purchasePriceUsd) : null,
+        closingDate: generalForm.closingDate || null,
+        startLeasingDate: generalForm.startLeasingDate || null,
+        stabilizedDate: generalForm.stabilizedDate || null,
+        latitude: parseFloatOrNull(generalForm.latitude),
+        longitude: parseFloatOrNull(generalForm.longitude),
+        targetUnits: generalForm.targetUnits ? Number(generalForm.targetUnits) : null,
+        targetSqft: generalForm.targetSqft ? Number(generalForm.targetSqft) : null,
+      }
+      ;['addressLine2', 'city', 'state', 'zip', 'description'].forEach((field) => {
+        payload[field] = normalizeOptionalField(generalForm[field as keyof GeneralFormState])
+      })
+      const updated = (await updateProjectGeneral(selectedProjectId, payload)) as ProjectDetail
+      setSelectedProject((prev) =>
+        prev
+          ? {
+              ...prev,
+              name: updated.name,
+              general: updated.general,
+              apartmentTurnover: updated.apartmentTurnover,
+              retailTurnover: updated.retailTurnover,
+              owner: updated.owner ?? prev.owner,
+              ownerId: updated.ownerId ?? prev.ownerId,
+              collaborators: updated.collaborators ?? prev.collaborators,
+            }
+          : prev,
+      )
+      setAddressQuery(updated.general.addressLine1 || '')
+      setGeneralForm((prev) => ({
+        ...prev,
+        closingDate: formatDateForInput(updated.general.closingDate),
+        latitude: formatNumberForInput(updated.general.latitude),
+        longitude: formatNumberForInput(updated.general.longitude),
+      }))
+      const coordKey = getCoordKey(selectedProjectId)
+      if (updated.general.latitude !== null && updated.general.longitude !== null) {
+        const coords = { lat: updated.general.latitude, lon: updated.general.longitude }
+        setSelectedCoords(coords)
+        setProjectCoords((prev) => ({ ...prev, [coordKey]: coords }))
+      } else {
+        setProjectCoords((prev) => {
+          if (!prev[coordKey]) return prev
+          const next = { ...prev }
+          delete next[coordKey]
+          return next
+        })
+        setSelectedCoords(null)
+      }
+      setGeneralStatus('idle')
+      await loadProjects()
+    } catch (err) {
+      setGeneralStatus('error')
+      console.error('Auto-save failed:', err)
+    }
+  }, [selectedProjectId, generalForm])
+
   function handleAddressSelect(suggestion: AddressSuggestion) {
     setGeneralForm((prev) => ({
       ...prev,
@@ -1853,7 +1915,7 @@ useEffect(() => {
                 <GeneralTab
                   form={generalForm}
                   generalStatus={generalStatus}
-                  onSubmit={handleGeneralSave}
+                  onAutoSave={handleGeneralAutoSave}
                   onFieldChange={handleGeneralFieldChange}
                   addressQuery={addressQuery}
                   onAddressQueryChange={handleAddressInputChange}

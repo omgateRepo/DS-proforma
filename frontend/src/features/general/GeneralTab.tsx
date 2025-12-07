@@ -1,4 +1,4 @@
-import { useState, type FormEventHandler } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { AddressSuggestion, GeneralFormState } from '../../types'
 
 type SelectedCoords = { lat: number; lon: number } | null
@@ -6,8 +6,8 @@ type SelectedCoords = { lat: number; lon: number } | null
 type GeneralTabProps = {
   form: GeneralFormState
   generalStatus: 'idle' | 'saving' | 'error'
-  onSubmit: FormEventHandler<HTMLFormElement>
   onFieldChange: (field: keyof GeneralFormState, value: string) => void
+  onAutoSave: () => void
   addressQuery: string
   onAddressQueryChange: (value: string) => void
   addressSuggestions: AddressSuggestion[]
@@ -19,11 +19,13 @@ type GeneralTabProps = {
   apiOrigin: string
 }
 
+const AUTOSAVE_DELAY = 1000 // 1 second debounce
+
 export function GeneralTab({
   form,
   generalStatus,
-  onSubmit,
   onFieldChange,
+  onAutoSave,
   addressQuery,
   onAddressQueryChange,
   addressSuggestions,
@@ -35,6 +37,44 @@ export function GeneralTab({
   apiOrigin,
 }: GeneralTabProps) {
   const [isEditingAddress, setIsEditingAddress] = useState(false)
+  const [showSavedMessage, setShowSavedMessage] = useState(false)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevStatusRef = useRef(generalStatus)
+
+  // Trigger debounced auto-save
+  const triggerAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current)
+    }
+    autoSaveTimerRef.current = setTimeout(() => {
+      onAutoSave()
+    }, AUTOSAVE_DELAY)
+  }, [onAutoSave])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+    }
+  }, [])
+
+  // Show "saved" message briefly when save completes
+  useEffect(() => {
+    if (prevStatusRef.current === 'saving' && generalStatus === 'idle') {
+      setShowSavedMessage(true)
+      const timer = setTimeout(() => setShowSavedMessage(false), 2000)
+      return () => clearTimeout(timer)
+    }
+    prevStatusRef.current = generalStatus
+  }, [generalStatus])
+
+  // Wrap field change to trigger auto-save
+  const handleFieldChange = (field: keyof GeneralFormState, value: string) => {
+    onFieldChange(field, value)
+    triggerAutoSave()
+  }
 
   const buildPreviewUrl = (endpoint: 'satellite' | 'front', extraParams?: Record<string, string>) => {
     if (!selectedCoords) return null
@@ -62,7 +102,7 @@ export function GeneralTab({
   }
 
   return (
-    <form className="general-form" onSubmit={onSubmit}>
+    <div className="general-form">
       {/* Section 1: Address */}
       <section className="general-section">
         <h3 className="section-title">📍 Address</h3>
@@ -153,7 +193,7 @@ export function GeneralTab({
               type="date"
               className="key-date-input"
               value={form.closingDate}
-              onChange={(e) => onFieldChange('closingDate', e.target.value)}
+              onChange={(e) => handleFieldChange('closingDate', e.target.value)}
             />
           </div>
           <div className="key-date-card">
@@ -162,7 +202,7 @@ export function GeneralTab({
               type="date"
               className="key-date-input"
               value={form.startLeasingDate}
-              onChange={(e) => onFieldChange('startLeasingDate', e.target.value)}
+              onChange={(e) => handleFieldChange('startLeasingDate', e.target.value)}
             />
           </div>
           <div className="key-date-card">
@@ -171,7 +211,7 @@ export function GeneralTab({
               type="date"
               className="key-date-input"
               value={form.stabilizedDate}
-              onChange={(e) => onFieldChange('stabilizedDate', e.target.value)}
+              onChange={(e) => handleFieldChange('stabilizedDate', e.target.value)}
             />
           </div>
         </div>
@@ -189,7 +229,7 @@ export function GeneralTab({
                 type="number"
                 className="fundamental-input"
                 value={form.purchasePriceUsd}
-                onChange={(e) => onFieldChange('purchasePriceUsd', e.target.value)}
+                onChange={(e) => handleFieldChange('purchasePriceUsd', e.target.value)}
                 placeholder="0"
               />
             </div>
@@ -201,7 +241,7 @@ export function GeneralTab({
                 type="number"
                 className="fundamental-input"
                 value={form.targetUnits}
-                onChange={(e) => onFieldChange('targetUnits', e.target.value)}
+                onChange={(e) => handleFieldChange('targetUnits', e.target.value)}
                 placeholder="0"
               />
               <span className="fundamental-suffix">units</span>
@@ -214,7 +254,7 @@ export function GeneralTab({
                 type="number"
                 className="fundamental-input"
                 value={form.targetSqft}
-                onChange={(e) => onFieldChange('targetSqft', e.target.value)}
+                onChange={(e) => handleFieldChange('targetSqft', e.target.value)}
                 placeholder="0"
               />
               <span className="fundamental-suffix">sqft</span>
@@ -228,15 +268,22 @@ export function GeneralTab({
         <h3 className="section-title">📝 Notes</h3>
         <label>
           Description / Notes
-          <textarea rows={4} value={form.description} onChange={(e) => onFieldChange('description', e.target.value)} />
+          <textarea rows={4} value={form.description} onChange={(e) => handleFieldChange('description', e.target.value)} />
         </label>
       </section>
 
-      <div className="actions">
-        <button type="submit" disabled={generalStatus === 'saving'}>
-          {generalStatus === 'saving' ? 'Saving…' : 'Save General Info'}
-        </button>
+      {/* Auto-save status indicator */}
+      <div className="autosave-status">
+        {generalStatus === 'saving' && (
+          <span className="autosave-saving">💾 Saving...</span>
+        )}
+        {generalStatus === 'idle' && showSavedMessage && (
+          <span className="autosave-saved">✓ Saved</span>
+        )}
+        {generalStatus === 'error' && (
+          <span className="autosave-error">⚠ Save failed</span>
+        )}
       </div>
-    </form>
+    </div>
   )
 }
