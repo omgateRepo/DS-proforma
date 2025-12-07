@@ -1765,8 +1765,17 @@ useEffect(() => {
       {/* Main app header with board selector */}
       {isKanbanView && (
         <header className="main-app-header">
-          <h1 className="app-title">Ventures Hub</h1>
-          {showBoardSelector && (showRealEstateTab || showBusinessTab) && (
+          <div className="main-header-top">
+            <h1 className="app-title">Ventures Hub</h1>
+            <button
+              type="button"
+              className="add-board-project"
+              onClick={() => activeBoard === 'realEstate' ? openCreateModal() : setIsBusinessCreateModalOpen(true)}
+            >
+              + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
+            </button>
+          </div>
+          {(showRealEstateTab || showBusinessTab) && (
             <div className="board-selector">
               {showRealEstateTab && (
                 <button
@@ -1778,21 +1787,14 @@ useEffect(() => {
                 </button>
               )}
               {showBusinessTab && (
-            <button
-              type="button"
-              className={activeBoard === 'business' ? 'active' : ''}
-              onClick={() => setActiveBoard('business')}
-            >
-              💼 Business ({projectCounts.business})
-            </button>
-          )}
-          <button
-            type="button"
-            className="add-board-project"
-            onClick={() => activeBoard === 'realEstate' ? openCreateModal() : setIsBusinessCreateModalOpen(true)}
-          >
-            + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
-          </button>
+                <button
+                  type="button"
+                  className={activeBoard === 'business' ? 'active' : ''}
+                  onClick={() => setActiveBoard('business')}
+                >
+                  💼 Business ({projectCounts.business})
+                </button>
+              )}
             </div>
           )}
         </header>

@@ -4,6 +4,8 @@
   --muted: #64748b;
   --danger: #b42318;
   --primary: #2563eb;
+  --accent: #2563eb;
+  --text: #1e293b;
 }
 
 #root {
@@ -1870,11 +1872,34 @@ td {
   gap: 1rem;
 }
 
+.main-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
 .main-app-header .app-title {
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--text);
   margin: 0;
+}
+
+.main-app-header .add-board-project {
+  padding: 0.6rem 1.25rem;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.main-app-header .add-board-project:hover {
+  opacity: 0.9;
 }
 
 /* Board Type Selector */
@@ -1907,16 +1932,6 @@ td {
   color: #fff;
 }
 
-.board-selector .add-board-project {
-  margin-left: auto;
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.board-selector .add-board-project:hover {
-  opacity: 0.9;
-}
 
 /* Business Kanban */
 .business-kanban {
