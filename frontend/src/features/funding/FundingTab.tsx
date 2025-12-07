@@ -132,12 +132,12 @@ export function FundingTab({
     [gpRows],
   )
 
-  const totalMonthlyLoanPayments = useMemo(() => {
-    return loanRows.reduce((sum, row) => {
-      const preview = calculateLoanPreview(row)
-      return sum + (preview.monthlyPayment || 0)
-    }, 0)
-  }, [loanRows])
+  const totalLoans = useMemo(
+    () => loanRows.reduce((sum, row) => sum + (row.loanAmountUsd || 0), 0),
+    [loanRows],
+  )
+
+  const totalProjectCosts = totalGpContributions + totalLoans
 
   const refreshProject = async () => {
     if (!projectId || !onProjectRefresh) return
@@ -362,6 +362,30 @@ export function FundingTab({
           <p className="muted tiny">Track equity injections and construction loans in one place.</p>
         </div>
 
+        <section className="general-section fundamentals-section funding-totals-section">
+          <h4 className="section-title">💰 Project Funding Summary</h4>
+          <div className="fundamentals-grid">
+            <div className="fundamental-card">
+              <span className="fundamental-label">Total Contributions</span>
+              <div className="fundamental-value-display">
+                {formatCurrency(totalGpContributions)}
+              </div>
+            </div>
+            <div className="fundamental-card">
+              <span className="fundamental-label">Total Loans</span>
+              <div className="fundamental-value-display">
+                {formatCurrency(totalLoans)}
+              </div>
+            </div>
+            <div className="fundamental-card total-highlight">
+              <span className="fundamental-label">Total Project Costs</span>
+              <div className="fundamental-value-display">
+                {formatCurrency(totalProjectCosts)}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <div className="funding-sections">
           <section className="funding-section">
             <div className="section-header">
@@ -485,17 +509,6 @@ export function FundingTab({
               </table>
             </div>
           </section>
-        </div>
-
-        <div className="funding-summary">
-          <div>
-            <span>Total GP Contributions</span>
-            <strong>{formatCurrency(totalGpContributions)}</strong>
-          </div>
-          <div>
-            <span>Monthly Loan Payments</span>
-            <strong>{formatCurrency(totalMonthlyLoanPayments)}</strong>
-          </div>
         </div>
       </div>
 

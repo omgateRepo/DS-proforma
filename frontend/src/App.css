@@ -918,6 +918,27 @@
   }
 }
 
+/* Funding Summary Section */
+.funding-totals-section {
+  margin-bottom: 1.5rem;
+}
+
+.fundamental-value-display {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  padding: 0.5rem;
+}
+
+.fundamental-card.total-highlight {
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  border-color: var(--primary);
+}
+
+.fundamental-card.total-highlight .fundamental-value-display {
+  color: #1d4ed8;
+}
+
 .funding-header {
   display: flex;
   flex-direction: column;
