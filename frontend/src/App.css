@@ -958,6 +958,38 @@
   }
 }
 
+/* Carrying Costs Totals Section */
+.carrying-totals-section {
+  margin-bottom: 1.5rem;
+}
+
+.period-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.fixed-period-notice {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  margin: 0.5rem 0;
+}
+
+.fixed-period-notice p {
+  margin: 0;
+}
+
+.fixed-period-notice p:first-child {
+  margin-bottom: 0.25rem;
+}
+
 .funding-header {
   display: flex;
   flex-direction: column;

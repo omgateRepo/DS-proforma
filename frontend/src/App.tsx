@@ -1993,6 +1993,7 @@ useEffect(() => {
                     formatOffsetForInput={formatOffsetForInput}
                     convertMonthInputToOffset={convertMonthInputToOffset}
                     getCalendarLabelForInput={getCalendarLabelForInput}
+                    stabilizedOffset={stabilizedOffset}
                   />
                   <ConstructionDebtServiceSection
                     project={selectedProject}

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildRecurringFormFromRow,
   createDefaultRecurringForm,
+  formatCurrency,
   intervalLabels,
   intervalUnitOptions,
 } from './carryingHelpers.js'
@@ -20,9 +21,9 @@ type RecurringFormState = {
 }
 
 const CATEGORY_OPTIONS = [
-  { id: 'construction_re_tax', label: 'Construction Real Estate Tax' },
-  { id: 'insurance', label: 'Insurance' },
-  { id: 'other', label: 'Other' },
+  { id: 'construction_re_tax', label: 'Real Estate Tax', fixedDates: true },
+  { id: 'insurance', label: 'Insurance', fixedDates: true },
+  { id: 'other', label: 'Other', fixedDates: false },
 ] as const
 
 type CategoryId = (typeof CATEGORY_OPTIONS)[number]['id']
@@ -30,6 +31,29 @@ type CategoryOption = (typeof CATEGORY_OPTIONS)[number]
 
 const intervalLabelMap = intervalLabels as Record<IntervalUnit, string>
 const DEFAULT_CATEGORY = CATEGORY_OPTIONS[0]
+
+// Calculate total cost for a row over a given period
+const calculateRowTotal = (row: CarryingCostRow, stabilizedMonth: number | null): number => {
+  if (!row.amountUsd || !stabilizedMonth) return 0
+  const startMonth = row.startMonth ?? 1
+  const endMonth = row.endMonth ?? stabilizedMonth
+  const effectiveEnd = Math.min(endMonth, stabilizedMonth)
+  if (effectiveEnd < startMonth) return 0
+  
+  const months = effectiveEnd - startMonth + 1
+  const amount = row.amountUsd
+  
+  switch (row.intervalUnit) {
+    case 'monthly':
+      return amount * months
+    case 'quarterly':
+      return amount * Math.ceil(months / 3)
+    case 'yearly':
+      return amount * Math.ceil(months / 12)
+    default:
+      return amount * months
+  }
+}
 
 const buildDefaultForm = () =>
   createDefaultRecurringForm('property_tax', { propertyTaxPhase: 'construction' }) as RecurringFormState
@@ -52,6 +76,7 @@ export function ConstructionCarryingCostsSection({
   formatOffsetForInput,
   convertMonthInputToOffset,
   getCalendarLabelForInput,
+  stabilizedOffset,
 }: {
   project: ProjectDetail | null
   projectId: EntityId | null
@@ -59,6 +84,7 @@ export function ConstructionCarryingCostsSection({
   formatOffsetForInput: OffsetFormatter
   convertMonthInputToOffset: MonthOffsetConverter
   getCalendarLabelForInput: CalendarLabelFormatter
+  stabilizedOffset?: number | null
 }) {
   const [form, setForm] = useState(buildDefaultForm())
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -79,6 +105,19 @@ export function ConstructionCarryingCostsSection({
       ) ?? [],
     [project?.carryingCosts],
   )
+
+  // Calculate totals by category
+  const totals = useMemo(() => {
+    const byCategory: Record<string, number> = {}
+    let total = 0
+    rows.forEach((row) => {
+      const cat = row.costGroup || 'other'
+      const rowTotal = calculateRowTotal(row, stabilizedOffset ?? null)
+      byCategory[cat] = (byCategory[cat] || 0) + rowTotal
+      total += rowTotal
+    })
+    return { byCategory, total }
+  }, [rows, stabilizedOffset])
 
   const refreshProject = async () => {
     if (!projectId || !onProjectRefresh) return
@@ -126,13 +165,15 @@ export function ConstructionCarryingCostsSection({
     setStatus('saving')
     setModalError('')
     try {
+      // For fixed-date categories (RE Tax, Insurance), use closing (1) to stabilized
+      const isFixedDates = activeCategory.fixedDates
       const payload = {
         carryingType: 'property_tax',
         costName: form.costName.trim() || activeCategory.label,
         amountUsd: toNumberOrThrow(form.amountUsd),
         intervalUnit: form.intervalUnit,
-        startMonth: requireMonth(form.startMonth, 'Start month is required.', convertMonthInputToOffset),
-        endMonth: form.endMonth ? convertMonthInputToOffset(form.endMonth) : null,
+        startMonth: isFixedDates ? 1 : requireMonth(form.startMonth, 'Start month is required.', convertMonthInputToOffset),
+        endMonth: isFixedDates ? (stabilizedOffset ?? null) : (form.endMonth ? convertMonthInputToOffset(form.endMonth) : null),
         propertyTaxPhase: 'construction',
         costGroup: activeCategory.id,
       }
@@ -190,10 +231,24 @@ export function ConstructionCarryingCostsSection({
   }
 
   const renderCategoryLabel = (row: CarryingCostRow) => {
-    if (row.propertyTaxPhase === 'construction') {
-      return 'Property Tax'
-    }
     return getCategoryById(row.costGroup || null).label
+  }
+
+  const renderPeriodDisplay = (row: CarryingCostRow) => {
+    const cat = getCategoryById(row.costGroup || null)
+    if (cat.fixedDates) {
+      return <span className="period-badge">Closing → Stabilized</span>
+    }
+    return (
+      <>
+        {formatMonthDisplay(row.startMonth)} → {row.endMonth !== null && row.endMonth !== undefined ? formatMonthDisplay(row.endMonth) : 'Ongoing'}
+      </>
+    )
+  }
+
+  const renderRowTotal = (row: CarryingCostRow) => {
+    const rowTotal = calculateRowTotal(row, stabilizedOffset ?? null)
+    return rowTotal > 0 ? <strong>{formatCurrency(rowTotal)}</strong> : '—'
   }
 
   return (
@@ -201,12 +256,12 @@ export function ConstructionCarryingCostsSection({
       <div className="soft-tab">
         <div className="soft-header">
           <div>
-            <h3>Construction Carrying Costs</h3>
-            <p className="muted tiny">Track the construction-phase RE tax plus insurance/other expenses.</p>
+            <h3>Development Carrying Costs</h3>
+            <p className="muted tiny">Track the development-phase RE tax plus insurance/other expenses.</p>
           </div>
           <div className="add-menu" ref={addMenuRef}>
             <button type="button" className="primary" onClick={() => setMenuOpen((prev) => !prev)}>
-              + Add
+              + Add Carrying Cost
             </button>
             {menuOpen && (
               <div className="add-menu-dropdown">
@@ -219,13 +274,41 @@ export function ConstructionCarryingCostsSection({
                       openModal(option)
                     }}
                   >
-                    Add {option.label}
+                    {option.label}
                   </button>
                 ))}
               </div>
             )}
           </div>
         </div>
+
+        {/* Totals Summary */}
+        {rows.length > 0 && stabilizedOffset && (
+          <section className="general-section fundamentals-section carrying-totals-section">
+            <h4 className="section-title">📊 Development Phase Totals (Closing → Stabilized)</h4>
+            <div className="fundamentals-grid">
+              {CATEGORY_OPTIONS.map((cat) => {
+                const catTotal = totals.byCategory[cat.id] || 0
+                if (catTotal === 0 && !rows.some(r => r.costGroup === cat.id)) return null
+                return (
+                  <div key={cat.id} className="fundamental-card">
+                    <span className="fundamental-label">{cat.label}</span>
+                    <div className="fundamental-value-display">
+                      {formatCurrency(catTotal)}
+                    </div>
+                  </div>
+                )
+              })}
+              <div className="fundamental-card total-highlight">
+                <span className="fundamental-label">Total Carrying Costs</span>
+                <div className="fundamental-value-display">
+                  {formatCurrency(totals.total)}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="table-scroll">
           <table>
             <thead>
@@ -234,15 +317,15 @@ export function ConstructionCarryingCostsSection({
                 <th>Title</th>
                 <th>Amount</th>
                 <th>Interval</th>
-                <th>Start Month</th>
-                <th>End Month</th>
+                <th>Period</th>
+                <th>Total*</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7}>No construction carrying costs yet.</td>
+                  <td colSpan={7}>No development carrying costs yet.</td>
                 </tr>
               )}
               {rows.map((row) => (
@@ -251,8 +334,8 @@ export function ConstructionCarryingCostsSection({
                   <td>{row.costName || renderCategoryLabel(row)}</td>
                   <td>{row.amountUsd ? `$${row.amountUsd.toLocaleString()}` : '—'}</td>
                   <td>{row.intervalUnit ? intervalLabelMap[row.intervalUnit] : '—'}</td>
-                  <td>{formatMonthDisplay(row.startMonth)}</td>
-                  <td>{row.endMonth !== null && row.endMonth !== undefined ? formatMonthDisplay(row.endMonth) : 'Ongoing'}</td>
+                  <td>{renderPeriodDisplay(row)}</td>
+                  <td>{renderRowTotal(row)}</td>
                   <td>
                     <div className="row-actions">
                       <button
@@ -272,6 +355,7 @@ export function ConstructionCarryingCostsSection({
             </tbody>
           </table>
         </div>
+        {rows.length > 0 && <p className="muted tiny">* Total calculated from Closing to Stabilized date</p>}
       </div>
 
       {isModalOpen && (
@@ -308,26 +392,37 @@ export function ConstructionCarryingCostsSection({
                   ))}
                 </select>
               </label>
-              <label>
-                Start Month
-                <input
-                  type="number"
-                  min="1"
-                  value={form.startMonth}
-                  onChange={(e) => setForm((prev) => ({ ...prev, startMonth: e.target.value }))}
-                />
-                <span className="muted tiny">{getCalendarLabelForInput(form.startMonth)}</span>
-              </label>
-              <label>
-                End Month (optional)
-                <input
-                  type="number"
-                  min="1"
-                  value={form.endMonth}
-                  onChange={(e) => setForm((prev) => ({ ...prev, endMonth: e.target.value }))}
-                />
-                {form.endMonth && <span className="muted tiny">{getCalendarLabelForInput(form.endMonth)}</span>}
-              </label>
+              {activeCategory.fixedDates ? (
+                <div className="fixed-period-notice">
+                  <p className="muted">
+                    📅 <strong>Period:</strong> Closing → Stabilized
+                  </p>
+                  <p className="muted tiny">This cost applies from closing date until stabilized date automatically.</p>
+                </div>
+              ) : (
+                <>
+                  <label>
+                    Start Month
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.startMonth}
+                      onChange={(e) => setForm((prev) => ({ ...prev, startMonth: e.target.value }))}
+                    />
+                    <span className="muted tiny">{getCalendarLabelForInput(form.startMonth)}</span>
+                  </label>
+                  <label>
+                    End Month (optional)
+                    <input
+                      type="number"
+                      min="1"
+                      value={form.endMonth}
+                      onChange={(e) => setForm((prev) => ({ ...prev, endMonth: e.target.value }))}
+                    />
+                    {form.endMonth && <span className="muted tiny">{getCalendarLabelForInput(form.endMonth)}</span>}
+                  </label>
+                </>
+              )}
               {modalError && <p className="error">{modalError}</p>}
               <div className="modal-actions">
                 <button type="button" className="ghost" onClick={closeModal} disabled={status === 'saving'}>
