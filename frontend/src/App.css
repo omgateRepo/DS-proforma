@@ -457,11 +457,12 @@
 
 .tabs {
   display: flex;
-  margin-bottom: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  border: 2px solid var(--border);
+  border-radius: 12px;
   overflow: hidden;
   background: var(--card-bg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .floating-delete {
@@ -517,15 +518,15 @@
 .tabs button {
   border: none;
   flex: 1;
-  padding: 0.65rem 1rem;
+  padding: 1rem 1.25rem;
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  transition: background 0.2s ease;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  transition: all 0.2s ease;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .tabs button:not(:last-child) {
@@ -533,20 +534,16 @@
 }
 
 .tabs button:hover:not(.active) {
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
 }
 
 .tabs button.active {
-  background: linear-gradient(135deg, var(--primary), #0369a1);
+  background: linear-gradient(135deg, var(--primary), #1d4ed8);
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
-  box-shadow: inset 0 -2px 0 rgba(255,255,255,0.3);
-}
-
-.tabs button.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  box-shadow: inset 0 -3px 0 rgba(255,255,255,0.2);
 }
 
 .general-form,
@@ -2108,28 +2105,31 @@ td {
   }
 
   .tabs button {
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
     background: var(--card-bg);
-    padding: 0.75rem 0.5rem;
-    font-size: 0.75rem;
-    text-transform: none;
-    font-weight: 500;
+    padding: 0.85rem 0.5rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.02em;
   }
 
   .tabs button:not(:last-child) {
-    border-right: 1px solid var(--border);
+    border-right: 2px solid var(--border);
   }
 
   .tabs button:hover:not(.active) {
-    background: rgba(15, 23, 42, 0.06);
-    border-color: var(--muted);
+    background: rgba(37, 99, 235, 0.08);
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   .tabs button.active {
-    background: var(--primary);
+    background: linear-gradient(135deg, var(--primary), #1d4ed8);
     border-color: var(--primary);
     color: #fff;
+    font-weight: 800;
   }
 
   /* Adjust detail panel for mobile */
@@ -2186,8 +2186,9 @@ td {
   }
 
   .tabs button {
-    padding: 0.6rem 0.25rem;
+    padding: 0.7rem 0.25rem;
     font-size: 0.7rem;
+    font-weight: 700;
   }
 }
 
