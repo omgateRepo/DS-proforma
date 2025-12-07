@@ -939,6 +939,28 @@
   color: #1d4ed8;
 }
 
+/* 4-column funding grid */
+.funding-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.funding-note {
+  margin-top: 0.75rem;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .funding-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .funding-grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .funding-header {
   display: flex;
   flex-direction: column;

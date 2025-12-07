@@ -43,6 +43,7 @@ type FundingTabProps = {
   getCalendarLabelForOffset: CalendarLabelFormatter
   getCalendarLabelForInput: CalendarInputFormatter
   convertMonthInputToOffset: MonthInputConverter
+  stabilizedOffset?: number | null
 }
 
 type GpContributionFormState = {
@@ -90,6 +91,7 @@ export function FundingTab({
   getCalendarLabelForOffset,
   getCalendarLabelForInput,
   convertMonthInputToOffset,
+  stabilizedOffset,
 }: FundingTabProps) {
   const [activeModal, setActiveModal] = useState<FundingModalType | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -136,6 +138,25 @@ export function FundingTab({
     () => loanRows.reduce((sum, row) => sum + (row.loanAmountUsd || 0), 0),
     [loanRows],
   )
+
+  // Calculate total cost per loan (payments from repayment start to stabilized)
+  const calculateLoanTotalCost = useCallback((row: CarryingCostRow) => {
+    if (stabilizedOffset === null || stabilizedOffset === undefined) return null
+    const preview = calculateLoanPreview(row)
+    if (!preview.monthlyPayment) return null
+    const repaymentStart = row.repaymentStartMonth ?? 0
+    if (repaymentStart > stabilizedOffset) return 0 // No payments before stabilized
+    const monthsOfPayments = stabilizedOffset - repaymentStart + 1
+    return preview.monthlyPayment * monthsOfPayments
+  }, [stabilizedOffset])
+
+  const totalLoanCosts = useMemo(() => {
+    if (stabilizedOffset === null || stabilizedOffset === undefined) return null
+    return loanRows.reduce((sum, row) => {
+      const cost = calculateLoanTotalCost(row)
+      return sum + (cost || 0)
+    }, 0)
+  }, [loanRows, calculateLoanTotalCost, stabilizedOffset])
 
   const totalProjectCosts = totalGpContributions + totalLoans
 
@@ -364,7 +385,7 @@ export function FundingTab({
 
         <section className="general-section fundamentals-section funding-totals-section">
           <h4 className="section-title">💰 Project Funding Summary</h4>
-          <div className="fundamentals-grid">
+          <div className="fundamentals-grid funding-grid-4">
             <div className="fundamental-card">
               <span className="fundamental-label">Total Contributions</span>
               <div className="fundamental-value-display">
@@ -377,13 +398,20 @@ export function FundingTab({
                 {formatCurrency(totalLoans)}
               </div>
             </div>
+            <div className="fundamental-card">
+              <span className="fundamental-label">Total Loan Costs*</span>
+              <div className="fundamental-value-display">
+                {totalLoanCosts !== null ? formatCurrency(totalLoanCosts) : '—'}
+              </div>
+            </div>
             <div className="fundamental-card total-highlight">
-              <span className="fundamental-label">Total Project Costs</span>
+              <span className="fundamental-label">Total Project Funding</span>
               <div className="fundamental-value-display">
                 {formatCurrency(totalProjectCosts)}
               </div>
             </div>
           </div>
+          <p className="muted tiny funding-note">* Total Loan Costs = payments from first payment month until stabilized date</p>
         </section>
 
         <div className="funding-sections">
@@ -472,13 +500,14 @@ export function FundingTab({
                     <th>First Payment</th>
                     <th>Monthly Payment</th>
                     <th>Yearly Return</th>
+                    <th>Total Cost*</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {loanRows.length === 0 && (
                     <tr>
-                      <td colSpan={10}>No loans yet.</td>
+                      <td colSpan={11}>No loans yet.</td>
                     </tr>
                   )}
                   {loanRows.map((row) => {
@@ -494,6 +523,7 @@ export function FundingTab({
                         <td>{formatMonthDisplay(row.repaymentStartMonth)}</td>
                         <td>{preview.monthlyPayment ? formatCurrency(preview.monthlyPayment) : '—'}</td>
                         <td><strong>{preview.monthlyPayment ? formatCurrency(preview.monthlyPayment * 12) : '—'}</strong></td>
+                        <td><strong>{calculateLoanTotalCost(row) !== null ? formatCurrency(calculateLoanTotalCost(row)!) : '—'}</strong></td>
                         <td>
                           <div className="row-actions">
                             <button type="button" className="icon-button" onClick={() => openModal('loan', row)}>

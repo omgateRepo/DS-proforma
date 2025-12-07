@@ -475,7 +475,7 @@ export function CarryingCostsSection({
     <>
       <div className="carrying-tab">
         <div className="carrying-header">
-          <h3>Stabilized Carrying Costs</h3>
+          <h3>Stabilized Phase Costs</h3>
           <div className="add-menu" ref={addMenuRef}>
             <button type="button" className="primary" onClick={() => setMenuOpen((prev) => !prev)}>
               + Add

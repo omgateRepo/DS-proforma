@@ -81,9 +81,9 @@ import { BUSINESS_STAGES, BUSINESS_STAGE_LABELS } from './types'
 const TABS = [
   { id: 'general', label: 'General' },
   { id: 'funding', label: 'Funding' },
-  { id: 'dev-costs', label: 'Construction Costs' },
+  { id: 'dev-costs', label: 'Development Phase Costs' },
   { id: 'revenue', label: 'Stabilized Revenues' },
-  { id: 'carrying', label: 'Stabilized Carrying Costs' },
+  { id: 'carrying', label: 'Stabilized Phase Costs' },
   { id: 'cashflow', label: 'Cashflow' },
   { id: 'metrics', label: 'Metrics & Sensitivities' },
   { id: 'docs', label: 'Docs' },
@@ -2007,6 +2007,7 @@ useEffect(() => {
                   getCalendarLabelForOffset={getCalendarLabelForOffset}
                   getCalendarLabelForInput={getCalendarLabelForInput}
                   convertMonthInputToOffset={convertMonthInputToOffset}
+                  stabilizedOffset={stabilizedOffset}
                 />
               )}
 
