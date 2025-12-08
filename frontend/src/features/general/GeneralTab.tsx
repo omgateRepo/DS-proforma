@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, ChangeEvent } from 'react'
 import type { AddressSuggestion, GeneralFormState } from '../../types'
 
 type SelectedCoords = { lat: number; lon: number } | null
@@ -17,6 +17,8 @@ type GeneralTabProps = {
   onAddressSelect: (suggestion: AddressSuggestion) => void
   selectedCoords: SelectedCoords
   apiOrigin: string
+  buildingImageUrl?: string | null
+  onBuildingImageChange?: (imageUrl: string | null) => void
 }
 
 const AUTOSAVE_DELAY = 1000 // 1 second debounce
@@ -35,11 +37,17 @@ export function GeneralTab({
   onAddressSelect,
   selectedCoords,
   apiOrigin,
+  buildingImageUrl,
+  onBuildingImageChange,
 }: GeneralTabProps) {
   const [isEditingAddress, setIsEditingAddress] = useState(false)
   const [showSavedMessage, setShowSavedMessage] = useState(false)
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevStatusRef = useRef(generalStatus)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  // Use ref to always call the latest onAutoSave (avoids stale closure)
+  const onAutoSaveRef = useRef(onAutoSave)
+  onAutoSaveRef.current = onAutoSave
 
   // Trigger debounced auto-save
   const triggerAutoSave = useCallback(() => {
@@ -47,9 +55,9 @@ export function GeneralTab({
       clearTimeout(autoSaveTimerRef.current)
     }
     autoSaveTimerRef.current = setTimeout(() => {
-      onAutoSave()
+      onAutoSaveRef.current()
     }, AUTOSAVE_DELAY)
-  }, [onAutoSave])
+  }, [])
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -99,6 +107,53 @@ export function GeneralTab({
   const handleAddressSelect = (suggestion: AddressSuggestion) => {
     onAddressSelect(suggestion)
     setIsEditingAddress(false)
+  }
+
+  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      console.log('No file selected')
+      return
+    }
+    if (!onBuildingImageChange) {
+      console.log('onBuildingImageChange not provided')
+      return
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    // Validate file size (max 5MB for base64 storage)
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      alert(`Image must be less than 5MB. Your image is ${(file.size / 1024 / 1024).toFixed(1)}MB`)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64 = reader.result as string
+      onBuildingImageChange(base64)
+      triggerAutoSave()
+    }
+    reader.onerror = () => {
+      alert('Failed to read image file')
+      console.error('FileReader error:', reader.error)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleRemoveImage = () => {
+    if (onBuildingImageChange) {
+      onBuildingImageChange(null)
+      triggerAutoSave()
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   return (
@@ -169,18 +224,55 @@ export function GeneralTab({
           </div>
         )}
 
-        {satelliteUrl && buildingFrontUrl && (
-          <div className="preview-row">
+        <div className="preview-row">
+          {satelliteUrl && (
             <div className="satellite-preview">
               <p className="preview-label">Satellite</p>
               <img src={satelliteUrl} alt="Satellite preview" role="img" aria-label="satellite preview" />
             </div>
-            <div className="satellite-preview">
-              <p className="preview-label">Building front</p>
-              <img src={buildingFrontUrl} alt="Building front preview" role="img" aria-label="building front preview" />
-            </div>
+          )}
+          <div className="satellite-preview building-image-preview">
+            <p className="preview-label">Building Image</p>
+            {buildingImageUrl ? (
+              <>
+                <div className="image-container">
+                  <img src={buildingImageUrl} alt="Building" role="img" aria-label="building image" />
+                </div>
+                <div className="image-actions">
+                  <button type="button" className="ghost tiny" onClick={() => fileInputRef.current?.click()}>
+                    📷 Change
+                  </button>
+                  <button type="button" className="ghost tiny danger-text" onClick={handleRemoveImage}>
+                    🗑 Remove
+                  </button>
+                </div>
+              </>
+            ) : buildingFrontUrl ? (
+              <>
+                <div className="image-container">
+                  <img src={buildingFrontUrl} alt="Street view" role="img" aria-label="street view" />
+                </div>
+                <div className="image-actions">
+                  <button type="button" className="ghost tiny" onClick={() => fileInputRef.current?.click()}>
+                    📷 Upload Custom Image
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="upload-placeholder" onClick={() => fileInputRef.current?.click()}>
+                <span>📷</span>
+                <span>Click to upload building image</span>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              style={{ display: 'none' }}
+            />
           </div>
-        )}
+        </div>
       </section>
 
       {/* Section 2: Key Dates */}

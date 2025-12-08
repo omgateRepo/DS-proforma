@@ -47,6 +47,7 @@ export interface ProjectGeneral {
   description: string | null
   startLeasingDate: string | null
   stabilizedDate: string | null
+  buildingImageUrl: string | null
 }
 
 export interface ApartmentTurnoverSettings {

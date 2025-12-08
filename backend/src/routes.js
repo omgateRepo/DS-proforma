@@ -218,6 +218,7 @@ const projectFieldMap = {
   retailTurnoverCostUsd: 'retail_turnover_cost',
   startLeasingDate: 'start_leasing_date',
   stabilizedDate: 'stabilized_date',
+  buildingImageUrl: 'building_image_url',
 }
 
 const projectFieldTransforms = {
@@ -412,6 +413,7 @@ const mapProjectDetail = (row) => ({
     description: row.description,
     startLeasingDate: row.startLeasingDate,
     stabilizedDate: row.stabilizedDate,
+    buildingImageUrl: row.buildingImageUrl || row.building_image_url || null,
   },
   apartmentTurnover: {
     turnoverPct: toNumber(row.turnoverPct),
@@ -972,6 +974,7 @@ router.get('/projects/:id', async (req, res) => {
         retail_turnover_cost: true,
         start_leasing_date: true,
         stabilized_date: true,
+        building_image_url: true,
         project_collaborators: {
           include: {
             user: {
@@ -998,6 +1001,7 @@ router.get('/projects/:id', async (req, res) => {
       retailTurnoverCostUsd: projectRow.retail_turnover_cost,
       startLeasingDate: projectRow.start_leasing_date,
       stabilizedDate: projectRow.stabilized_date,
+      buildingImageUrl: projectRow.building_image_url,
       owner: projectRow.owner,
       ownerId: projectRow.owner_id,
       collaborators: projectRow.project_collaborators,
@@ -1257,6 +1261,7 @@ router.patch('/projects/:id', async (req, res) => {
         turnover_cost_usd: true,
         start_leasing_date: true,
         stabilized_date: true,
+        building_image_url: true,
         retail_turnover_pct: true,
         retail_turnover_cost: true,
         project_collaborators: {
@@ -1284,6 +1289,7 @@ router.patch('/projects/:id', async (req, res) => {
         retailTurnoverCostUsd: updated.retail_turnover_cost,
         startLeasingDate: updated.start_leasing_date,
         stabilizedDate: updated.stabilized_date,
+        buildingImageUrl: updated.building_image_url,
         owner: updated.owner,
         ownerId: updated.owner_id,
         collaborators: updated.project_collaborators,

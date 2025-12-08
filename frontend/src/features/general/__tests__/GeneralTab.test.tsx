@@ -21,6 +21,7 @@ const baseForm: GeneralFormState = {
   targetUnits: '40',
   targetSqft: '52000',
   description: 'Notes',
+  buildingImageUrl: '',
 }
 
 const defaultProps = {

@@ -218,8 +218,9 @@ export const projectUpdateSchema = z
     description: optionalNullableString,
     turnoverPct: percentage.optional().nullable(),
     turnoverCostUsd: nullableNumber,
-  retailTurnoverPct: percentage.optional().nullable(),
-  retailTurnoverCostUsd: nullableNumber,
+    retailTurnoverPct: percentage.optional().nullable(),
+    retailTurnoverCostUsd: nullableNumber,
+    buildingImageUrl: optionalNullableString,
   })
   .strict()
 

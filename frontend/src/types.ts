@@ -74,4 +74,5 @@ export type GeneralFormState = {
   targetUnits: string
   targetSqft: string
   description: string
+  buildingImageUrl: string
 }

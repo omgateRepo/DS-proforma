@@ -94,7 +94,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.1'
+const APP_VERSION = '1.0.13'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -108,6 +108,7 @@ const defaultGeneralForm: GeneralFormState = {
   name: '',
   addressLine1: '',
   addressLine2: '',
+  buildingImageUrl: '',
   city: '',
   state: '',
   zip: '',
@@ -1264,6 +1265,7 @@ function App() {
         targetUnits: formatNumberForInput(detail.general.targetUnits),
         targetSqft: formatNumberForInput(detail.general.targetSqft),
         description: detail.general.description ?? '',
+        buildingImageUrl: detail.general.buildingImageUrl ?? '',
       })
       setAddressQuery(detail.general.addressLine1 || '')
       setAddressInputTouched(false)
@@ -1676,6 +1678,7 @@ useEffect(() => {
         longitude: parseFloatOrNull(generalForm.longitude),
         targetUnits: generalForm.targetUnits ? Number(generalForm.targetUnits) : null,
         targetSqft: generalForm.targetSqft ? Number(generalForm.targetSqft) : null,
+        buildingImageUrl: generalForm.buildingImageUrl || null,
       }
       ;['addressLine2', 'city', 'state', 'zip', 'description'].forEach((field) => {
         payload[field] = normalizeOptionalField(generalForm[field as keyof GeneralFormState])
@@ -1937,6 +1940,10 @@ useEffect(() => {
                   onAddressSelect={handleAddressSelect}
                   selectedCoords={selectedCoords}
                   apiOrigin={apiOrigin}
+                  buildingImageUrl={generalForm.buildingImageUrl || selectedProject?.general?.buildingImageUrl || null}
+                  onBuildingImageChange={(imageUrl) => {
+                    handleGeneralFieldChange('buildingImageUrl', imageUrl || '')
+                  }}
                 />
                   </div>
                   <div className="general-collaborators-wrapper">

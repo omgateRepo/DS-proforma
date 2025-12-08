@@ -1515,6 +1515,7 @@
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
+  align-items: stretch;
 }
 
 .satellite-preview {
@@ -1532,11 +1533,82 @@
   display: block;
 }
 
+/* First satellite preview (actual satellite) determines height */
+.satellite-preview:first-child {
+  flex-shrink: 0;
+}
+
 .preview-label {
   margin: 0;
   padding: 0.65rem 0.9rem 0.35rem;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+/* Building Image Upload */
+.building-image-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Container for the image - uses flex-grow to fill available height */
+.building-image-preview .image-container {
+  position: relative;
+  flex: 1;
+  min-height: 200px;
+  background: #f1f5f9;
+}
+
+/* Image is absolutely positioned to not affect container height */
+.building-image-preview .image-container img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.building-image-preview .image-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.9rem 0.75rem;
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
+}
+
+.building-image-preview .image-actions button {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.danger-text {
+  color: var(--danger) !important;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  cursor: pointer;
+  color: var(--muted);
+  transition: background 0.15s;
+}
+
+.upload-placeholder:hover {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.upload-placeholder span:first-child {
+  font-size: 2rem;
+}
+
+.upload-placeholder span:last-child {
+  font-size: 0.85rem;
 }
 
 label {
