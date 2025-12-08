@@ -375,6 +375,7 @@ export interface BusinessStageCriterion {
 
 // Subscription Packages (Unit Economy)
 export type PackageMetricType = 'frequency' | 'quantity' | 'na'
+export const PACKAGE_METRIC_TYPES: readonly PackageMetricType[]
 
 export interface SubscriptionPackage {
   id: EntityId

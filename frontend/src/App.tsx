@@ -97,7 +97,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.21'
+const APP_VERSION = '1.0.22'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -2345,7 +2345,7 @@ useEffect(() => {
                                 <button
                                   type="button"
                                   className="icon-delete tiny"
-                                  onClick={() => handleBusinessCollaboratorRemove(collab.id)}
+                                  onClick={() => handleBusinessCollaboratorRemove(String(collab.id))}
                                   disabled={businessCollaboratorStatus === 'saving'}
                                   title="Remove collaborator"
                                 >
