@@ -2623,6 +2623,34 @@ td {
 
 .business-card {
   cursor: pointer;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.business-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.12);
+  transform: translateY(-2px);
+}
+
+.business-card .card-header {
+  margin-bottom: 0.25rem;
+}
+
+.business-card .card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  display: block;
+  line-height: 1.3;
 }
 
 /* Stage Criteria Tooltip */
@@ -2731,16 +2759,20 @@ td {
 .business-card .card-metric {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
-  padding: 0.25rem 0;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  background: #f8fafc;
+  border-radius: 6px;
 }
 
 .business-card .metric-label {
   color: var(--muted);
+  font-weight: 500;
 }
 
 .business-card .metric-value {
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--primary);
 }
 
 /* Business Project Detail */
