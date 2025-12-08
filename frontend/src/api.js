@@ -626,3 +626,62 @@ export async function deleteBusinessDocument(projectId, docId) {
   })
   return handleJsonResponse(res, 'Failed to delete document')
 }
+
+// ============ Subscription Packages (Unit Economy) ============
+
+export async function fetchPackages(projectId) {
+  const res = await request(`/api/business-projects/${projectId}/packages`)
+  return handleJsonResponse(res, 'Failed to load packages')
+}
+
+export async function createPackage(projectId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/packages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create package')
+}
+
+export async function updatePackage(projectId, packageId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/packages/${packageId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update package')
+}
+
+export async function deletePackage(projectId, packageId) {
+  const res = await request(`/api/business-projects/${projectId}/packages/${packageId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete package')
+}
+
+// Package Items
+
+export async function createPackageItem(projectId, packageId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/packages/${packageId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create item')
+}
+
+export async function updatePackageItem(projectId, packageId, itemId, payload) {
+  const res = await request(`/api/business-projects/${projectId}/packages/${packageId}/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update item')
+}
+
+export async function deletePackageItem(projectId, packageId, itemId) {
+  const res = await request(`/api/business-projects/${projectId}/packages/${packageId}/items/${itemId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete item')
+}

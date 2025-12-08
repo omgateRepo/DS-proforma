@@ -265,16 +265,28 @@ interface CriteriaItem {
 interface SubscriptionPackage {
   id: string
   projectId: string
-  name: string                // Package tier name (e.g., "Basic", "Pro", "Enterprise")
-  valueDescription: string    // What's included - features list
-  valueMetric?: number        // Numeric value measure
-  valueMetricUnit?: string    // e.g., "hours/month", "units", "users", "GB"
-  suggestedPrice: number      // Target price point
-  cost: number                // Cost to deliver this package to one customer
+  name: string                    // Package name (e.g., "Longevity Monthly")
+  description?: string            // Overall package description
+  suggestedPrice: number          // Monthly price point
+  items: PackageItem[]            // Line items that make up the package
   createdAt: Date
   updatedAt: Date
 }
+
+interface PackageItem {
+  id: string
+  name: string                    // Item name (e.g., "Healthy Cooking Session")
+  metricType: 'frequency' | 'quantity' | 'na'
+  metricValue?: string            // "1/week", "4 meals", or null for N/A
+  cost: number                    // Cost to deliver this item monthly
+  sortOrder: number               // For reordering items
+}
 ```
+
+**Auto-calculated fields (not stored):**
+- `totalCost` = sum of all item costs
+- `margin` = suggestedPrice - totalCost
+- `marginPercent` = (margin / suggestedPrice) * 100
 
 ### Monthly Metrics Snapshot
 
@@ -317,19 +329,76 @@ interface MonthlyMetrics {
 
 ## Tabs Structure (per Business Project)
 
-### Tab 1: Unit Economy
-Define subscription packages to establish the unit economics foundation for the business. This is where you plan the pricing and cost structure that needs to become profitable.
+### Tab 1: Unit Economy (Package Builder)
 
-**Purpose**: Before launching, define what you're selling and at what economics. These packages become the benchmarks for achieving Positive Unit Economics (Stage 3).
+Build and cost-estimate subscription packages before launch. Each package is composed of line items you define, allowing you to visualize your offering and estimate costs.
 
-**For each subscription package**:
-- **Name** - Package tier name (e.g., "Basic", "Pro", "Enterprise")
-- **Value Description** - Text describing what's included (features, benefits)
-- **Value Metric** - Numeric measure of value delivered (e.g., "10 hours/month", "100 units", "5 users")
-- **Suggested Price** - Target price point for this package
-- **Cost** - Cost to deliver this package to one customer
+**Purpose**: Compose your subscription offering piece by piece, estimate total costs, set pricing, and validate that your unit economics can be profitable. These packages become the benchmarks for achieving Positive Unit Economics (Stage 3).
 
-**Key insight**: When `Suggested Price > Cost` for all packages and you have paying customers, you're on your way to Positive Unit Economics.
+**Billing Terms** (fixed for all packages):
+- Monthly billing, auto-renew
+- Cancel anytime
+- First month free
+
+#### Package Header Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Name | Yes | Package name (e.g., "Longevity Monthly") |
+| Description | No | Overall description of what this package offers |
+| Suggested Price | Yes | Monthly price point |
+
+#### Package Items (add unlimited)
+
+Build your package by adding line items. Each item represents a component of your offering:
+
+| Field | Description |
+|-------|-------------|
+| Item Name | Free text - what you're including (e.g., "Weekly Meal Delivery") |
+| Metric Type | **Frequency** (1/week, 2/month) / **Number of Items** (5 meals) / **N/A** (included, no quantity) |
+| Metric Value | Based on type: "1/week", "5 meals", or disabled for N/A |
+| Cost | Your cost to deliver this item monthly |
+
+#### Auto-Calculated Summary
+
+The builder automatically shows:
+- **Total Cost** = sum of all item costs
+- **Margin ($)** = Suggested Price - Total Cost
+- **Margin (%)** = Margin / Suggested Price × 100
+
+**Key insight**: When `Suggested Price > Total Cost` and you have paying customers, you're on your way to Positive Unit Economics.
+
+#### UI Wireframe
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Package: Longevity Monthly                    [Edit ✏️] │
+│  "Complete wellness program with meals & events"        │
+├─────────────────────────────────────────────────────────┤
+│  ITEMS                                                  │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ ☰ Healthy Cooking Session  │ Freq: 1/mo  │ $40    ││
+│  │ ☰ Monthly Lecture          │ Freq: 1/mo  │ $15    ││
+│  │ ☰ Meal Delivery            │ Freq: 1/wk  │ $50    ││
+│  │ ☰ Vegetables Box           │ Freq: 1/wk  │ $30    ││
+│  │ ☰ Fasting Kit + Group Meal │ Freq: 1/mo  │ $35    ││
+│  │ ☰ App Membership           │ N/A         │ $10    ││
+│  └─────────────────────────────────────────────────────┘│
+│                                         [+ Add Item]    │
+├─────────────────────────────────────────────────────────┤
+│  Total Cost:       $180/month                           │
+│  Suggested Price:  $299/month                           │
+│  ────────────────────────────────                       │
+│  Margin:           $119/month (39.8%)  ✅               │
+└─────────────────────────────────────────────────────────┘
+```
+
+**UI Features**:
+- ☰ Drag handle for reordering items
+- Click item row to edit
+- [+ Add Item] opens modal to add new line item
+- Summary auto-updates as you add/edit items
+- ✅ Green indicator when margin is positive
 
 ### Tab 2: Overview
 - Company name, description, industry
@@ -520,6 +589,9 @@ For each board type (Real Estate, Business):
 | **Gross Margin** | (Revenue - Direct Costs) / Revenue |
 | **Rule of 40** | Growth Rate % + Profit Margin % should exceed 40% for healthy SaaS |
 | **NPS** | Net Promoter Score - customer satisfaction/loyalty metric |
+| **Package Item** | A single component of a subscription package (e.g., "Weekly Meal Delivery") |
+| **COGS** | Cost of Goods Sold - direct costs to deliver a product or service |
+| **Unit Economics** | The revenue and costs associated with a single unit (customer/subscription) |
 
 ---
 

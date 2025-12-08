@@ -32,6 +32,8 @@ import {
   createBusinessProject,
   updateBusinessProject,
   deleteBusinessProject,
+  addBusinessCollaborator,
+  removeBusinessCollaborator,
 } from './api.js'
 import { RevenueSection } from './features/revenue/RevenueSection'
 import { HardCostsSection } from './features/costs/HardCostsSection'
@@ -55,6 +57,7 @@ import { calculateLoanPreview } from './features/carrying/carryingHelpers.js'
 import { FundingTab } from './features/funding/FundingTab'
 import { MetricsTab } from './features/metrics/MetricsTab'
 import { DocsTab } from './features/docs/DocsTab'
+import { UnitEconomyTab } from './features/unit-economy/UnitEconomyTab'
 import type {
   AddressSuggestion,
   ApartmentRevenueRow,
@@ -94,7 +97,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.16'
+const APP_VERSION = '1.0.21'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -576,6 +579,10 @@ function App() {
   const [selectedBusinessProject, setSelectedBusinessProject] = useState<BusinessProjectDetail | null>(null)
   const [businessDetailStatus, setBusinessDetailStatus] = useState<LoadStatus>('idle')
   const [businessDetailError, setBusinessDetailError] = useState('')
+  const [activeBusinessTab, setActiveBusinessTab] = useState<'overview' | 'unit-economy'>('overview')
+  const [businessCollaboratorSelection, setBusinessCollaboratorSelection] = useState('')
+  const [businessCollaboratorStatus, setBusinessCollaboratorStatus] = useState<RequestStatus>('idle')
+  const [businessCollaboratorError, setBusinessCollaboratorError] = useState('')
   const [newBusinessProjectName, setNewBusinessProjectName] = useState('')
   const [businessCreateStatus, setBusinessCreateStatus] = useState<RequestStatus>('idle')
   const [businessCreateError, setBusinessCreateError] = useState('')
@@ -592,12 +599,29 @@ function App() {
     return users.filter((user) => user.id && !excluded.has(String(user.id)))
   }, [selectedProject, users])
 
+  const availableUsersForBusiness = useMemo(() => {
+    if (!selectedBusinessProject) return []
+    const excluded = new Set<string>()
+    if (selectedBusinessProject.ownerId) excluded.add(String(selectedBusinessProject.ownerId))
+    selectedBusinessProject.collaborators?.forEach((collab) => {
+      if (collab.id) excluded.add(String(collab.id))
+    })
+    return users.filter((user) => user.id && !excluded.has(String(user.id)))
+  }, [selectedBusinessProject, users])
+
   useEffect(() => {
     if (!collaboratorSelection) return
     if (!availableUsers.some((user) => user.id === collaboratorSelection)) {
       setCollaboratorSelection('')
     }
   }, [availableUsers, collaboratorSelection])
+
+  useEffect(() => {
+    if (!businessCollaboratorSelection) return
+    if (!availableUsersForBusiness.some((user) => user.id === businessCollaboratorSelection)) {
+      setBusinessCollaboratorSelection('')
+    }
+  }, [availableUsersForBusiness, businessCollaboratorSelection])
 
   const stageOptions = stageLabels() as Array<{ id: ProjectStage; label: string }>
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
@@ -1305,6 +1329,12 @@ useEffect(() => {
   refreshUsers(selectedProjectId)
 }, [selectedProjectId, canEditCollaborators, refreshUsers])
 
+// Load users for business project collaborators
+useEffect(() => {
+  if (!selectedBusinessProjectId) return
+  refreshUsers()
+}, [selectedBusinessProjectId, refreshUsers])
+
   useEffect(() => {
     setExpandedCashflowRows(new Set())
   }, [selectedProjectId])
@@ -1510,6 +1540,47 @@ useEffect(() => {
     } catch (err) {
       setCollaboratorStatus('error')
       setCollaboratorError(getErrorMessage(err))
+    }
+  }
+
+  async function handleBusinessCollaboratorSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedBusinessProjectId) return
+    if (!businessCollaboratorSelection) {
+      setBusinessCollaboratorError('Select a user to add')
+      setBusinessCollaboratorStatus('error')
+      return
+    }
+    const targetUser = users.find((user) => user.id === businessCollaboratorSelection)
+    if (!targetUser || !targetUser.email) {
+      setBusinessCollaboratorError('Selected user is unavailable')
+      setBusinessCollaboratorStatus('error')
+      return
+    }
+    setBusinessCollaboratorStatus('saving')
+    setBusinessCollaboratorError('')
+    try {
+      await addBusinessCollaborator(selectedBusinessProjectId, targetUser.email)
+      await loadBusinessProjectDetail(selectedBusinessProjectId)
+      setBusinessCollaboratorSelection('')
+      setBusinessCollaboratorStatus('idle')
+    } catch (err) {
+      setBusinessCollaboratorStatus('error')
+      setBusinessCollaboratorError(getErrorMessage(err))
+    }
+  }
+
+  async function handleBusinessCollaboratorRemove(userId: string) {
+    if (!selectedBusinessProjectId) return
+    setBusinessCollaboratorStatus('saving')
+    setBusinessCollaboratorError('')
+    try {
+      await removeBusinessCollaborator(selectedBusinessProjectId, userId)
+      await loadBusinessProjectDetail(selectedBusinessProjectId)
+      setBusinessCollaboratorStatus('idle')
+    } catch (err) {
+      setBusinessCollaboratorStatus('error')
+      setBusinessCollaboratorError(getErrorMessage(err))
     }
   }
 
@@ -2219,13 +2290,104 @@ useEffect(() => {
                   </div>
                 )}
               </div>
-              {selectedBusinessProject.legalEntityName && (
-                <div className="legal-entity-info">
-                  <h4>Legal Entity</h4>
-                  <p>{selectedBusinessProject.legalEntityName} ({selectedBusinessProject.legalEntityType || 'Unknown type'})</p>
-                  {selectedBusinessProject.jurisdiction && <p>Jurisdiction: {selectedBusinessProject.jurisdiction}</p>}
+              
+              {/* Business Project Tabs */}
+              <div className="business-tabs">
+                <div className="tabs">
+                  <button type="button" className={activeBusinessTab === 'overview' ? 'active' : ''} onClick={() => setActiveBusinessTab('overview')}>Overview</button>
+                  <button type="button" className={activeBusinessTab === 'unit-economy' ? 'active' : ''} onClick={() => setActiveBusinessTab('unit-economy')}>Unit Economy</button>
+                  <button type="button" disabled title="Coming soon">Financials</button>
+                  <button type="button" disabled title="Coming soon">Docs</button>
                 </div>
-              )}
+                <div className="tab-content">
+                  {activeBusinessTab === 'overview' && (
+                    <div className="business-overview-layout">
+                      <div className="business-overview-main">
+                        {selectedBusinessProject.legalEntityName && (
+                          <div className="legal-entity-info">
+                            <h4>Legal Entity</h4>
+                            <p>{selectedBusinessProject.legalEntityName} ({selectedBusinessProject.legalEntityType || 'Unknown type'})</p>
+                            {selectedBusinessProject.jurisdiction && <p>Jurisdiction: {selectedBusinessProject.jurisdiction}</p>}
+                            {selectedBusinessProject.formedAt && <p>Formed: {new Date(selectedBusinessProject.formedAt).toLocaleDateString()}</p>}
+                          </div>
+                        )}
+                        {selectedBusinessProject.targetMarket && (
+                          <div className="target-market-info">
+                            <h4>Target Market</h4>
+                            <p>{selectedBusinessProject.targetMarket}</p>
+                          </div>
+                        )}
+                        {!selectedBusinessProject.legalEntityName && !selectedBusinessProject.targetMarket && (
+                          <p className="muted">No additional details yet. Edit the project to add legal entity and market info.</p>
+                        )}
+                      </div>
+                      <div className="business-collaborators-wrapper">
+                        <div className="collaborators-panel">
+                          <div className="section-header">
+                            <h4>Collaborators</h4>
+                          </div>
+                          <div className="collaborator-owner">
+                            <span className="pill">Owner</span>
+                            <div>
+                              <strong>{selectedBusinessProject.ownerName || 'Unknown'}</strong>
+                            </div>
+                          </div>
+                          <ul className="collaborator-list">
+                            {(!selectedBusinessProject.collaborators || selectedBusinessProject.collaborators.length === 0) && (
+                              <li className="muted tiny">No collaborators yet.</li>
+                            )}
+                            {selectedBusinessProject.collaborators?.map((collab) => (
+                              <li key={collab.id} className="collaborator-item">
+                                <div>
+                                  <strong>{collab.displayName || collab.email || 'User'}</strong>
+                                  <p className="muted tiny">{collab.email}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="icon-delete tiny"
+                                  onClick={() => handleBusinessCollaboratorRemove(collab.id)}
+                                  disabled={businessCollaboratorStatus === 'saving'}
+                                  title="Remove collaborator"
+                                >
+                                  🗑
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                          {availableUsersForBusiness.length > 0 && (
+                            <form className="collaborator-form" onSubmit={handleBusinessCollaboratorSubmit}>
+                              <select
+                                value={businessCollaboratorSelection}
+                                onChange={(e) => setBusinessCollaboratorSelection(e.target.value)}
+                                disabled={businessCollaboratorStatus === 'saving'}
+                              >
+                                <option value="">Select user to add...</option>
+                                {availableUsersForBusiness.map((user) => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.displayName || user.email}
+                                  </option>
+                                ))}
+                              </select>
+                              <button type="submit" className="primary small" disabled={businessCollaboratorStatus === 'saving' || !businessCollaboratorSelection}>
+                                {businessCollaboratorStatus === 'saving' ? 'Adding...' : 'Add'}
+                              </button>
+                            </form>
+                          )}
+                          {businessCollaboratorError && <p className="error tiny">{businessCollaboratorError}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {activeBusinessTab === 'unit-economy' && (
+                    <UnitEconomyTab
+                      projectId={selectedBusinessProject.id}
+                      packages={selectedBusinessProject.packages || []}
+                      onRefresh={() => loadBusinessProjectDetail(selectedBusinessProject.id)}
+                    />
+                  )}
+                </div>
+              </div>
+
               <div className="business-actions">
                 <button
                   type="button"
@@ -2239,7 +2401,6 @@ useEffect(() => {
                   🗑 Delete Project
                 </button>
               </div>
-              <p className="muted tiny">Full business project management coming soon. For now, you can track stage and basic info.</p>
             </div>
           )}
         </section>

@@ -41,6 +41,12 @@ export type {
   BusinessMetricsInput,
   ProjectCounts,
   LegalEntityType,
+  // Subscription Packages (Unit Economy)
+  SubscriptionPackage,
+  PackageItem,
+  PackageMetricType,
+  SubscriptionPackageInput,
+  PackageItemInput,
 } from '@ds-proforma/types'
 
 export {
@@ -57,6 +63,7 @@ export {
   BUSINESS_STAGES,
   BUSINESS_STAGE_LABELS,
   BUSINESS_STAGE_CRITERIA,
+  PACKAGE_METRIC_TYPES,
 } from '@ds-proforma/types'
 
 export type GeneralFormState = {

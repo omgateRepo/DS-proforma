@@ -231,6 +231,7 @@ model business_projects {
   monthly_metrics   business_project_monthly_metrics[]
   stage_criteria    business_project_stage_criteria[]
   stage_history     business_project_stage_history[]
+  packages          subscription_packages[]
 }
 
 model business_project_collaborators {
@@ -325,4 +326,33 @@ model business_project_stage_history {
   to_stage   String
   changed_at DateTime          @default(now()) @db.Timestamptz(6)
   project    business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+}
+
+// Unit Economy - Subscription Packages
+model subscription_packages {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id      String            @db.Uuid
+  name            String            // Package name (e.g., "Longevity Monthly")
+  description     String?           // Overall package description
+  suggested_price Decimal           @db.Decimal  // Monthly price point
+  sort_order      Int               @default(0)  // For ordering multiple packages
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+  
+  project         business_projects @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  items           subscription_package_items[]
+}
+
+model subscription_package_items {
+  id           String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  package_id   String                @db.Uuid
+  name         String                // Item name (e.g., "Weekly Meal Delivery")
+  metric_type  String                // 'frequency', 'quantity', 'na'
+  metric_value String?               // "1/week", "5 meals", null for N/A
+  cost         Decimal               @db.Decimal  // Monthly cost to deliver
+  sort_order   Int                   @default(0)  // For reordering items
+  created_at   DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
+  
+  package      subscription_packages @relation(fields: [package_id], references: [id], onDelete: Cascade)
 }

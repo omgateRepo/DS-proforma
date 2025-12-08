@@ -2708,13 +2708,16 @@ router.get('/business-projects/:id', async (req, res) => {
           { collaborators: { some: { user_id: userId } } },
         ],
       },
+      include: {
+        owner: { select: { id: true, email: true, display_name: true } },
+      },
     })
 
     if (!row) {
       return res.status(404).json({ error: 'Business project not found' })
     }
 
-    const [founders, monthlyMetrics, stageCriteria, documents, collaborators] = await Promise.all([
+    const [founders, monthlyMetrics, stageCriteria, documents, collaborators, packages] = await Promise.all([
       prisma.business_project_founders.findMany({
         where: { project_id: req.params.id },
         orderBy: { created_at: 'asc' },
@@ -2735,9 +2738,16 @@ router.get('/business-projects/:id', async (req, res) => {
         where: { project_id: req.params.id },
         include: { user: { select: { id: true, email: true, display_name: true } } },
       }),
+      prisma.subscription_packages.findMany({
+        where: { project_id: req.params.id },
+        include: { items: { orderBy: { sort_order: 'asc' } } },
+        orderBy: { sort_order: 'asc' },
+      }),
     ])
 
     const project = mapBusinessProjectRow(row)
+    project.ownerName = row.owner?.display_name || row.owner?.email || 'Unknown'
+    project.ownerEmail = row.owner?.email || ''
     project.founders = founders.map(mapBusinessFounderRow)
     project.monthlyMetrics = monthlyMetrics.map(mapBusinessMetricsRow)
     project.stageCriteria = stageCriteria.map(mapBusinessCriterionRow)
@@ -2747,6 +2757,7 @@ router.get('/business-projects/:id', async (req, res) => {
       email: c.user.email,
       displayName: c.user.display_name,
     }))
+    project.packages = packages.map(mapPackageRow)
 
     res.json(project)
   } catch (err) {
@@ -3252,6 +3263,231 @@ router.delete('/business-projects/:id/documents/:docId', async (req, res) => {
     res.json({ success: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete document', details: err.message })
+  }
+})
+
+// ============ Subscription Packages (Unit Economy) ============
+
+const mapPackageRow = (row) => ({
+  id: row.id,
+  projectId: row.project_id,
+  name: row.name,
+  description: row.description,
+  suggestedPrice: row.suggested_price ? Number(row.suggested_price) : 0,
+  sortOrder: row.sort_order,
+  items: row.items?.map(mapPackageItemRow) || [],
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const mapPackageItemRow = (row) => ({
+  id: row.id,
+  packageId: row.package_id,
+  name: row.name,
+  metricType: row.metric_type,
+  metricValue: row.metric_value,
+  cost: row.cost ? Number(row.cost) : 0,
+  sortOrder: row.sort_order,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+// GET all packages for a business project
+router.get('/business-projects/:id/packages', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json([])
+  }
+  try {
+    const rows = await prisma.subscription_packages.findMany({
+      where: { project_id: req.params.id },
+      include: { items: { orderBy: { sort_order: 'asc' } } },
+      orderBy: { sort_order: 'asc' },
+    })
+    res.json(rows.map(mapPackageRow))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load packages', details: err.message })
+  }
+})
+
+// POST create a new package
+router.post('/business-projects/:id/packages', async (req, res) => {
+  const { name, description, suggestedPrice } = req.body
+  if (!name || suggestedPrice === undefined) {
+    return res.status(400).json({ error: 'name and suggestedPrice are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `pkg-${Date.now()}`,
+      projectId: req.params.id,
+      name,
+      description: description || null,
+      suggestedPrice,
+      sortOrder: 0,
+      items: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const maxSort = await prisma.subscription_packages.aggregate({
+      where: { project_id: req.params.id },
+      _max: { sort_order: true },
+    })
+    const row = await prisma.subscription_packages.create({
+      data: {
+        project_id: req.params.id,
+        name,
+        description: description || null,
+        suggested_price: suggestedPrice,
+        sort_order: (maxSort._max.sort_order ?? -1) + 1,
+      },
+      include: { items: true },
+    })
+    res.status(201).json(mapPackageRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create package', details: err.message })
+  }
+})
+
+// PATCH update a package
+router.patch('/business-projects/:id/packages/:packageId', async (req, res) => {
+  const { name, description, suggestedPrice, sortOrder } = req.body
+  const data = {}
+  if (name !== undefined) data.name = name
+  if (description !== undefined) data.description = description
+  if (suggestedPrice !== undefined) data.suggested_price = suggestedPrice
+  if (sortOrder !== undefined) data.sort_order = sortOrder
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' })
+  }
+  if (SKIP_DB) {
+    return res.json({ id: req.params.packageId, ...req.body })
+  }
+  try {
+    const row = await prisma.subscription_packages.update({
+      where: { id: req.params.packageId },
+      data,
+      include: { items: { orderBy: { sort_order: 'asc' } } },
+    })
+    res.json(mapPackageRow(row))
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Package not found' })
+    }
+    res.status(500).json({ error: 'Failed to update package', details: err.message })
+  }
+})
+
+// DELETE a package
+router.delete('/business-projects/:id/packages/:packageId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  try {
+    await prisma.subscription_packages.delete({ where: { id: req.params.packageId } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Package not found' })
+    }
+    res.status(500).json({ error: 'Failed to delete package', details: err.message })
+  }
+})
+
+// ============ Package Items ============
+
+// POST create a new package item
+router.post('/business-projects/:id/packages/:packageId/items', async (req, res) => {
+  const { name, metricType, metricValue, cost } = req.body
+  if (!name || !metricType || cost === undefined) {
+    return res.status(400).json({ error: 'name, metricType, and cost are required' })
+  }
+  if (!['frequency', 'quantity', 'na'].includes(metricType)) {
+    return res.status(400).json({ error: 'metricType must be frequency, quantity, or na' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `item-${Date.now()}`,
+      packageId: req.params.packageId,
+      name,
+      metricType,
+      metricValue: metricValue || null,
+      cost,
+      sortOrder: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const maxSort = await prisma.subscription_package_items.aggregate({
+      where: { package_id: req.params.packageId },
+      _max: { sort_order: true },
+    })
+    const row = await prisma.subscription_package_items.create({
+      data: {
+        package_id: req.params.packageId,
+        name,
+        metric_type: metricType,
+        metric_value: metricValue || null,
+        cost,
+        sort_order: (maxSort._max.sort_order ?? -1) + 1,
+      },
+    })
+    res.status(201).json(mapPackageItemRow(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create item', details: err.message })
+  }
+})
+
+// PATCH update a package item
+router.patch('/business-projects/:id/packages/:packageId/items/:itemId', async (req, res) => {
+  const { name, metricType, metricValue, cost, sortOrder } = req.body
+  const data = {}
+  if (name !== undefined) data.name = name
+  if (metricType !== undefined) {
+    if (!['frequency', 'quantity', 'na'].includes(metricType)) {
+      return res.status(400).json({ error: 'metricType must be frequency, quantity, or na' })
+    }
+    data.metric_type = metricType
+  }
+  if (metricValue !== undefined) data.metric_value = metricValue
+  if (cost !== undefined) data.cost = cost
+  if (sortOrder !== undefined) data.sort_order = sortOrder
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' })
+  }
+  if (SKIP_DB) {
+    return res.json({ id: req.params.itemId, ...req.body })
+  }
+  try {
+    const row = await prisma.subscription_package_items.update({
+      where: { id: req.params.itemId },
+      data,
+    })
+    res.json(mapPackageItemRow(row))
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Item not found' })
+    }
+    res.status(500).json({ error: 'Failed to update item', details: err.message })
+  }
+})
+
+// DELETE a package item
+router.delete('/business-projects/:id/packages/:packageId/items/:itemId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  try {
+    await prisma.subscription_package_items.delete({ where: { id: req.params.itemId } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ error: 'Item not found' })
+    }
+    res.status(500).json({ error: 'Failed to delete item', details: err.message })
   }
 })
 

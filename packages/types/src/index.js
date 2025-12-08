@@ -97,6 +97,22 @@ export const BUSINESS_STAGE_CRITERIA = {
   ],
 }
 
+// Package metric types for Unit Economy
+export const PACKAGE_METRIC_TYPES = ['frequency', 'quantity', 'na']
+
+export const subscriptionPackageInputSchema = z.object({
+  name: nonEmptyString,
+  description: optionalNullableString,
+  suggestedPrice: z.number().nonnegative(),
+})
+
+export const packageItemInputSchema = z.object({
+  name: nonEmptyString,
+  metricType: z.enum(['frequency', 'quantity', 'na']),
+  metricValue: optionalNullableString,
+  cost: z.number().nonnegative(),
+})
+
 const costScheduleBaseFields = {
   costName: nonEmptyString,
   amountUsd: money,

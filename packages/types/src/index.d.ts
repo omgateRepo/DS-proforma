@@ -373,6 +373,46 @@ export interface BusinessStageCriterion {
   createdAt: string
 }
 
+// Subscription Packages (Unit Economy)
+export type PackageMetricType = 'frequency' | 'quantity' | 'na'
+
+export interface SubscriptionPackage {
+  id: EntityId
+  projectId: EntityId
+  name: string
+  description?: string | null
+  suggestedPrice: number
+  sortOrder: number
+  items: PackageItem[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PackageItem {
+  id: EntityId
+  packageId: EntityId
+  name: string
+  metricType: PackageMetricType
+  metricValue?: string | null
+  cost: number
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SubscriptionPackageInput {
+  name: string
+  description?: string | null
+  suggestedPrice: number
+}
+
+export interface PackageItemInput {
+  name: string
+  metricType: PackageMetricType
+  metricValue?: string | null
+  cost: number
+}
+
 export interface BusinessCollaborator {
   id: EntityId
   email: string
@@ -380,11 +420,14 @@ export interface BusinessCollaborator {
 }
 
 export interface BusinessProjectDetail extends BusinessProjectSummary {
+  ownerName?: string
+  ownerEmail?: string
   founders: BusinessFounder[]
   monthlyMetrics: BusinessMonthlyMetrics[]
   stageCriteria: BusinessStageCriterion[]
   documents: Document[]
   collaborators: BusinessCollaborator[]
+  packages: SubscriptionPackage[]
 }
 
 export interface BusinessProjectCreateInput {
