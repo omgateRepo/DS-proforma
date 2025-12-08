@@ -981,6 +981,42 @@
   margin-bottom: 2rem;
 }
 
+.dev-costs-grand-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%);
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.dev-costs-grand-total .grand-total-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dev-costs-grand-total .grand-total-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .dev-costs-grand-total {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+  
+  .dev-costs-grand-total .grand-total-value {
+    font-size: 1.5rem;
+  }
+}
+
 .dev-costs-tab {
   display: flex;
   flex-direction: column;

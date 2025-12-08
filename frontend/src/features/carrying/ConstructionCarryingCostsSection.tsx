@@ -106,19 +106,6 @@ export function ConstructionCarryingCostsSection({
     [project?.carryingCosts],
   )
 
-  // Calculate totals by category
-  const totals = useMemo(() => {
-    const byCategory: Record<string, number> = {}
-    let total = 0
-    rows.forEach((row) => {
-      const cat = row.costGroup || 'other'
-      const rowTotal = calculateRowTotal(row, stabilizedOffset ?? null)
-      byCategory[cat] = (byCategory[cat] || 0) + rowTotal
-      total += rowTotal
-    })
-    return { byCategory, total }
-  }, [rows, stabilizedOffset])
-
   const refreshProject = async () => {
     if (!projectId || !onProjectRefresh) return
     await onProjectRefresh(projectId)
@@ -281,33 +268,6 @@ export function ConstructionCarryingCostsSection({
             )}
           </div>
         </div>
-
-        {/* Totals Summary */}
-        {rows.length > 0 && stabilizedOffset && (
-          <section className="general-section fundamentals-section carrying-totals-section">
-            <h4 className="section-title">📊 Development Phase Totals (Closing → Stabilized)</h4>
-            <div className="fundamentals-grid">
-              {CATEGORY_OPTIONS.map((cat) => {
-                const catTotal = totals.byCategory[cat.id] || 0
-                if (catTotal === 0 && !rows.some(r => r.costGroup === cat.id)) return null
-                return (
-                  <div key={cat.id} className="fundamental-card">
-                    <span className="fundamental-label">{cat.label}</span>
-                    <div className="fundamental-value-display">
-                      {formatCurrency(catTotal)}
-                    </div>
-                  </div>
-                )
-              })}
-              <div className="fundamental-card total-highlight">
-                <span className="fundamental-label">Total Carrying Costs</span>
-                <div className="fundamental-value-display">
-                  {formatCurrency(totals.total)}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
 
         <div className="table-scroll">
           <table>

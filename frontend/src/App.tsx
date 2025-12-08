@@ -94,7 +94,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.13'
+const APP_VERSION = '1.0.15'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -1982,6 +1982,25 @@ useEffect(() => {
                 const softCostsTotal = selectedProject?.softCosts?.reduce((sum, row) => sum + (row.amountUsd || 0), 0) || 0
                 const leaseupCostsTotal = selectedProject?.leaseupCosts?.reduce((sum, row) => sum + (row.amountUsd || 0), 0) || 0
                 
+                // Calculate development carrying costs total (from closing to stabilized)
+                const carryingRows = selectedProject?.carryingCosts?.filter(
+                  row => row.carryingType === 'property_tax' && ((row.propertyTaxPhase as string) || 'construction') === 'construction'
+                ) || []
+                const carryingCostsTotal = stabilizedOffset ? carryingRows.reduce((sum, row) => {
+                  if (!row.amountUsd) return sum
+                  const startMonth = row.startMonth ?? 1
+                  const endMonth = row.endMonth ?? stabilizedOffset
+                  const effectiveEnd = Math.min(endMonth, stabilizedOffset)
+                  if (effectiveEnd < startMonth) return sum
+                  const months = effectiveEnd - startMonth + 1
+                  switch (row.intervalUnit) {
+                    case 'monthly': return sum + (row.amountUsd * months)
+                    case 'quarterly': return sum + (row.amountUsd * Math.ceil(months / 3))
+                    case 'yearly': return sum + (row.amountUsd * Math.ceil(months / 12))
+                    default: return sum + (row.amountUsd * months)
+                  }
+                }, 0) : 0
+                
                 // Calculate debt service (loan payments from repayment start to stabilized)
                 const loanRows = selectedProject?.carryingCosts?.filter(row => row.carryingType === 'loan') || []
                 const debtServiceTotal = stabilizedOffset ? loanRows.reduce((sum, row) => {
@@ -1993,7 +2012,7 @@ useEffect(() => {
                   return sum + (preview.monthlyPayment * monthsOfPayments)
                 }, 0) : 0
                 
-                const totalDevCosts = hardCostsTotal + softCostsTotal + leaseupCostsTotal + debtServiceTotal
+                const totalDevCosts = hardCostsTotal + softCostsTotal + leaseupCostsTotal + carryingCostsTotal + debtServiceTotal
                 
                 return (
                 <div className="dev-costs-tab">
@@ -2020,19 +2039,23 @@ useEffect(() => {
                         </div>
                       </div>
                       <div className="fundamental-card">
+                        <span className="fundamental-label">Carrying Costs*</span>
+                        <div className="fundamental-value-display">
+                          ${carryingCostsTotal.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="fundamental-card">
                         <span className="fundamental-label">Debt Service*</span>
                         <div className="fundamental-value-display">
                           ${debtServiceTotal.toLocaleString()}
                         </div>
                       </div>
-                      <div className="fundamental-card total-highlight">
-                        <span className="fundamental-label">Total Dev Costs</span>
-                        <div className="fundamental-value-display">
-                          ${totalDevCosts.toLocaleString()}
-                        </div>
-                      </div>
                     </div>
-                    <p className="muted tiny funding-note">* Debt Service = loan payments from first payment until stabilized</p>
+                    <div className="dev-costs-grand-total">
+                      <span className="grand-total-label">Total Development Phase Costs</span>
+                      <span className="grand-total-value">${totalDevCosts.toLocaleString()}</span>
+                    </div>
+                    <p className="muted tiny funding-note">* Calculated from Closing to Stabilized date</p>
                   </section>
 
                 <HardCostsSection
