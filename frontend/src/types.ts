@@ -56,6 +56,7 @@ export {
   // Business Projects
   BUSINESS_STAGES,
   BUSINESS_STAGE_LABELS,
+  BUSINESS_STAGE_CRITERIA,
 } from '@ds-proforma/types'
 
 export type GeneralFormState = {

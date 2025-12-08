@@ -99,6 +99,8 @@ The company has been legally formed with a defined partnership structure. Fundin
 ### Definition
 The business has achieved profitability at the individual customer level. Revenue from each customer covers all costs associated with acquiring and serving that customer, with margin to spare.
 
+> **Connection to Unit Economy Tab**: This stage validates that the subscription packages defined in the Unit Economy tab are profitable in practice. The `Suggested Price` you set must exceed the `Cost` for each package, and your actual revenue must reflect this. If your planned unit economics from the Unit Economy tab aren't materializing, revisit your pricing or cost structure.
+
 ### Characteristics
 - **Legal Status**: Established, possibly restructured for growth
 - **Investment**: May be seeking Series A or profitable enough to self-fund
@@ -257,6 +259,23 @@ interface CriteriaItem {
 }
 ```
 
+### Subscription Package (Unit Economy)
+
+```typescript
+interface SubscriptionPackage {
+  id: string
+  projectId: string
+  name: string                // Package tier name (e.g., "Basic", "Pro", "Enterprise")
+  valueDescription: string    // What's included - features list
+  valueMetric?: number        // Numeric value measure
+  valueMetricUnit?: string    // e.g., "hours/month", "units", "users", "GB"
+  suggestedPrice: number      // Target price point
+  cost: number                // Cost to deliver this package to one customer
+  createdAt: Date
+  updatedAt: Date
+}
+```
+
 ### Monthly Metrics Snapshot
 
 ```typescript
@@ -298,40 +317,54 @@ interface MonthlyMetrics {
 
 ## Tabs Structure (per Business Project)
 
-### Tab 1: Overview
+### Tab 1: Unit Economy
+Define subscription packages to establish the unit economics foundation for the business. This is where you plan the pricing and cost structure that needs to become profitable.
+
+**Purpose**: Before launching, define what you're selling and at what economics. These packages become the benchmarks for achieving Positive Unit Economics (Stage 3).
+
+**For each subscription package**:
+- **Name** - Package tier name (e.g., "Basic", "Pro", "Enterprise")
+- **Value Description** - Text describing what's included (features, benefits)
+- **Value Metric** - Numeric measure of value delivered (e.g., "10 hours/month", "100 units", "5 users")
+- **Suggested Price** - Target price point for this package
+- **Cost** - Cost to deliver this package to one customer
+
+**Key insight**: When `Suggested Price > Cost` for all packages and you have paying customers, you're on your way to Positive Unit Economics.
+
+### Tab 2: Overview
 - Company name, description, industry
 - Current stage with progress indicator
 - Stage entry date and time in stage
 - Quick metrics summary (MRR, customers, runway)
 - Founders and team overview
 
-### Tab 2: Stage Criteria
+### Tab 3: Stage Criteria
 - Interactive checklist for current stage criteria
 - Progress toward next stage
 - Historical stage transitions
 - Notes and evidence for each criterion
 
-### Tab 3: Financials
+### Tab 4: Financials
 - Monthly metrics input/display
 - MRR/ARR charts
 - Burn rate tracking
 - Runway projections
 - Investment tracking (rounds, amounts, investors)
 
-### Tab 4: Customers
+### Tab 5: Customers
 - Customer count and growth
 - Churn tracking and analysis
 - LTV/CAC calculations
 - Customer cohort analysis
 - NPS tracking
 
-### Tab 5: Team
+### Tab 6: Team
 - Founders and equity structure
 - Team roster and roles
 - Hiring plan
 - Org chart
 
-### Tab 6: Docs
+### Tab 7: Docs
 - Link external documents (pitch decks, legal docs, contracts)
 - Categorized by type (Legal, Financial, Product, etc.)
 - Same functionality as Real Estate Docs tab

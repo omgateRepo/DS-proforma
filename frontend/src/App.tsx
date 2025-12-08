@@ -78,7 +78,7 @@ import type {
   BusinessStage,
   ProjectCounts,
 } from './types'
-import { BUSINESS_STAGES, BUSINESS_STAGE_LABELS } from './types'
+import { BUSINESS_STAGES, BUSINESS_STAGE_LABELS, BUSINESS_STAGE_CRITERIA } from './types'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -94,7 +94,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.15'
+const APP_VERSION = '1.0.16'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -1830,7 +1830,20 @@ useEffect(() => {
             <div className="kanban business-stages">
               {businessStageOptions.map((stage) => (
                 <div key={stage.value} className="kanban-column">
-                  <h3 className="kanban-column-header">{stage.label}</h3>
+                  <h3 className="kanban-column-header">
+                    {stage.label}
+                    <span className="stage-criteria-tooltip">
+                      <span className="tooltip-trigger">?</span>
+                      <span className="tooltip-content">
+                        <strong>Criteria to reach this stage:</strong>
+                        <ul>
+                          {BUSINESS_STAGE_CRITERIA[stage.value].map((criterion, idx) => (
+                            <li key={idx}>{criterion}</li>
+                          ))}
+                        </ul>
+                      </span>
+                    </span>
+                  </h3>
                   <div className="kanban-cards">
                     {businessProjectsByStage[stage.value].map((project) => (
                       <div

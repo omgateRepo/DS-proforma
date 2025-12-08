@@ -66,6 +66,37 @@ export const BUSINESS_STAGE_LABELS = {
   sustainable_growth: 'Sustainable Growth',
 }
 
+// Criteria to ENTER each stage (what you need to achieve to move INTO this stage)
+export const BUSINESS_STAGE_CRITERIA = {
+  exploring: [
+    'Idea or concept identified',
+    'Initial market research begun',
+    'Potential co-founders identified',
+  ],
+  product_market_fit: [
+    'Legal entity formed',
+    'Founding team committed',
+    'Initial funding secured',
+    'Clear problem/solution defined',
+  ],
+  unit_economics: [
+    'Regular paying customers',
+    'Low churn rate (< 5% monthly)',
+    'Organic referrals occurring',
+    'Positive feedback loop in revenue',
+    'Basic support infrastructure',
+  ],
+  sustainable_growth: [
+    'LTV > CAC (3x+ ratio)',
+    'Positive margin per customer',
+    'Scalable acquisition cost',
+    'Positive gross margin',
+    'Cash positive operations',
+    'Predictable churn',
+    'No hidden subsidies',
+  ],
+}
+
 const costScheduleBaseFields = {
   costName: nonEmptyString,
   amountUsd: money,

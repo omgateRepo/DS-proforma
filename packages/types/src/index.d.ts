@@ -308,6 +308,8 @@ export declare const BUSINESS_STAGES: readonly BusinessStage[]
 
 export declare const BUSINESS_STAGE_LABELS: Record<BusinessStage, string>
 
+export declare const BUSINESS_STAGE_CRITERIA: Record<BusinessStage, string[]>
+
 export type LegalEntityType = 'llc' | 'c_corp' | 's_corp' | 'partnership' | 'sole_prop'
 
 export interface BusinessProjectSummary {

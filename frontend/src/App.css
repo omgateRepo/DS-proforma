@@ -192,6 +192,16 @@
   max-height: 520px;
 }
 
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .column-header {
   display: flex;
   justify-content: space-between;
@@ -2314,6 +2324,109 @@ td {
 
 .business-card {
   cursor: pointer;
+}
+
+/* Stage Criteria Tooltip */
+.stage-criteria-tooltip {
+  position: relative;
+  display: inline-flex;
+  margin-left: 0.5rem;
+}
+
+.stage-criteria-tooltip .tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: help;
+  transition: background 0.2s;
+}
+
+.stage-criteria-tooltip .tooltip-trigger:hover {
+  background: var(--accent);
+}
+
+.stage-criteria-tooltip .tooltip-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #1e293b;
+  color: white;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+}
+
+.stage-criteria-tooltip .tooltip-content::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: #1e293b;
+}
+
+.stage-criteria-tooltip:hover .tooltip-content {
+  display: block;
+}
+
+.stage-criteria-tooltip .tooltip-content strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stage-criteria-tooltip .tooltip-content ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-criteria-tooltip .tooltip-content li {
+  padding: 0.25rem 0;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.stage-criteria-tooltip .tooltip-content li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #22c55e;
+  font-size: 0.7rem;
+}
+
+/* Adjust tooltip position for rightmost columns */
+.kanban-column:nth-child(3) .stage-criteria-tooltip .tooltip-content,
+.kanban-column:nth-child(4) .stage-criteria-tooltip .tooltip-content {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.kanban-column:nth-child(3) .stage-criteria-tooltip .tooltip-content::before,
+.kanban-column:nth-child(4) .stage-criteria-tooltip .tooltip-content::before {
+  left: auto;
+  right: 10px;
+  transform: none;
 }
 
 .business-card .card-metric {
