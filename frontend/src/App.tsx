@@ -34,6 +34,11 @@ import {
   deleteBusinessProject,
   addBusinessCollaborator,
   removeBusinessCollaborator,
+  // Trips
+  fetchTrips,
+  createTrip,
+  updateTrip,
+  deleteTrip,
 } from './api.js'
 import { RevenueSection } from './features/revenue/RevenueSection'
 import { HardCostsSection } from './features/costs/HardCostsSection'
@@ -63,6 +68,7 @@ import { TaxCenterTab } from './features/admin/TaxCenterTab'
 import { TeamDirectoryTab } from './features/admin/TeamDirectoryTab'
 import { DocumentLibraryTab } from './features/admin/DocumentLibraryTab'
 import { OwnershipChart } from './features/admin/OwnershipChart'
+import { TripsBoard } from './features/trips/TripsBoard'
 import type {
   AddressSuggestion,
   ApartmentRevenueRow,
@@ -85,6 +91,9 @@ import type {
   BusinessProjectDetail,
   BusinessStage,
   ProjectCounts,
+  // Trips
+  Trip,
+  TripInput,
 } from './types'
 import { BUSINESS_STAGES, BUSINESS_STAGE_LABELS, BUSINESS_STAGE_CRITERIA } from './types'
 
@@ -108,7 +117,7 @@ type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
 type CashflowMonthMeta = { index: number; label: string; calendarLabel: string; year: number }
 type AuthFormState = { username: string; password: string }
-type BoardType = 'realEstate' | 'business' | 'admin'
+type BoardType = 'realEstate' | 'business' | 'admin' | 'trips'
 type AdminHubTab = 'entities' | 'tax' | 'team' | 'documents' | 'ownership'
 type AutoManagementRow = { id: string; label: string; monthlyAmount: number; startMonth: number | null }
 
@@ -597,6 +606,11 @@ function App() {
   const [isBusinessCreateModalOpen, setIsBusinessCreateModalOpen] = useState(false)
   const [businessStageUpdatingFor, setBusinessStageUpdatingFor] = useState<EntityId | null>(null)
 
+  // Trips state
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [tripsStatus, setTripsStatus] = useState<LoadStatus>('idle')
+  const [tripsError, setTripsError] = useState('')
+
   const availableUsers = useMemo(() => {
     if (!selectedProject) return []
     const excluded = new Set<string>()
@@ -962,7 +976,7 @@ function App() {
       return acc
     }, {} as Record<ProjectStage, ProjectSummary[]>)
   }, [projects, stageOptions])
-  const isKanbanView = activeBoard === 'admin' ? true : (activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId)
+  const isKanbanView = activeBoard === 'admin' || activeBoard === 'trips' ? true : (activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId)
   const showAccountMenu = isAuthReady && !isAuthModalOpen && Boolean(currentUser)
   const isSuperAdmin = currentUser?.isSuperAdmin ?? false
   // Super admins always see both tabs; regular users see tabs they have projects in OR both if they have none (to create first)
@@ -1100,6 +1114,35 @@ function App() {
     } catch (err) {
       console.error('Failed to delete business project', err)
     }
+  }
+
+  // Trips functions
+  const loadTrips = async () => {
+    setTripsStatus('loading')
+    setTripsError('')
+    try {
+      const rows = (await fetchTrips()) as Trip[]
+      setTrips(rows)
+      setTripsStatus('loaded')
+    } catch (err) {
+      setTripsError(getErrorMessage(err))
+      setTripsStatus('error')
+    }
+  }
+
+  const handleCreateTrip = async (input: TripInput) => {
+    await createTrip(input)
+    await loadTrips()
+  }
+
+  const handleUpdateTrip = async (tripId: EntityId, input: Partial<TripInput>) => {
+    await updateTrip(tripId, input)
+    await loadTrips()
+  }
+
+  const handleDeleteTrip = async (tripId: EntityId) => {
+    await deleteTrip(tripId)
+    await loadTrips()
   }
 
   const loadCurrentUser = useCallback(async () => {
@@ -1323,6 +1366,7 @@ function App() {
     if (!isAuthReady) return
     loadProjects()
     loadBusinessProjects()
+    loadTrips()
     loadProjectCounts()
     loadCurrentUser()
   }, [isAuthReady, loadCurrentUser])
@@ -1463,7 +1507,7 @@ useEffect(() => {
       setIsAuthReady(true)
       setIsAuthModalOpen(false)
       setAuthStatus('idle')
-      await Promise.all([loadProjects(), loadBusinessProjects(), loadProjectCounts(), loadCurrentUser()])
+      await Promise.all([loadProjects(), loadBusinessProjects(), loadTrips(), loadProjectCounts(), loadCurrentUser()])
     } catch (err) {
       clearAuthCredentials()
       setAuthStatus('error')
@@ -1858,7 +1902,7 @@ useEffect(() => {
         <header className="main-app-header">
           <div className="main-header-top">
             <h1 className="app-title">Ventures Hub <span className="app-version">v{APP_VERSION}</span></h1>
-            {activeBoard !== 'admin' && (
+            {activeBoard !== 'admin' && activeBoard !== 'trips' && (
               <button
                 type="button"
                 className="add-board-project"
@@ -1897,6 +1941,13 @@ useEffect(() => {
                   💼 Business ({projectCounts.business})
                 </button>
               )}
+              <button
+                type="button"
+                className={activeBoard === 'trips' ? 'active' : ''}
+                onClick={() => setActiveBoard('trips')}
+              >
+                ✈️ Trips ({trips.length})
+              </button>
             </div>
           )}
         </header>
@@ -2040,6 +2091,17 @@ useEffect(() => {
               <DocumentLibraryTab onError={(msg) => setProjectsError(msg)} />
             )}
           </div>
+        </div>
+      ) : isKanbanView && activeBoard === 'trips' ? (
+        <div className="trips-board-wrapper">
+          <TripsBoard
+            trips={trips}
+            tripsStatus={tripsStatus}
+            tripsError={tripsError}
+            onCreateTrip={handleCreateTrip}
+            onUpdateTrip={handleUpdateTrip}
+            onDeleteTrip={handleDeleteTrip}
+          />
         </div>
       ) : activeBoard === 'realEstate' && selectedProjectId ? (
         <section className="detail-section detail-full">

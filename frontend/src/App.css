@@ -4486,3 +4486,179 @@ td {
     flex: 1;
   }
 }
+
+/* ============================================
+   TRIPS BOARD STYLES
+   ============================================ */
+
+.trips-board-wrapper {
+  padding: 1.5rem 2rem;
+  max-width: 1800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.trips-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.trips-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.trip-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.trip-card-actions select {
+  flex: 1;
+}
+
+.trip-card-actions .icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 1rem;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.trip-card-actions .icon-btn:hover {
+  opacity: 1;
+}
+
+.trip-card-actions .icon-btn.danger:hover {
+  color: var(--error);
+}
+
+.add-trip-btn {
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  width: 100%;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  margin-top: 0.5rem;
+}
+
+.add-trip-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal h3 {
+  margin: 0 0 1.25rem;
+  font-size: 1.25rem;
+}
+
+.modal form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.modal input,
+.modal select {
+  padding: 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9375rem;
+}
+
+.modal .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.modal-actions button {
+  padding: 0.625rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-actions button:not(.primary) {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.modal-actions button.primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+}
+
+.modal-actions button.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .trips-board-wrapper {
+    padding: 1rem;
+  }
+
+  .modal .form-row {
+    grid-template-columns: 1fr;
+  }
+}

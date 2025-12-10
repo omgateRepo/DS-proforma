@@ -506,6 +506,30 @@ export declare const documentUpdateSchema: z.ZodType<Partial<DocumentInput>>
 export declare const formatZodErrors: (error: z.ZodError) => string
 
 // ============================================
+// TRIPS
+// ============================================
+
+export interface Trip {
+  id: EntityId
+  name: string
+  destination: string | null
+  startDate: string | null
+  endDate: string | null
+  quarter: string
+  ownerId: EntityId
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TripInput {
+  name: string
+  destination?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  quarter: string
+}
+
+// ============================================
 // ADMIN HUB TYPES
 // ============================================
 

@@ -166,6 +166,8 @@ model users {
   // Business projects
   owned_business_projects       business_projects[]              @relation("business_projects_owner")
   business_collaborations       business_project_collaborators[]
+  // Trips
+  trips                         trips[]                          @relation("trips_owner")
   // Admin Hub
   admin_entities                admin_entities[]                 @relation("admin_entities_owner")
   admin_tax_items               admin_tax_items[]                @relation("admin_tax_items_owner")
@@ -363,6 +365,24 @@ model subscription_package_items {
   updated_at   DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
   
   package      subscription_packages @relation(fields: [package_id], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// TRIPS
+// ============================================
+
+model trips {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  destination String?
+  start_date  DateTime? @db.Date
+  end_date    DateTime? @db.Date
+  quarter     String    // e.g., "Q1-2025", "Q2-2025"
+  owner_id    String    @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  
+  owner       users     @relation("trips_owner", fields: [owner_id], references: [id], onDelete: Cascade)
 }
 
 // ============================================

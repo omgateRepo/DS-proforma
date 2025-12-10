@@ -4299,4 +4299,126 @@ router.delete('/admin/entity-documents/:id', requireSuperAdmin, async (req, res)
   }
 })
 
+// ============================================
+// TRIPS ROUTES
+// ============================================
+
+const mapTrip = (row) => ({
+  id: row.id,
+  name: row.name,
+  destination: row.destination,
+  startDate: row.start_date?.toISOString().split('T')[0] || null,
+  endDate: row.end_date?.toISOString().split('T')[0] || null,
+  quarter: row.quarter,
+  ownerId: row.owner_id,
+  createdAt: row.created_at.toISOString(),
+  updatedAt: row.updated_at.toISOString(),
+})
+
+// GET all trips for current user
+router.get('/trips', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json([])
+  }
+  try {
+    const rows = await prisma.trips.findMany({
+      where: { owner_id: req.user.id },
+      orderBy: [{ quarter: 'asc' }, { start_date: 'asc' }],
+    })
+    res.json(rows.map(mapTrip))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch trips', details: err.message })
+  }
+})
+
+// POST create trip
+router.post('/trips', async (req, res) => {
+  const { name, destination, startDate, endDate, quarter } = req.body
+  if (!name || !quarter) {
+    return res.status(400).json({ error: 'name and quarter are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `trip-${Date.now()}`,
+      name,
+      destination: destination || null,
+      startDate: startDate || null,
+      endDate: endDate || null,
+      quarter,
+      ownerId: 'stub-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.trips.create({
+      data: {
+        name,
+        destination: destination || null,
+        start_date: startDate ? new Date(startDate) : null,
+        end_date: endDate ? new Date(endDate) : null,
+        quarter,
+        owner_id: req.user.id,
+      },
+    })
+    res.status(201).json(mapTrip(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create trip', details: err.message })
+  }
+})
+
+// PUT update trip
+router.put('/trips/:id', async (req, res) => {
+  const { name, destination, startDate, endDate, quarter } = req.body
+  const data = {}
+  if (name !== undefined) data.name = name
+  if (destination !== undefined) data.destination = destination || null
+  if (startDate !== undefined) data.start_date = startDate ? new Date(startDate) : null
+  if (endDate !== undefined) data.end_date = endDate ? new Date(endDate) : null
+  if (quarter !== undefined) data.quarter = quarter
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) {
+    return res.json({ id: req.params.id, ...req.body })
+  }
+  try {
+    // Verify ownership
+    const existing = await prisma.trips.findFirst({
+      where: { id: req.params.id, owner_id: req.user.id },
+    })
+    if (!existing) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    const row = await prisma.trips.update({
+      where: { id: req.params.id },
+      data,
+    })
+    res.json(mapTrip(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Trip not found' })
+    res.status(500).json({ error: 'Failed to update trip', details: err.message })
+  }
+})
+
+// DELETE trip
+router.delete('/trips/:id', async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    // Verify ownership
+    const existing = await prisma.trips.findFirst({
+      where: { id: req.params.id, owner_id: req.user.id },
+    })
+    if (!existing) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    await prisma.trips.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Trip not found' })
+    res.status(500).json({ error: 'Failed to delete trip', details: err.message })
+  }
+})
+
 export default router

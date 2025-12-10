@@ -888,3 +888,37 @@ export async function deleteEntityDocument(docId) {
   })
   return handleJsonResponse(res, 'Failed to delete document')
 }
+
+// ============================================
+// TRIPS
+// ============================================
+
+export async function fetchTrips() {
+  const res = await request('/api/trips')
+  return handleJsonResponse(res, 'Failed to load trips')
+}
+
+export async function createTrip(payload) {
+  const res = await request('/api/trips', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create trip')
+}
+
+export async function updateTrip(tripId, payload) {
+  const res = await request(`/api/trips/${tripId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update trip')
+}
+
+export async function deleteTrip(tripId) {
+  const res = await request(`/api/trips/${tripId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete trip')
+}

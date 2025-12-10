@@ -47,6 +47,9 @@ export type {
   PackageMetricType,
   SubscriptionPackageInput,
   PackageItemInput,
+  // Trips
+  Trip,
+  TripInput,
   // Admin Hub
   AdminEntityType,
   AdminEntityStatus,
