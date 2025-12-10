@@ -1312,7 +1312,7 @@ router.patch('/projects/:id/stage', async (req, res) => {
   }
   try {
     const requirementFields = STAGE_REQUIREMENTS[stage] || []
-    const selectFields = { stage: true }
+    const selectFields = { stage: true, name: true, state: true }
     requirementFields.forEach((field) => {
       selectFields[field] = true
     })
@@ -1352,6 +1352,29 @@ router.patch('/projects/:id/stage', async (req, res) => {
           to_stage: stage,
         },
       })
+
+      // Auto-create LLC entity when project moves to "under_contract" stage
+      // Only if user is super admin and no entity exists for this project yet
+      if (stage === 'under_contract' && req.user?.is_super_admin) {
+        const existingEntity = await tx.admin_entities.findFirst({
+          where: { linked_project_id: req.params.id, deleted_at: null },
+        })
+        if (!existingEntity) {
+          await tx.admin_entities.create({
+            data: {
+              name: existing.name,
+              entity_type: 'llc',
+              state_of_formation: existing.state || null,
+              status: 'active',
+              owner_id: req.user.id,
+              company_type: 'regular',
+              legal_structure: 'llc',
+              tax_status: 'passthrough', // Default for RE LLCs
+              linked_project_id: req.params.id,
+            },
+          })
+        }
+      }
 
       return { stage }
     })
@@ -3557,6 +3580,11 @@ const mapAdminEntity = (row) => ({
   status: row.status,
   notes: row.notes,
   ownerId: row.owner_id,
+  // Company classification
+  companyType: row.company_type,
+  legalStructure: row.legal_structure,
+  taxStatus: row.tax_status,
+  linkedProjectId: row.linked_project_id,
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
 })
@@ -3682,7 +3710,7 @@ router.get('/admin/entities/:id', requireSuperAdmin, async (req, res) => {
 
 // POST create entity
 router.post('/admin/entities', requireSuperAdmin, async (req, res) => {
-  const { name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status, notes } = req.body
+  const { name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status, notes, companyType, legalStructure, taxStatus, linkedProjectId } = req.body
   if (!name || !entityType) {
     return res.status(400).json({ error: 'name and entityType are required' })
   }
@@ -3690,6 +3718,7 @@ router.post('/admin/entities', requireSuperAdmin, async (req, res) => {
     return res.status(201).json({
       id: `entity-${Date.now()}`,
       name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status: status || 'active', notes,
+      companyType, legalStructure, taxStatus, linkedProjectId,
       ownerId: 'stub-user',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -3708,6 +3737,11 @@ router.post('/admin/entities', requireSuperAdmin, async (req, res) => {
         status: status || 'active',
         notes: notes || null,
         owner_id: req.user.id,
+        // Company classification
+        company_type: companyType || null,
+        legal_structure: legalStructure || null,
+        tax_status: taxStatus || null,
+        linked_project_id: linkedProjectId || null,
       },
     })
     res.status(201).json(mapAdminEntity(row))
@@ -3718,7 +3752,7 @@ router.post('/admin/entities', requireSuperAdmin, async (req, res) => {
 
 // PATCH update entity
 router.patch('/admin/entities/:id', requireSuperAdmin, async (req, res) => {
-  const { name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status, notes } = req.body
+  const { name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status, notes, companyType, legalStructure, taxStatus, linkedProjectId } = req.body
   const data = {}
   if (name !== undefined) data.name = name
   if (entityType !== undefined) data.entity_type = entityType
@@ -3729,6 +3763,11 @@ router.patch('/admin/entities/:id', requireSuperAdmin, async (req, res) => {
   if (address !== undefined) data.address = address
   if (status !== undefined) data.status = status
   if (notes !== undefined) data.notes = notes
+  // Company classification
+  if (companyType !== undefined) data.company_type = companyType
+  if (legalStructure !== undefined) data.legal_structure = legalStructure
+  if (taxStatus !== undefined) data.tax_status = taxStatus
+  if (linkedProjectId !== undefined) data.linked_project_id = linkedProjectId
 
   if (Object.keys(data).length === 0) {
     return res.status(400).json({ error: 'No fields to update' })

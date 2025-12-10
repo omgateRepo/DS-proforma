@@ -511,6 +511,9 @@ export declare const formatZodErrors: (error: z.ZodError) => string
 
 export type AdminEntityType = 'llc' | 'c_corp' | 's_corp' | 'lp' | 'trust' | 'individual'
 export type AdminEntityStatus = 'active' | 'dissolved' | 'inactive'
+export type CompanyType = 'regular' | 'holding'
+export type LegalStructure = 'llc' | 'c_corp'
+export type TaxStatus = 'passthrough' | 'blocked'
 export type TaxItemCategory = 'gift' | 'contribution' | 'return' | 'depreciation' | 'deadline' | 'other'
 export type TaxItemStatus = 'pending' | 'filed' | 'completed' | 'overdue'
 export type TeamMemberRole = 'attorney' | 'cpa' | 'property_manager' | 'banker' | 'insurance_agent' | 'other'
@@ -519,6 +522,9 @@ export type EntityDocumentType = 'operating_agreement' | 'tax_return' | 'certifi
 
 export declare const ADMIN_ENTITY_TYPES: readonly AdminEntityType[]
 export declare const ADMIN_ENTITY_STATUS: readonly AdminEntityStatus[]
+export declare const COMPANY_TYPES: readonly CompanyType[]
+export declare const LEGAL_STRUCTURES: readonly LegalStructure[]
+export declare const TAX_STATUSES: readonly TaxStatus[]
 export declare const TAX_ITEM_CATEGORIES: readonly TaxItemCategory[]
 export declare const TAX_ITEM_STATUS: readonly TaxItemStatus[]
 export declare const TEAM_MEMBER_ROLES: readonly TeamMemberRole[]
@@ -538,6 +544,11 @@ export interface AdminEntity {
   status: AdminEntityStatus
   notes?: string | null
   ownerId: EntityId
+  // Company classification
+  companyType?: CompanyType | null
+  legalStructure?: LegalStructure | null
+  taxStatus?: TaxStatus | null
+  linkedProjectId?: EntityId | null
   createdAt: string
   updatedAt: string
 }
@@ -557,6 +568,11 @@ export interface AdminEntityInput {
   address?: string | null
   status?: AdminEntityStatus
   notes?: string | null
+  // Company classification
+  companyType?: CompanyType | null
+  legalStructure?: LegalStructure | null
+  taxStatus?: TaxStatus | null
+  linkedProjectId?: string | null
 }
 
 // Entity Ownership

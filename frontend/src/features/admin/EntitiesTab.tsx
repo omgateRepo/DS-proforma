@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { AdminEntity, AdminEntityWithOwnership, AdminEntityType, AdminEntityStatus, EntityId } from '../../types'
-import { ADMIN_ENTITY_TYPES, ADMIN_ENTITY_STATUS } from '../../types'
+import type { AdminEntity, AdminEntityWithOwnership, AdminEntityType, AdminEntityStatus, CompanyType, LegalStructure, TaxStatus, EntityId } from '../../types'
+import { ADMIN_ENTITY_TYPES, ADMIN_ENTITY_STATUS, COMPANY_TYPES, LEGAL_STRUCTURES, TAX_STATUSES } from '../../types'
 import {
   fetchAdminEntities,
   fetchAdminEntity,
@@ -9,6 +9,7 @@ import {
   deleteAdminEntity,
   createEntityOwnership,
   deleteEntityOwnership,
+  fetchProjectDetail,
 } from '../../api'
 
 const ENTITY_TYPE_LABELS: Record<AdminEntityType, string> = {
@@ -24,6 +25,21 @@ const STATUS_LABELS: Record<AdminEntityStatus, string> = {
   active: 'Active',
   dissolved: 'Dissolved',
   inactive: 'Inactive',
+}
+
+const COMPANY_TYPE_LABELS: Record<CompanyType, string> = {
+  regular: 'Regular Company',
+  holding: 'Holding Company',
+}
+
+const LEGAL_STRUCTURE_LABELS: Record<LegalStructure, string> = {
+  llc: 'LLC',
+  c_corp: 'C-Corp',
+}
+
+const TAX_STATUS_LABELS: Record<TaxStatus, string> = {
+  passthrough: 'Pass-through',
+  blocked: 'Blocked',
 }
 
 type EntitiesTabProps = {
@@ -49,6 +65,10 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
     address: '',
     status: 'active' as AdminEntityStatus,
     notes: '',
+    // Company classification
+    companyType: 'regular' as CompanyType,
+    legalStructure: 'llc' as LegalStructure,
+    taxStatus: 'passthrough' as TaxStatus,
   })
 
   // Ownership form
@@ -58,6 +78,12 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
     ownershipPercentage: '',
     notes: '',
   })
+  
+  // Holdings modal state (for holding companies)
+  const [showHoldingsModal, setShowHoldingsModal] = useState(false)
+  const [selectedHoldings, setSelectedHoldings] = useState<string[]>([])
+  const [holdingOwnershipPcts, setHoldingOwnershipPcts] = useState<Record<string, string>>({})
+  const [loadingOwnership, setLoadingOwnership] = useState(false)
 
   const loadEntities = useCallback(async () => {
     setLoading(true)
@@ -97,6 +123,10 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
         address: formState.address || null,
         status: formState.status,
         notes: formState.notes || null,
+        // Company classification
+        companyType: formState.companyType,
+        legalStructure: formState.legalStructure,
+        taxStatus: formState.legalStructure === 'llc' ? formState.taxStatus : null,
       }
 
       if (editingEntity) {
@@ -162,6 +192,101 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
     }
   }
 
+  // Fetch ownership % from GP contributions for a linked project
+  const fetchOwnershipFromProject = useCallback(async (projectId: string, currentUserId?: string) => {
+    try {
+      const project = await fetchProjectDetail(projectId)
+      if (project?.gpContributions && currentUserId) {
+        // Find GP contribution for current user and return their holding %
+        const userContribution = project.gpContributions.find(
+          (gp: { partner?: string; holdingPct?: number }) => gp.partner === currentUserId
+        )
+        return userContribution?.holdingPct || null
+      }
+      return null
+    } catch {
+      return null
+    }
+  }, [])
+
+  // Open holdings modal for a holding company
+  const openHoldingsModal = () => {
+    if (!selectedEntity || selectedEntity.companyType !== 'holding') return
+    // Pre-select existing holdings
+    const existingHoldings = selectedEntity.childRelationships.map(rel => String(rel.childEntityId))
+    setSelectedHoldings(existingHoldings)
+    // Pre-populate ownership percentages
+    const pcts: Record<string, string> = {}
+    selectedEntity.childRelationships.forEach(rel => {
+      pcts[String(rel.childEntityId)] = String(rel.ownershipPercentage)
+    })
+    setHoldingOwnershipPcts(pcts)
+    setShowHoldingsModal(true)
+  }
+
+  // Handle selecting/deselecting an entity for holding
+  const handleHoldingSelect = async (entityId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedHoldings(prev => [...prev, entityId])
+      // Try to auto-populate ownership from GP contributions
+      const entity = entities.find(e => String(e.id) === entityId)
+      if (entity?.linkedProjectId) {
+        setLoadingOwnership(true)
+        const pct = await fetchOwnershipFromProject(String(entity.linkedProjectId))
+        if (pct !== null) {
+          setHoldingOwnershipPcts(prev => ({ ...prev, [entityId]: String(pct) }))
+        }
+        setLoadingOwnership(false)
+      }
+    } else {
+      setSelectedHoldings(prev => prev.filter(id => id !== entityId))
+    }
+  }
+
+  // Save holdings
+  const handleSaveHoldings = async () => {
+    if (!selectedEntity) return
+    try {
+      // Get current holdings
+      const currentHoldings = selectedEntity.childRelationships.map(rel => String(rel.childEntityId))
+      
+      // Remove deselected holdings
+      for (const rel of selectedEntity.childRelationships) {
+        if (!selectedHoldings.includes(String(rel.childEntityId))) {
+          await deleteEntityOwnership(String(rel.id))
+        }
+      }
+      
+      // Add new holdings
+      for (const entityId of selectedHoldings) {
+        if (!currentHoldings.includes(entityId)) {
+          const pct = parseFloat(holdingOwnershipPcts[entityId] || '0')
+          if (pct > 0) {
+            await createEntityOwnership({
+              parentEntityId: String(selectedEntity.id),
+              childEntityId: entityId,
+              ownershipPercentage: pct,
+              notes: null,
+            })
+          }
+        }
+      }
+      
+      setShowHoldingsModal(false)
+      await loadEntityDetail(selectedEntity.id)
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to save holdings')
+    }
+  }
+
+  // Get holdable entities (non-holding, non-self)
+  const getHoldableEntities = () => {
+    return entities.filter(e => 
+      e.id !== selectedEntity?.id && 
+      e.companyType !== 'holding'
+    )
+  }
+
   const resetForm = () => {
     setFormState({
       name: '',
@@ -173,6 +298,9 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
       address: '',
       status: 'active',
       notes: '',
+      companyType: 'regular',
+      legalStructure: 'llc',
+      taxStatus: 'passthrough',
     })
   }
 
@@ -194,6 +322,9 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
       address: entity.address || '',
       status: entity.status,
       notes: entity.notes || '',
+      companyType: entity.companyType || 'regular',
+      legalStructure: entity.legalStructure || 'llc',
+      taxStatus: entity.taxStatus || 'passthrough',
     })
     setShowModal(true)
   }
@@ -237,12 +368,23 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
                       >
                         <div className="entity-card-header">
                           <span className="entity-name">{entity.name}</span>
-                          <span className={`status-badge status-${entity.status}`}>
-                            {STATUS_LABELS[entity.status]}
-                          </span>
+                          <div className="entity-badges">
+                            {entity.companyType === 'holding' && (
+                              <span className="badge badge-holding">Holding</span>
+                            )}
+                            <span className={`status-badge status-${entity.status}`}>
+                              {STATUS_LABELS[entity.status]}
+                            </span>
+                          </div>
                         </div>
                         <div className="entity-card-meta">
                           {entity.stateOfFormation && <span>{entity.stateOfFormation}</span>}
+                          {entity.legalStructure && (
+                            <span>
+                              {LEGAL_STRUCTURE_LABELS[entity.legalStructure]}
+                              {entity.legalStructure === 'llc' && entity.taxStatus && ` (${TAX_STATUS_LABELS[entity.taxStatus]})`}
+                            </span>
+                          )}
                           {entity.ein && <span>EIN: {entity.ein}</span>}
                         </div>
                       </div>
@@ -276,6 +418,36 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
               </div>
 
               <div className="detail-sections">
+                {/* Company Classification */}
+                <div className="detail-section">
+                  <h4>Classification</h4>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <label>Company Type</label>
+                      <span>
+                        {selectedEntity.companyType ? COMPANY_TYPE_LABELS[selectedEntity.companyType] : '—'}
+                        {selectedEntity.companyType === 'holding' && ' 🏢'}
+                      </span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Legal Structure</label>
+                      <span>{selectedEntity.legalStructure ? LEGAL_STRUCTURE_LABELS[selectedEntity.legalStructure] : '—'}</span>
+                    </div>
+                    {selectedEntity.legalStructure === 'llc' && (
+                      <div className="detail-item">
+                        <label>Tax Status</label>
+                        <span>{selectedEntity.taxStatus ? TAX_STATUS_LABELS[selectedEntity.taxStatus] : '—'}</span>
+                      </div>
+                    )}
+                    {selectedEntity.linkedProjectId && (
+                      <div className="detail-item linked-project">
+                        <label>Linked Project</label>
+                        <span className="badge badge-project">🏠 Real Estate Project</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="detail-section">
                   <h4>Basic Information</h4>
                   <div className="detail-grid">
@@ -318,6 +490,35 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
                   </div>
                 </div>
 
+                {/* Holdings Section (for Holding Companies) */}
+                {selectedEntity.companyType === 'holding' && (
+                  <div className="detail-section holdings-section">
+                    <div className="section-header">
+                      <h4>🏢 Holdings</h4>
+                      <button className="btn btn-primary btn-sm" onClick={openHoldingsModal}>
+                        Manage Holdings
+                      </button>
+                    </div>
+                    {selectedEntity.childRelationships.length > 0 ? (
+                      <div className="holdings-grid">
+                        {selectedEntity.childRelationships.map((rel) => (
+                          <div key={rel.id} className="holding-card">
+                            <div className="holding-info">
+                              <span className="holding-name">{rel.childEntity?.name}</span>
+                              {rel.childEntity?.linkedProjectId && (
+                                <span className="holding-badge">🏠 RE Project</span>
+                              )}
+                            </div>
+                            <div className="holding-pct">{rel.ownershipPercentage}%</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">No holdings yet. Click "Manage Holdings" to add companies this holding company owns.</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Ownership Section */}
                 <div className="detail-section">
                   <div className="section-header">
@@ -349,8 +550,8 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
                     </div>
                   )}
 
-                  {/* Owns (Children) */}
-                  {selectedEntity.childRelationships.length > 0 && (
+                  {/* Owns (Children) - only show for non-holding companies */}
+                  {selectedEntity.companyType !== 'holding' && selectedEntity.childRelationships.length > 0 && (
                     <div className="ownership-group">
                       <h5>Owns:</h5>
                       <div className="ownership-list">
@@ -371,8 +572,14 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
                     </div>
                   )}
 
-                  {selectedEntity.parentRelationships.length === 0 && selectedEntity.childRelationships.length === 0 && (
-                    <p className="muted">No ownership relationships defined.</p>
+                  {selectedEntity.parentRelationships.length === 0 && 
+                   (selectedEntity.companyType === 'holding' || selectedEntity.childRelationships.length === 0) && (
+                    <p className="muted">
+                      {selectedEntity.companyType === 'holding' 
+                        ? 'Use "Manage Holdings" above to manage what this holding company owns.'
+                        : 'No ownership relationships defined.'
+                      }
+                    </p>
                   )}
                 </div>
               </div>
@@ -395,26 +602,90 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
             </div>
             <form onSubmit={handleSubmit}>
               <div className="modal-body">
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Entity Name *</label>
-                    <input
-                      type="text"
-                      value={formState.name}
-                      onChange={(e) => setFormState({ ...formState, name: e.target.value })}
-                      required
-                    />
+                {/* Company Classification Section */}
+                <div className="form-section">
+                  <h4 className="form-section-title">Company Classification</h4>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Company Type</label>
+                      <div className="radio-group">
+                        {(COMPANY_TYPES as readonly CompanyType[]).map((type) => (
+                          <label key={type} className="radio-label">
+                            <input
+                              type="radio"
+                              name="companyType"
+                              value={type}
+                              checked={formState.companyType === type}
+                              onChange={(e) => setFormState({ ...formState, companyType: e.target.value as CompanyType })}
+                            />
+                            {COMPANY_TYPE_LABELS[type]}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label>Legal Structure</label>
+                      <div className="radio-group">
+                        {(LEGAL_STRUCTURES as readonly LegalStructure[]).map((structure) => (
+                          <label key={structure} className="radio-label">
+                            <input
+                              type="radio"
+                              name="legalStructure"
+                              value={structure}
+                              checked={formState.legalStructure === structure}
+                              onChange={(e) => setFormState({ ...formState, legalStructure: e.target.value as LegalStructure })}
+                            />
+                            {LEGAL_STRUCTURE_LABELS[structure]}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Entity Type *</label>
-                    <select
-                      value={formState.entityType}
-                      onChange={(e) => setFormState({ ...formState, entityType: e.target.value as AdminEntityType })}
-                    >
-                      {(ADMIN_ENTITY_TYPES as readonly AdminEntityType[]).map((type) => (
-                        <option key={type} value={type}>{ENTITY_TYPE_LABELS[type]}</option>
-                      ))}
-                    </select>
+                  {formState.legalStructure === 'llc' && (
+                    <div className="form-group">
+                      <label>Tax Status (LLC)</label>
+                      <div className="radio-group">
+                        {(TAX_STATUSES as readonly TaxStatus[]).map((status) => (
+                          <label key={status} className="radio-label">
+                            <input
+                              type="radio"
+                              name="taxStatus"
+                              value={status}
+                              checked={formState.taxStatus === status}
+                              onChange={(e) => setFormState({ ...formState, taxStatus: e.target.value as TaxStatus })}
+                            />
+                            {TAX_STATUS_LABELS[status]}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Entity Details Section */}
+                <div className="form-section">
+                  <h4 className="form-section-title">Entity Details</h4>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Entity Name *</label>
+                      <input
+                        type="text"
+                        value={formState.name}
+                        onChange={(e) => setFormState({ ...formState, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Entity Type *</label>
+                      <select
+                        value={formState.entityType}
+                        onChange={(e) => setFormState({ ...formState, entityType: e.target.value as AdminEntityType })}
+                      >
+                        {(ADMIN_ENTITY_TYPES as readonly AdminEntityType[]).map((type) => (
+                          <option key={type} value={type}>{ENTITY_TYPE_LABELS[type]}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
                 <div className="form-row">
@@ -564,6 +835,78 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
                 <button type="submit" className="btn btn-primary">Add Ownership</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Holdings Modal */}
+      {showHoldingsModal && selectedEntity?.companyType === 'holding' && (
+        <div className="modal-overlay" onClick={() => setShowHoldingsModal(false)}>
+          <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Manage Holdings for {selectedEntity.name}</h3>
+              <button className="modal-close" onClick={() => setShowHoldingsModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="muted" style={{ marginBottom: '1rem' }}>
+                Select the entities this holding company owns. For entities linked to Real Estate projects, 
+                ownership percentages will auto-populate from GP contributions.
+              </p>
+              {loadingOwnership && <p className="loading-text">Loading ownership data...</p>}
+              <div className="holdings-checklist">
+                {getHoldableEntities().map((entity) => {
+                  const isSelected = selectedHoldings.includes(String(entity.id))
+                  return (
+                    <div key={entity.id} className={`holding-checkbox-row ${isSelected ? 'selected' : ''}`}>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleHoldingSelect(String(entity.id), e.target.checked)}
+                        />
+                        <span className="checkbox-text">
+                          {entity.name}
+                          {entity.linkedProjectId && <span className="linked-badge">🏠 RE</span>}
+                        </span>
+                      </label>
+                      {isSelected && (
+                        <div className="ownership-input">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={holdingOwnershipPcts[String(entity.id)] || ''}
+                            onChange={(e) => setHoldingOwnershipPcts(prev => ({
+                              ...prev,
+                              [String(entity.id)]: e.target.value
+                            }))}
+                            placeholder="%"
+                          />
+                          <span>%</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {getHoldableEntities().length === 0 && (
+                  <p className="muted">No holdable entities available. Create regular companies or wait for Real Estate projects to reach "Under Contract" stage.</p>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowHoldingsModal(false)}>
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={handleSaveHoldings}
+                disabled={selectedHoldings.length === 0}
+              >
+                Save Holdings
+              </button>
+            </div>
           </div>
         </div>
       )}

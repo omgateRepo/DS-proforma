@@ -102,7 +102,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.26'
+const APP_VERSION = '1.0.28'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -362,8 +362,8 @@ function AccountSettingsModal({
                   {(currentUser.displayName || currentUser.email || '?')[0].toUpperCase()}
                 </div>
                 <div className="profile-info">
-                  <strong>{currentUser.displayName || currentUser.email}</strong>
-                  <p className="muted tiny">{currentUser.isSuperAdmin ? 'Super admin' : 'Collaborator'}</p>
+                <strong>{currentUser.displayName || currentUser.email}</strong>
+                <p className="muted tiny">{currentUser.isSuperAdmin ? 'Super admin' : 'Collaborator'}</p>
                 </div>
               </div>
             )}
@@ -2242,7 +2242,7 @@ useEffect(() => {
                   convertMonthInputToOffset={convertMonthInputToOffset}
                   getCalendarLabelForInput={getCalendarLabelForInput}
                   getCalendarLabelsForListInput={getCalendarLabelsForListInput}
-                />
+                  />
                   <ConstructionCarryingCostsSection
                     project={selectedProject}
                     projectId={selectedProjectId}
@@ -2501,7 +2501,7 @@ useEffect(() => {
                 <button type="submit" className="primary" disabled={createStatus === 'saving'}>
                   {createStatus === 'saving' ? 'Creating…' : 'Create'}
                 </button>
-              </div>
+    </div>
             </form>
           </div>
         </div>
@@ -2537,7 +2537,7 @@ useEffect(() => {
                 <button type="submit" className="primary" disabled={businessCreateStatus === 'saving'}>
                   {businessCreateStatus === 'saving' ? 'Creating…' : 'Create'}
                 </button>
-              </div>
+    </div>
             </form>
           </div>
         </div>

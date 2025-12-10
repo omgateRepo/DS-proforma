@@ -103,6 +103,9 @@ export const PACKAGE_METRIC_TYPES = ['frequency', 'quantity', 'na']
 // Admin Hub constants
 const adminEntityTypes = ['llc', 'c_corp', 's_corp', 'lp', 'trust', 'individual']
 const adminEntityStatus = ['active', 'dissolved', 'inactive']
+const companyTypes = ['regular', 'holding']
+const legalStructures = ['llc', 'c_corp']
+const taxStatuses = ['passthrough', 'blocked']
 const taxItemCategories = ['gift', 'contribution', 'return', 'depreciation', 'deadline', 'other']
 const taxItemStatus = ['pending', 'filed', 'completed', 'overdue']
 const teamMemberRoles = ['attorney', 'cpa', 'property_manager', 'banker', 'insurance_agent', 'other']
@@ -111,6 +114,9 @@ const entityDocumentTypes = ['operating_agreement', 'tax_return', 'certificate',
 
 export const ADMIN_ENTITY_TYPES = [...adminEntityTypes]
 export const ADMIN_ENTITY_STATUS = [...adminEntityStatus]
+export const COMPANY_TYPES = [...companyTypes]
+export const LEGAL_STRUCTURES = [...legalStructures]
+export const TAX_STATUSES = [...taxStatuses]
 export const TAX_ITEM_CATEGORIES = [...taxItemCategories]
 export const TAX_ITEM_STATUS = [...taxItemStatus]
 export const TEAM_MEMBER_ROLES = [...teamMemberRoles]
@@ -128,6 +134,11 @@ export const adminEntityInputSchema = z.object({
   address: optionalNullableString,
   status: z.enum(adminEntityStatus).optional().default('active'),
   notes: optionalNullableString,
+  // Company classification
+  companyType: z.enum(companyTypes).nullable().optional(),
+  legalStructure: z.enum(legalStructures).nullable().optional(),
+  taxStatus: z.enum(taxStatuses).nullable().optional(),
+  linkedProjectId: z.string().uuid().nullable().optional(),
 })
 
 export const adminEntityUpdateSchema = adminEntityInputSchema.partial()

@@ -149,6 +149,7 @@ model projects {
   owner                 users?                  @relation("projects_owner", fields: [owner_id], references: [id], onDelete: SetNull)
   project_collaborators project_collaborators[]
   project_documents     project_documents[]
+  linked_entity         admin_entities?         @relation("project_entity")
 }
 
 model users {
@@ -381,11 +382,17 @@ model admin_entities {
   status               String              @default("active") // active, dissolved, inactive
   notes                String?
   owner_id             String              @db.Uuid
+  // Company classification fields
+  company_type         String?             // 'regular' | 'holding'
+  legal_structure      String?             // 'llc' | 'c_corp'
+  tax_status           String?             // 'passthrough' | 'blocked' (only for LLCs)
+  linked_project_id    String?             @unique @db.Uuid  // FK to projects table (for auto-created entities)
   created_at           DateTime            @default(now()) @db.Timestamptz(6)
   updated_at           DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
   deleted_at           DateTime?           @db.Timestamptz(6)
   
   owner                users               @relation("admin_entities_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  linked_project       projects?           @relation("project_entity", fields: [linked_project_id], references: [id], onDelete: SetNull)
   parent_relationships admin_entity_ownership[] @relation("child_entity")
   child_relationships  admin_entity_ownership[] @relation("parent_entity")
   tax_items            admin_tax_items[]

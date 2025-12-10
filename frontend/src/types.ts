@@ -50,6 +50,9 @@ export type {
   // Admin Hub
   AdminEntityType,
   AdminEntityStatus,
+  CompanyType,
+  LegalStructure,
+  TaxStatus,
   TaxItemCategory,
   TaxItemStatus,
   TeamMemberRole,
@@ -88,6 +91,9 @@ export {
   // Admin Hub
   ADMIN_ENTITY_TYPES,
   ADMIN_ENTITY_STATUS,
+  COMPANY_TYPES,
+  LEGAL_STRUCTURES,
+  TAX_STATUSES,
   TAX_ITEM_CATEGORIES,
   TAX_ITEM_STATUS,
   TEAM_MEMBER_ROLES,
