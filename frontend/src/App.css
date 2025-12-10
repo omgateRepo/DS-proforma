@@ -3354,13 +3354,16 @@ td {
   gap: 1.5rem;
 }
 
-.detail-section {
+.entity-detail-panel .detail-section,
+.team-detail-panel .detail-section {
   background: #f8fafc;
   border-radius: 12px;
   padding: 1.25rem;
+  min-height: auto;
 }
 
-.detail-section h4 {
+.entity-detail-panel .detail-section h4,
+.team-detail-panel .detail-section h4 {
   margin: 0 0 1rem;
   font-size: 0.95rem;
   color: var(--text);
