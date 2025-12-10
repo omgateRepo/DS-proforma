@@ -179,6 +179,7 @@ export interface GpContributionInput {
   partner: string
   amountUsd: number
   contributionMonth: number
+  holdingPct?: number | null
 }
 
 export interface GpContribution extends GpContributionInput {
@@ -503,6 +504,196 @@ export declare const recurringCarryingInputSchema: z.ZodType<RecurringCarryingIn
 export declare const documentInputSchema: z.ZodType<DocumentInput>
 export declare const documentUpdateSchema: z.ZodType<Partial<DocumentInput>>
 export declare const formatZodErrors: (error: z.ZodError) => string
+
+// ============================================
+// ADMIN HUB TYPES
+// ============================================
+
+export type AdminEntityType = 'llc' | 'c_corp' | 's_corp' | 'lp' | 'trust' | 'individual'
+export type AdminEntityStatus = 'active' | 'dissolved' | 'inactive'
+export type TaxItemCategory = 'gift' | 'contribution' | 'return' | 'depreciation' | 'deadline' | 'other'
+export type TaxItemStatus = 'pending' | 'filed' | 'completed' | 'overdue'
+export type TeamMemberRole = 'attorney' | 'cpa' | 'property_manager' | 'banker' | 'insurance_agent' | 'other'
+export type EngagementStatus = 'active' | 'expired' | 'terminated'
+export type EntityDocumentType = 'operating_agreement' | 'tax_return' | 'certificate' | 'contract' | 'other'
+
+export declare const ADMIN_ENTITY_TYPES: readonly AdminEntityType[]
+export declare const ADMIN_ENTITY_STATUS: readonly AdminEntityStatus[]
+export declare const TAX_ITEM_CATEGORIES: readonly TaxItemCategory[]
+export declare const TAX_ITEM_STATUS: readonly TaxItemStatus[]
+export declare const TEAM_MEMBER_ROLES: readonly TeamMemberRole[]
+export declare const ENGAGEMENT_STATUS: readonly EngagementStatus[]
+export declare const ENTITY_DOCUMENT_TYPES: readonly EntityDocumentType[]
+
+// Admin Entity
+export interface AdminEntity {
+  id: EntityId
+  name: string
+  entityType: AdminEntityType
+  ein?: string | null
+  stateOfFormation?: string | null
+  formationDate?: string | null
+  registeredAgent?: string | null
+  address?: string | null
+  status: AdminEntityStatus
+  notes?: string | null
+  ownerId: EntityId
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminEntityWithOwnership extends AdminEntity {
+  parentRelationships: AdminEntityOwnership[]
+  childRelationships: AdminEntityOwnership[]
+}
+
+export interface AdminEntityInput {
+  name: string
+  entityType: AdminEntityType
+  ein?: string | null
+  stateOfFormation?: string | null
+  formationDate?: string | null
+  registeredAgent?: string | null
+  address?: string | null
+  status?: AdminEntityStatus
+  notes?: string | null
+}
+
+// Entity Ownership
+export interface AdminEntityOwnership {
+  id: EntityId
+  parentEntityId: EntityId
+  childEntityId: EntityId
+  ownershipPercentage: number
+  notes?: string | null
+  parentEntity?: AdminEntity
+  childEntity?: AdminEntity
+}
+
+export interface AdminEntityOwnershipInput {
+  parentEntityId: string
+  childEntityId: string
+  ownershipPercentage: number
+  notes?: string | null
+}
+
+// Tax Items
+export interface AdminTaxItem {
+  id: EntityId
+  taxYear: number
+  category: TaxItemCategory
+  entityId?: EntityId | null
+  description: string
+  amountUsd?: number | null
+  recipientOrSource?: string | null
+  itemDate?: string | null
+  dueDate?: string | null
+  status: TaxItemStatus
+  notes?: string | null
+  ownerId: EntityId
+  entity?: AdminEntity | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminTaxItemInput {
+  taxYear: number
+  category: TaxItemCategory
+  entityId?: string | null
+  description: string
+  amountUsd?: number | null
+  recipientOrSource?: string | null
+  itemDate?: string | null
+  dueDate?: string | null
+  status?: TaxItemStatus
+  notes?: string | null
+}
+
+// Team Members
+export interface AdminTeamMember {
+  id: EntityId
+  name: string
+  role: TeamMemberRole
+  company?: string | null
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  specialty?: string | null
+  hourlyRate?: number | null
+  notes?: string | null
+  ownerId: EntityId
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminTeamMemberInput {
+  name: string
+  role: TeamMemberRole
+  company?: string | null
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  specialty?: string | null
+  hourlyRate?: number | null
+  notes?: string | null
+}
+
+// Engagements
+export interface AdminEngagement {
+  id: EntityId
+  teamMemberId: EntityId
+  entityId?: EntityId | null
+  title: string
+  startDate?: string | null
+  endDate?: string | null
+  scope?: string | null
+  feeStructure?: string | null
+  documentUrl?: string | null
+  status: EngagementStatus
+  notes?: string | null
+  ownerId: EntityId
+  teamMember?: AdminTeamMember
+  entity?: AdminEntity | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminEngagementInput {
+  teamMemberId: string
+  entityId?: string | null
+  title: string
+  startDate?: string | null
+  endDate?: string | null
+  scope?: string | null
+  feeStructure?: string | null
+  documentUrl?: string | null
+  status?: EngagementStatus
+  notes?: string | null
+}
+
+// Entity Documents
+export interface AdminEntityDocument {
+  id: EntityId
+  entityId: EntityId
+  documentType: EntityDocumentType
+  name: string
+  fileUrl: string
+  year?: number | null
+  notes?: string | null
+  uploadedBy: EntityId
+  entity?: AdminEntity
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminEntityDocumentInput {
+  entityId: string
+  documentType: EntityDocumentType
+  name: string
+  fileUrl: string
+  year?: number | null
+  notes?: string | null
+}
 
 export { z } from 'zod'
 

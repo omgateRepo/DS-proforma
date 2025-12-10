@@ -58,6 +58,11 @@ import { FundingTab } from './features/funding/FundingTab'
 import { MetricsTab } from './features/metrics/MetricsTab'
 import { DocsTab } from './features/docs/DocsTab'
 import { UnitEconomyTab } from './features/unit-economy/UnitEconomyTab'
+import { EntitiesTab } from './features/admin/EntitiesTab'
+import { TaxCenterTab } from './features/admin/TaxCenterTab'
+import { TeamDirectoryTab } from './features/admin/TeamDirectoryTab'
+import { DocumentLibraryTab } from './features/admin/DocumentLibraryTab'
+import { OwnershipChart } from './features/admin/OwnershipChart'
 import type {
   AddressSuggestion,
   ApartmentRevenueRow,
@@ -97,13 +102,14 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.23'
+const APP_VERSION = '1.0.26'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
 type CashflowMonthMeta = { index: number; label: string; calendarLabel: string; year: number }
 type AuthFormState = { username: string; password: string }
-type BoardType = 'realEstate' | 'business'
+type BoardType = 'realEstate' | 'business' | 'admin'
+type AdminHubTab = 'entities' | 'tax' | 'team' | 'documents' | 'ownership'
 type AutoManagementRow = { id: string; label: string; monthlyAmount: number; startMonth: number | null }
 
 const CASHFLOW_MONTHS = 60
@@ -516,6 +522,8 @@ function App() {
   // Board type state
   const [activeBoard, setActiveBoard] = useState<BoardType>('realEstate')
   const [projectCounts, setProjectCounts] = useState<ProjectCounts>({ realEstate: 0, business: 0 })
+  // Admin Hub state
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminHubTab>('entities')
   // Real estate projects
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectsStatus, setProjectsStatus] = useState<LoadStatus>(initialProjectsStatus)
@@ -954,7 +962,7 @@ function App() {
       return acc
     }, {} as Record<ProjectStage, ProjectSummary[]>)
   }, [projects, stageOptions])
-  const isKanbanView = activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId
+  const isKanbanView = activeBoard === 'admin' ? true : (activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId)
   const showAccountMenu = isAuthReady && !isAuthModalOpen && Boolean(currentUser)
   const isSuperAdmin = currentUser?.isSuperAdmin ?? false
   // Super admins always see both tabs; regular users see tabs they have projects in OR both if they have none (to create first)
@@ -1858,8 +1866,17 @@ useEffect(() => {
               + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
             </button>
           </div>
-          {(showRealEstateTab || showBusinessTab) && (
+          {(showRealEstateTab || showBusinessTab || isSuperAdmin) && (
             <div className="board-selector">
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  className={activeBoard === 'admin' ? 'active' : ''}
+                  onClick={() => setActiveBoard('admin')}
+                >
+                  ⚙️ Admin Hub
+                </button>
+              )}
               {showRealEstateTab && (
                 <button
                   type="button"
@@ -1964,6 +1981,63 @@ useEffect(() => {
             </div>
           )}
           </section>
+        </div>
+      ) : isKanbanView && activeBoard === 'admin' ? (
+        <div className="admin-hub">
+          <div className="admin-hub-tabs">
+            <button
+              type="button"
+              className={activeAdminTab === 'entities' ? 'active' : ''}
+              onClick={() => setActiveAdminTab('entities')}
+            >
+              🏛️ Entities
+            </button>
+            <button
+              type="button"
+              className={activeAdminTab === 'ownership' ? 'active' : ''}
+              onClick={() => setActiveAdminTab('ownership')}
+            >
+              📊 Ownership Chart
+            </button>
+            <button
+              type="button"
+              className={activeAdminTab === 'tax' ? 'active' : ''}
+              onClick={() => setActiveAdminTab('tax')}
+            >
+              📋 Tax Center
+            </button>
+            <button
+              type="button"
+              className={activeAdminTab === 'team' ? 'active' : ''}
+              onClick={() => setActiveAdminTab('team')}
+            >
+              👥 Team Directory
+            </button>
+            <button
+              type="button"
+              className={activeAdminTab === 'documents' ? 'active' : ''}
+              onClick={() => setActiveAdminTab('documents')}
+            >
+              📁 Documents
+            </button>
+          </div>
+          <div className="admin-hub-content">
+            {activeAdminTab === 'entities' && (
+              <EntitiesTab onError={(msg) => setProjectsError(msg)} />
+            )}
+            {activeAdminTab === 'ownership' && (
+              <OwnershipChart onError={(msg) => setProjectsError(msg)} />
+            )}
+            {activeAdminTab === 'tax' && (
+              <TaxCenterTab onError={(msg) => setProjectsError(msg)} />
+            )}
+            {activeAdminTab === 'team' && (
+              <TeamDirectoryTab onError={(msg) => setProjectsError(msg)} />
+            )}
+            {activeAdminTab === 'documents' && (
+              <DocumentLibraryTab onError={(msg) => setProjectsError(msg)} />
+            )}
+          </div>
         </div>
       ) : activeBoard === 'realEstate' && selectedProjectId ? (
         <section className="detail-section detail-full">

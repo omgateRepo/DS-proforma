@@ -466,6 +466,7 @@ const mapGpContributionRow = (row) => ({
   partner: row.partner,
   amountUsd: toNumber(row.amount_usd),
   contributionMonth: toInt(row.contribution_month),
+  holdingPct: toNumber(row.holding_pct),
 })
 
 const mapCostRow = (row) => ({
@@ -2153,6 +2154,7 @@ router.post('/projects/:id/gp-contributions', async (req, res) => {
         partner: payload.partner,
         amount_usd: payload.amountUsd,
         contribution_month: payload.contributionMonth,
+        holding_pct: payload.holdingPct ?? null,
       },
     })
     res.status(201).json(mapGpContributionRow(row))
@@ -2174,6 +2176,7 @@ router.patch('/projects/:id/gp-contributions/:contributionId', async (req, res) 
         ...(payload.partner !== undefined && { partner: payload.partner }),
         ...(payload.amountUsd !== undefined && { amount_usd: payload.amountUsd }),
         ...(payload.contributionMonth !== undefined && { contribution_month: payload.contributionMonth }),
+        ...(payload.holdingPct !== undefined && { holding_pct: payload.holdingPct }),
       },
     })
     if (row.project_id !== req.params.id) {
@@ -3526,6 +3529,734 @@ router.get('/project-counts', async (req, res) => {
     res.json({ realEstate: realEstateCount, business: businessCount })
   } catch (err) {
     res.status(500).json({ error: 'Failed to get project counts', details: err.message })
+  }
+})
+
+// ============================================
+// ADMIN HUB ROUTES (Super Admin Only)
+// ============================================
+
+const requireSuperAdmin = (req, res, next) => {
+  if (SKIP_DB) return next()
+  if (!req.user?.isSuperAdmin) {
+    return res.status(403).json({ error: 'Super admin access required' })
+  }
+  next()
+}
+
+// Helper mappers for Admin Hub
+const mapAdminEntity = (row) => ({
+  id: row.id,
+  name: row.name,
+  entityType: row.entity_type,
+  ein: row.ein,
+  stateOfFormation: row.state_of_formation,
+  formationDate: row.formation_date?.toISOString().split('T')[0] || null,
+  registeredAgent: row.registered_agent,
+  address: row.address,
+  status: row.status,
+  notes: row.notes,
+  ownerId: row.owner_id,
+  createdAt: row.created_at.toISOString(),
+  updatedAt: row.updated_at.toISOString(),
+})
+
+const mapAdminEntityOwnership = (row) => ({
+  id: row.id,
+  parentEntityId: row.parent_entity_id,
+  childEntityId: row.child_entity_id,
+  ownershipPercentage: toNumber(row.ownership_percentage),
+  notes: row.notes,
+  parentEntity: row.parent_entity ? mapAdminEntity(row.parent_entity) : undefined,
+  childEntity: row.child_entity ? mapAdminEntity(row.child_entity) : undefined,
+})
+
+const mapAdminTaxItem = (row) => ({
+  id: row.id,
+  taxYear: row.tax_year,
+  category: row.category,
+  entityId: row.entity_id,
+  description: row.description,
+  amountUsd: toNumber(row.amount_usd),
+  recipientOrSource: row.recipient_or_source,
+  itemDate: row.item_date?.toISOString().split('T')[0] || null,
+  dueDate: row.due_date?.toISOString().split('T')[0] || null,
+  status: row.status,
+  notes: row.notes,
+  ownerId: row.owner_id,
+  entity: row.entity ? mapAdminEntity(row.entity) : null,
+  createdAt: row.created_at.toISOString(),
+  updatedAt: row.updated_at.toISOString(),
+})
+
+const mapAdminTeamMember = (row) => ({
+  id: row.id,
+  name: row.name,
+  role: row.role,
+  company: row.company,
+  email: row.email,
+  phone: row.phone,
+  address: row.address,
+  specialty: row.specialty,
+  hourlyRate: toNumber(row.hourly_rate),
+  notes: row.notes,
+  ownerId: row.owner_id,
+  createdAt: row.created_at.toISOString(),
+  updatedAt: row.updated_at.toISOString(),
+})
+
+const mapAdminEngagement = (row) => ({
+  id: row.id,
+  teamMemberId: row.team_member_id,
+  entityId: row.entity_id,
+  title: row.title,
+  startDate: row.start_date?.toISOString().split('T')[0] || null,
+  endDate: row.end_date?.toISOString().split('T')[0] || null,
+  scope: row.scope,
+  feeStructure: row.fee_structure,
+  documentUrl: row.document_url,
+  status: row.status,
+  notes: row.notes,
+  ownerId: row.owner_id,
+  teamMember: row.team_member ? mapAdminTeamMember(row.team_member) : undefined,
+  entity: row.entity ? mapAdminEntity(row.entity) : null,
+  createdAt: row.created_at.toISOString(),
+  updatedAt: row.updated_at.toISOString(),
+})
+
+const mapAdminEntityDocument = (row) => ({
+  id: row.id,
+  entityId: row.entity_id,
+  documentType: row.document_type,
+  name: row.name,
+  fileUrl: row.file_url,
+  year: row.year,
+  notes: row.notes,
+  uploadedBy: row.uploaded_by,
+  entity: row.entity ? mapAdminEntity(row.entity) : undefined,
+  createdAt: row.created_at.toISOString(),
+  updatedAt: row.updated_at.toISOString(),
+})
+
+// ---- ADMIN ENTITIES ROUTES ----
+
+// GET all entities
+router.get('/admin/entities', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) {
+    return res.json([])
+  }
+  try {
+    const rows = await prisma.admin_entities.findMany({
+      where: { deleted_at: null, owner_id: req.user.id },
+      orderBy: { name: 'asc' },
+    })
+    res.json(rows.map(mapAdminEntity))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch entities', details: err.message })
+  }
+})
+
+// GET single entity with ownership
+router.get('/admin/entities/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) {
+    return res.status(404).json({ error: 'Entity not found' })
+  }
+  try {
+    const row = await prisma.admin_entities.findFirst({
+      where: { id: req.params.id, deleted_at: null, owner_id: req.user.id },
+      include: {
+        parent_relationships: { include: { parent_entity: true } },
+        child_relationships: { include: { child_entity: true } },
+      },
+    })
+    if (!row) return res.status(404).json({ error: 'Entity not found' })
+    res.json({
+      ...mapAdminEntity(row),
+      parentRelationships: row.parent_relationships.map(mapAdminEntityOwnership),
+      childRelationships: row.child_relationships.map(mapAdminEntityOwnership),
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch entity', details: err.message })
+  }
+})
+
+// POST create entity
+router.post('/admin/entities', requireSuperAdmin, async (req, res) => {
+  const { name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status, notes } = req.body
+  if (!name || !entityType) {
+    return res.status(400).json({ error: 'name and entityType are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `entity-${Date.now()}`,
+      name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status: status || 'active', notes,
+      ownerId: 'stub-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.admin_entities.create({
+      data: {
+        name,
+        entity_type: entityType,
+        ein: ein || null,
+        state_of_formation: stateOfFormation || null,
+        formation_date: formationDate ? new Date(formationDate) : null,
+        registered_agent: registeredAgent || null,
+        address: address || null,
+        status: status || 'active',
+        notes: notes || null,
+        owner_id: req.user.id,
+      },
+    })
+    res.status(201).json(mapAdminEntity(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create entity', details: err.message })
+  }
+})
+
+// PATCH update entity
+router.patch('/admin/entities/:id', requireSuperAdmin, async (req, res) => {
+  const { name, entityType, ein, stateOfFormation, formationDate, registeredAgent, address, status, notes } = req.body
+  const data = {}
+  if (name !== undefined) data.name = name
+  if (entityType !== undefined) data.entity_type = entityType
+  if (ein !== undefined) data.ein = ein
+  if (stateOfFormation !== undefined) data.state_of_formation = stateOfFormation
+  if (formationDate !== undefined) data.formation_date = formationDate ? new Date(formationDate) : null
+  if (registeredAgent !== undefined) data.registered_agent = registeredAgent
+  if (address !== undefined) data.address = address
+  if (status !== undefined) data.status = status
+  if (notes !== undefined) data.notes = notes
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) {
+    return res.json({ id: req.params.id, ...req.body })
+  }
+  try {
+    const row = await prisma.admin_entities.update({
+      where: { id: req.params.id },
+      data,
+    })
+    res.json(mapAdminEntity(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Entity not found' })
+    res.status(500).json({ error: 'Failed to update entity', details: err.message })
+  }
+})
+
+// DELETE entity (soft delete)
+router.delete('/admin/entities/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    await prisma.admin_entities.update({
+      where: { id: req.params.id },
+      data: { deleted_at: new Date() },
+    })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Entity not found' })
+    res.status(500).json({ error: 'Failed to delete entity', details: err.message })
+  }
+})
+
+// ---- ENTITY OWNERSHIP ROUTES ----
+
+// GET all ownership relationships
+router.get('/admin/entity-ownership', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    const rows = await prisma.admin_entity_ownership.findMany({
+      include: { parent_entity: true, child_entity: true },
+    })
+    res.json(rows.map(mapAdminEntityOwnership))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch ownership', details: err.message })
+  }
+})
+
+// POST create ownership relationship
+router.post('/admin/entity-ownership', requireSuperAdmin, async (req, res) => {
+  const { parentEntityId, childEntityId, ownershipPercentage, notes } = req.body
+  if (!parentEntityId || !childEntityId || ownershipPercentage === undefined) {
+    return res.status(400).json({ error: 'parentEntityId, childEntityId, and ownershipPercentage are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `ownership-${Date.now()}`,
+      parentEntityId, childEntityId, ownershipPercentage, notes,
+    })
+  }
+  try {
+    const row = await prisma.admin_entity_ownership.create({
+      data: {
+        parent_entity_id: parentEntityId,
+        child_entity_id: childEntityId,
+        ownership_percentage: ownershipPercentage,
+        notes: notes || null,
+      },
+      include: { parent_entity: true, child_entity: true },
+    })
+    res.status(201).json(mapAdminEntityOwnership(row))
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(400).json({ error: 'Ownership relationship already exists' })
+    res.status(500).json({ error: 'Failed to create ownership', details: err.message })
+  }
+})
+
+// PATCH update ownership
+router.patch('/admin/entity-ownership/:id', requireSuperAdmin, async (req, res) => {
+  const { ownershipPercentage, notes } = req.body
+  const data = {}
+  if (ownershipPercentage !== undefined) data.ownership_percentage = ownershipPercentage
+  if (notes !== undefined) data.notes = notes
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) return res.json({ id: req.params.id, ...req.body })
+  try {
+    const row = await prisma.admin_entity_ownership.update({
+      where: { id: req.params.id },
+      data,
+      include: { parent_entity: true, child_entity: true },
+    })
+    res.json(mapAdminEntityOwnership(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Ownership not found' })
+    res.status(500).json({ error: 'Failed to update ownership', details: err.message })
+  }
+})
+
+// DELETE ownership relationship
+router.delete('/admin/entity-ownership/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    await prisma.admin_entity_ownership.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Ownership not found' })
+    res.status(500).json({ error: 'Failed to delete ownership', details: err.message })
+  }
+})
+
+// ---- TAX ITEMS ROUTES ----
+
+// GET all tax items (optionally filter by year)
+router.get('/admin/tax-items', requireSuperAdmin, async (req, res) => {
+  const { year } = req.query
+  if (SKIP_DB) return res.json([])
+  try {
+    const where = { owner_id: req.user.id }
+    if (year) where.tax_year = parseInt(year, 10)
+    const rows = await prisma.admin_tax_items.findMany({
+      where,
+      include: { entity: true },
+      orderBy: [{ tax_year: 'desc' }, { item_date: 'desc' }],
+    })
+    res.json(rows.map(mapAdminTaxItem))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch tax items', details: err.message })
+  }
+})
+
+// POST create tax item
+router.post('/admin/tax-items', requireSuperAdmin, async (req, res) => {
+  const { taxYear, category, entityId, description, amountUsd, recipientOrSource, itemDate, dueDate, status, notes } = req.body
+  if (!taxYear || !category || !description) {
+    return res.status(400).json({ error: 'taxYear, category, and description are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `tax-${Date.now()}`,
+      taxYear, category, entityId, description, amountUsd, recipientOrSource, itemDate, dueDate,
+      status: status || 'pending', notes, ownerId: 'stub-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.admin_tax_items.create({
+      data: {
+        tax_year: taxYear,
+        category,
+        entity_id: entityId || null,
+        description,
+        amount_usd: amountUsd || null,
+        recipient_or_source: recipientOrSource || null,
+        item_date: itemDate ? new Date(itemDate) : null,
+        due_date: dueDate ? new Date(dueDate) : null,
+        status: status || 'pending',
+        notes: notes || null,
+        owner_id: req.user.id,
+      },
+      include: { entity: true },
+    })
+    res.status(201).json(mapAdminTaxItem(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create tax item', details: err.message })
+  }
+})
+
+// PATCH update tax item
+router.patch('/admin/tax-items/:id', requireSuperAdmin, async (req, res) => {
+  const { taxYear, category, entityId, description, amountUsd, recipientOrSource, itemDate, dueDate, status, notes } = req.body
+  const data = {}
+  if (taxYear !== undefined) data.tax_year = taxYear
+  if (category !== undefined) data.category = category
+  if (entityId !== undefined) data.entity_id = entityId
+  if (description !== undefined) data.description = description
+  if (amountUsd !== undefined) data.amount_usd = amountUsd
+  if (recipientOrSource !== undefined) data.recipient_or_source = recipientOrSource
+  if (itemDate !== undefined) data.item_date = itemDate ? new Date(itemDate) : null
+  if (dueDate !== undefined) data.due_date = dueDate ? new Date(dueDate) : null
+  if (status !== undefined) data.status = status
+  if (notes !== undefined) data.notes = notes
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) return res.json({ id: req.params.id, ...req.body })
+  try {
+    const row = await prisma.admin_tax_items.update({
+      where: { id: req.params.id },
+      data,
+      include: { entity: true },
+    })
+    res.json(mapAdminTaxItem(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Tax item not found' })
+    res.status(500).json({ error: 'Failed to update tax item', details: err.message })
+  }
+})
+
+// DELETE tax item
+router.delete('/admin/tax-items/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    await prisma.admin_tax_items.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Tax item not found' })
+    res.status(500).json({ error: 'Failed to delete tax item', details: err.message })
+  }
+})
+
+// ---- TEAM MEMBERS ROUTES ----
+
+// GET all team members
+router.get('/admin/team-members', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    const rows = await prisma.admin_team_members.findMany({
+      where: { deleted_at: null, owner_id: req.user.id },
+      orderBy: { name: 'asc' },
+    })
+    res.json(rows.map(mapAdminTeamMember))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch team members', details: err.message })
+  }
+})
+
+// GET single team member with engagements
+router.get('/admin/team-members/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.status(404).json({ error: 'Team member not found' })
+  try {
+    const row = await prisma.admin_team_members.findFirst({
+      where: { id: req.params.id, deleted_at: null, owner_id: req.user.id },
+      include: { engagements: { include: { entity: true } } },
+    })
+    if (!row) return res.status(404).json({ error: 'Team member not found' })
+    res.json({
+      ...mapAdminTeamMember(row),
+      engagements: row.engagements.map(mapAdminEngagement),
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch team member', details: err.message })
+  }
+})
+
+// POST create team member
+router.post('/admin/team-members', requireSuperAdmin, async (req, res) => {
+  const { name, role, company, email, phone, address, specialty, hourlyRate, notes } = req.body
+  if (!name || !role) {
+    return res.status(400).json({ error: 'name and role are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `team-${Date.now()}`,
+      name, role, company, email, phone, address, specialty, hourlyRate, notes,
+      ownerId: 'stub-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.admin_team_members.create({
+      data: {
+        name,
+        role,
+        company: company || null,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
+        specialty: specialty || null,
+        hourly_rate: hourlyRate || null,
+        notes: notes || null,
+        owner_id: req.user.id,
+      },
+    })
+    res.status(201).json(mapAdminTeamMember(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create team member', details: err.message })
+  }
+})
+
+// PATCH update team member
+router.patch('/admin/team-members/:id', requireSuperAdmin, async (req, res) => {
+  const { name, role, company, email, phone, address, specialty, hourlyRate, notes } = req.body
+  const data = {}
+  if (name !== undefined) data.name = name
+  if (role !== undefined) data.role = role
+  if (company !== undefined) data.company = company
+  if (email !== undefined) data.email = email
+  if (phone !== undefined) data.phone = phone
+  if (address !== undefined) data.address = address
+  if (specialty !== undefined) data.specialty = specialty
+  if (hourlyRate !== undefined) data.hourly_rate = hourlyRate
+  if (notes !== undefined) data.notes = notes
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) return res.json({ id: req.params.id, ...req.body })
+  try {
+    const row = await prisma.admin_team_members.update({
+      where: { id: req.params.id },
+      data,
+    })
+    res.json(mapAdminTeamMember(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Team member not found' })
+    res.status(500).json({ error: 'Failed to update team member', details: err.message })
+  }
+})
+
+// DELETE team member (soft delete)
+router.delete('/admin/team-members/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    await prisma.admin_team_members.update({
+      where: { id: req.params.id },
+      data: { deleted_at: new Date() },
+    })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Team member not found' })
+    res.status(500).json({ error: 'Failed to delete team member', details: err.message })
+  }
+})
+
+// ---- ENGAGEMENTS ROUTES ----
+
+// GET all engagements
+router.get('/admin/engagements', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    const rows = await prisma.admin_engagements.findMany({
+      where: { owner_id: req.user.id },
+      include: { team_member: true, entity: true },
+      orderBy: { start_date: 'desc' },
+    })
+    res.json(rows.map(mapAdminEngagement))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch engagements', details: err.message })
+  }
+})
+
+// POST create engagement
+router.post('/admin/engagements', requireSuperAdmin, async (req, res) => {
+  const { teamMemberId, entityId, title, startDate, endDate, scope, feeStructure, documentUrl, status, notes } = req.body
+  if (!teamMemberId || !title) {
+    return res.status(400).json({ error: 'teamMemberId and title are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `engagement-${Date.now()}`,
+      teamMemberId, entityId, title, startDate, endDate, scope, feeStructure, documentUrl,
+      status: status || 'active', notes, ownerId: 'stub-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.admin_engagements.create({
+      data: {
+        team_member_id: teamMemberId,
+        entity_id: entityId || null,
+        title,
+        start_date: startDate ? new Date(startDate) : null,
+        end_date: endDate ? new Date(endDate) : null,
+        scope: scope || null,
+        fee_structure: feeStructure || null,
+        document_url: documentUrl || null,
+        status: status || 'active',
+        notes: notes || null,
+        owner_id: req.user.id,
+      },
+      include: { team_member: true, entity: true },
+    })
+    res.status(201).json(mapAdminEngagement(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create engagement', details: err.message })
+  }
+})
+
+// PATCH update engagement
+router.patch('/admin/engagements/:id', requireSuperAdmin, async (req, res) => {
+  const { teamMemberId, entityId, title, startDate, endDate, scope, feeStructure, documentUrl, status, notes } = req.body
+  const data = {}
+  if (teamMemberId !== undefined) data.team_member_id = teamMemberId
+  if (entityId !== undefined) data.entity_id = entityId
+  if (title !== undefined) data.title = title
+  if (startDate !== undefined) data.start_date = startDate ? new Date(startDate) : null
+  if (endDate !== undefined) data.end_date = endDate ? new Date(endDate) : null
+  if (scope !== undefined) data.scope = scope
+  if (feeStructure !== undefined) data.fee_structure = feeStructure
+  if (documentUrl !== undefined) data.document_url = documentUrl
+  if (status !== undefined) data.status = status
+  if (notes !== undefined) data.notes = notes
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) return res.json({ id: req.params.id, ...req.body })
+  try {
+    const row = await prisma.admin_engagements.update({
+      where: { id: req.params.id },
+      data,
+      include: { team_member: true, entity: true },
+    })
+    res.json(mapAdminEngagement(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Engagement not found' })
+    res.status(500).json({ error: 'Failed to update engagement', details: err.message })
+  }
+})
+
+// DELETE engagement
+router.delete('/admin/engagements/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    await prisma.admin_engagements.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Engagement not found' })
+    res.status(500).json({ error: 'Failed to delete engagement', details: err.message })
+  }
+})
+
+// ---- ENTITY DOCUMENTS ROUTES ----
+
+// GET documents for an entity
+router.get('/admin/entities/:entityId/documents', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    const rows = await prisma.admin_entity_documents.findMany({
+      where: { entity_id: req.params.entityId },
+      orderBy: [{ year: 'desc' }, { created_at: 'desc' }],
+    })
+    res.json(rows.map(mapAdminEntityDocument))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch documents', details: err.message })
+  }
+})
+
+// GET all documents (for Document Library)
+router.get('/admin/entity-documents', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    const rows = await prisma.admin_entity_documents.findMany({
+      include: { entity: true },
+      orderBy: [{ entity_id: 'asc' }, { year: 'desc' }],
+    })
+    res.json(rows.map(mapAdminEntityDocument))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch documents', details: err.message })
+  }
+})
+
+// POST create entity document
+router.post('/admin/entity-documents', requireSuperAdmin, async (req, res) => {
+  const { entityId, documentType, name, fileUrl, year, notes } = req.body
+  if (!entityId || !documentType || !name || !fileUrl) {
+    return res.status(400).json({ error: 'entityId, documentType, name, and fileUrl are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `doc-${Date.now()}`,
+      entityId, documentType, name, fileUrl, year, notes, uploadedBy: 'stub-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.admin_entity_documents.create({
+      data: {
+        entity_id: entityId,
+        document_type: documentType,
+        name,
+        file_url: fileUrl,
+        year: year || null,
+        notes: notes || null,
+        uploaded_by: req.user.id,
+      },
+      include: { entity: true },
+    })
+    res.status(201).json(mapAdminEntityDocument(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create document', details: err.message })
+  }
+})
+
+// PATCH update entity document
+router.patch('/admin/entity-documents/:id', requireSuperAdmin, async (req, res) => {
+  const { documentType, name, fileUrl, year, notes } = req.body
+  const data = {}
+  if (documentType !== undefined) data.document_type = documentType
+  if (name !== undefined) data.name = name
+  if (fileUrl !== undefined) data.file_url = fileUrl
+  if (year !== undefined) data.year = year
+  if (notes !== undefined) data.notes = notes
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) return res.json({ id: req.params.id, ...req.body })
+  try {
+    const row = await prisma.admin_entity_documents.update({
+      where: { id: req.params.id },
+      data,
+      include: { entity: true },
+    })
+    res.json(mapAdminEntityDocument(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Document not found' })
+    res.status(500).json({ error: 'Failed to update document', details: err.message })
+  }
+})
+
+// DELETE entity document
+router.delete('/admin/entity-documents/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    await prisma.admin_entity_documents.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Document not found' })
+    res.status(500).json({ error: 'Failed to delete document', details: err.message })
   }
 })
 

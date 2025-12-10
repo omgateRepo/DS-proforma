@@ -685,3 +685,206 @@ export async function deletePackageItem(projectId, packageId, itemId) {
   })
   return handleJsonResponse(res, 'Failed to delete item')
 }
+
+// ============ Admin Hub API Functions ============
+
+// Admin Entities
+export async function fetchAdminEntities() {
+  const res = await request('/api/admin/entities')
+  return handleJsonResponse(res, 'Failed to load entities')
+}
+
+export async function fetchAdminEntity(entityId) {
+  const res = await request(`/api/admin/entities/${entityId}`)
+  return handleJsonResponse(res, 'Failed to load entity')
+}
+
+export async function createAdminEntity(payload) {
+  const res = await request('/api/admin/entities', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create entity')
+}
+
+export async function updateAdminEntity(entityId, payload) {
+  const res = await request(`/api/admin/entities/${entityId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update entity')
+}
+
+export async function deleteAdminEntity(entityId) {
+  const res = await request(`/api/admin/entities/${entityId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete entity')
+}
+
+// Entity Ownership
+export async function fetchEntityOwnership() {
+  const res = await request('/api/admin/entity-ownership')
+  return handleJsonResponse(res, 'Failed to load ownership')
+}
+
+export async function createEntityOwnership(payload) {
+  const res = await request('/api/admin/entity-ownership', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create ownership')
+}
+
+export async function updateEntityOwnership(ownershipId, payload) {
+  const res = await request(`/api/admin/entity-ownership/${ownershipId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update ownership')
+}
+
+export async function deleteEntityOwnership(ownershipId) {
+  const res = await request(`/api/admin/entity-ownership/${ownershipId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete ownership')
+}
+
+// Tax Items
+/**
+ * @param {number|null} [year]
+ */
+export async function fetchTaxItems(year = null) {
+  const url = year ? `/api/admin/tax-items?year=${year}` : '/api/admin/tax-items'
+  const res = await request(url)
+  return handleJsonResponse(res, 'Failed to load tax items')
+}
+
+export async function createTaxItem(payload) {
+  const res = await request('/api/admin/tax-items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create tax item')
+}
+
+export async function updateTaxItem(itemId, payload) {
+  const res = await request(`/api/admin/tax-items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update tax item')
+}
+
+export async function deleteTaxItem(itemId) {
+  const res = await request(`/api/admin/tax-items/${itemId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete tax item')
+}
+
+// Team Members
+export async function fetchTeamMembers() {
+  const res = await request('/api/admin/team-members')
+  return handleJsonResponse(res, 'Failed to load team members')
+}
+
+export async function fetchTeamMember(memberId) {
+  const res = await request(`/api/admin/team-members/${memberId}`)
+  return handleJsonResponse(res, 'Failed to load team member')
+}
+
+export async function createTeamMember(payload) {
+  const res = await request('/api/admin/team-members', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create team member')
+}
+
+export async function updateTeamMember(memberId, payload) {
+  const res = await request(`/api/admin/team-members/${memberId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update team member')
+}
+
+export async function deleteTeamMember(memberId) {
+  const res = await request(`/api/admin/team-members/${memberId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete team member')
+}
+
+// Engagements
+export async function fetchEngagements() {
+  const res = await request('/api/admin/engagements')
+  return handleJsonResponse(res, 'Failed to load engagements')
+}
+
+export async function createEngagement(payload) {
+  const res = await request('/api/admin/engagements', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create engagement')
+}
+
+export async function updateEngagement(engagementId, payload) {
+  const res = await request(`/api/admin/engagements/${engagementId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update engagement')
+}
+
+export async function deleteEngagement(engagementId) {
+  const res = await request(`/api/admin/engagements/${engagementId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete engagement')
+}
+
+// Entity Documents
+export async function fetchEntityDocuments(entityId = null) {
+  const url = entityId ? `/api/admin/entities/${entityId}/documents` : '/api/admin/entity-documents'
+  const res = await request(url)
+  return handleJsonResponse(res, 'Failed to load documents')
+}
+
+export async function createEntityDocument(payload) {
+  const res = await request('/api/admin/entity-documents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create document')
+}
+
+export async function updateEntityDocument(docId, payload) {
+  const res = await request(`/api/admin/entity-documents/${docId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update document')
+}
+
+export async function deleteEntityDocument(docId) {
+  const res = await request(`/api/admin/entity-documents/${docId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete document')
+}

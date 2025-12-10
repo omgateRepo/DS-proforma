@@ -85,6 +85,7 @@ model gp_contributions {
   partner            String
   amount_usd         Decimal  @db.Decimal
   contribution_month Int
+  holding_pct        Decimal? @db.Decimal  // LLC ownership percentage (0-100)
   created_at         DateTime @default(now()) @db.Timestamptz(6)
   projects           projects @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
@@ -164,6 +165,12 @@ model users {
   // Business projects
   owned_business_projects       business_projects[]              @relation("business_projects_owner")
   business_collaborations       business_project_collaborators[]
+  // Admin Hub
+  admin_entities                admin_entities[]                 @relation("admin_entities_owner")
+  admin_tax_items               admin_tax_items[]                @relation("admin_tax_items_owner")
+  admin_team_members            admin_team_members[]             @relation("admin_team_members_owner")
+  admin_engagements             admin_engagements[]              @relation("admin_engagements_owner")
+  admin_entity_documents        admin_entity_documents[]         @relation("admin_entity_documents_uploader")
 }
 
 model project_collaborators {
@@ -355,4 +362,129 @@ model subscription_package_items {
   updated_at   DateTime              @default(now()) @updatedAt @db.Timestamptz(6)
   
   package      subscription_packages @relation(fields: [package_id], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// ADMIN HUB (Back Office)
+// ============================================
+
+// Legal entities (LLCs, Corps, Trusts, etc.)
+model admin_entities {
+  id                   String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                 String              // Entity name
+  entity_type          String              // llc, c_corp, s_corp, lp, trust, individual
+  ein                  String?             // EIN/Tax ID
+  state_of_formation   String?             // State where formed
+  formation_date       DateTime?           @db.Date
+  registered_agent     String?             // Registered agent name
+  address              String?             // Primary address
+  status               String              @default("active") // active, dissolved, inactive
+  notes                String?
+  owner_id             String              @db.Uuid
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at           DateTime?           @db.Timestamptz(6)
+  
+  owner                users               @relation("admin_entities_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  parent_relationships admin_entity_ownership[] @relation("child_entity")
+  child_relationships  admin_entity_ownership[] @relation("parent_entity")
+  tax_items            admin_tax_items[]
+  engagements          admin_engagements[]
+  documents            admin_entity_documents[]
+}
+
+// Entity ownership hierarchy
+model admin_entity_ownership {
+  id                   String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  parent_entity_id     String         @db.Uuid
+  child_entity_id      String         @db.Uuid
+  ownership_percentage Decimal        @db.Decimal  // 0-100
+  notes                String?
+  created_at           DateTime       @default(now()) @db.Timestamptz(6)
+  
+  parent_entity        admin_entities @relation("parent_entity", fields: [parent_entity_id], references: [id], onDelete: Cascade)
+  child_entity         admin_entities @relation("child_entity", fields: [child_entity_id], references: [id], onDelete: Cascade)
+
+  @@unique([parent_entity_id, child_entity_id])
+}
+
+// Tax items (gifts, contributions, returns, depreciation)
+model admin_tax_items {
+  id                 String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tax_year           Int             // 2024, 2025, etc.
+  category           String          // gift, contribution, return, depreciation, deadline, other
+  entity_id          String?         @db.Uuid  // Optional entity association
+  description        String
+  amount_usd         Decimal?        @db.Decimal
+  recipient_or_source String?        // Who received/provided
+  item_date          DateTime?       @db.Date  // Date of item
+  due_date           DateTime?       @db.Date  // For deadlines
+  status             String          @default("pending") // pending, filed, completed, overdue
+  notes              String?
+  owner_id           String          @db.Uuid
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  
+  owner              users           @relation("admin_tax_items_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  entity             admin_entities? @relation(fields: [entity_id], references: [id], onDelete: SetNull)
+}
+
+// Team members (external professionals)
+model admin_team_members {
+  id           String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name         String
+  role         String              // attorney, cpa, property_manager, banker, insurance_agent, other
+  company      String?             // Firm/company name
+  email        String?
+  phone        String?
+  address      String?
+  specialty    String?             // Area of expertise
+  hourly_rate  Decimal?            @db.Decimal
+  notes        String?
+  owner_id     String              @db.Uuid
+  created_at   DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at   DateTime?           @db.Timestamptz(6)
+  
+  owner        users               @relation("admin_team_members_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  engagements  admin_engagements[]
+}
+
+// Engagement letters/contracts with team members
+model admin_engagements {
+  id             String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  team_member_id String              @db.Uuid
+  entity_id      String?             @db.Uuid  // Optional entity association
+  title          String              // Engagement title
+  start_date     DateTime?           @db.Date
+  end_date       DateTime?           @db.Date
+  scope          String?             // Scope of work
+  fee_structure  String?             // Fee arrangement description
+  document_url   String?             // Link to engagement letter
+  status         String              @default("active") // active, expired, terminated
+  notes          String?
+  owner_id       String              @db.Uuid
+  created_at     DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  
+  owner          users               @relation("admin_engagements_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  team_member    admin_team_members  @relation(fields: [team_member_id], references: [id], onDelete: Cascade)
+  entity         admin_entities?     @relation(fields: [entity_id], references: [id], onDelete: SetNull)
+}
+
+// Entity-level documents
+model admin_entity_documents {
+  id            String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  entity_id     String         @db.Uuid
+  document_type String         // operating_agreement, tax_return, certificate, contract, other
+  name          String         // Document name
+  file_url      String         // URL/path to document
+  year          Int?           // Optional year (for tax returns, etc.)
+  notes         String?
+  uploaded_by   String         @db.Uuid
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
+  
+  entity        admin_entities @relation(fields: [entity_id], references: [id], onDelete: Cascade)
+  uploader      users          @relation("admin_entity_documents_uploader", fields: [uploaded_by], references: [id], onDelete: Cascade)
 }

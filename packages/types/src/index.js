@@ -100,6 +100,100 @@ export const BUSINESS_STAGE_CRITERIA = {
 // Package metric types for Unit Economy
 export const PACKAGE_METRIC_TYPES = ['frequency', 'quantity', 'na']
 
+// Admin Hub constants
+const adminEntityTypes = ['llc', 'c_corp', 's_corp', 'lp', 'trust', 'individual']
+const adminEntityStatus = ['active', 'dissolved', 'inactive']
+const taxItemCategories = ['gift', 'contribution', 'return', 'depreciation', 'deadline', 'other']
+const taxItemStatus = ['pending', 'filed', 'completed', 'overdue']
+const teamMemberRoles = ['attorney', 'cpa', 'property_manager', 'banker', 'insurance_agent', 'other']
+const engagementStatus = ['active', 'expired', 'terminated']
+const entityDocumentTypes = ['operating_agreement', 'tax_return', 'certificate', 'contract', 'other']
+
+export const ADMIN_ENTITY_TYPES = [...adminEntityTypes]
+export const ADMIN_ENTITY_STATUS = [...adminEntityStatus]
+export const TAX_ITEM_CATEGORIES = [...taxItemCategories]
+export const TAX_ITEM_STATUS = [...taxItemStatus]
+export const TEAM_MEMBER_ROLES = [...teamMemberRoles]
+export const ENGAGEMENT_STATUS = [...engagementStatus]
+export const ENTITY_DOCUMENT_TYPES = [...entityDocumentTypes]
+
+// Admin Hub Zod schemas
+export const adminEntityInputSchema = z.object({
+  name: nonEmptyString,
+  entityType: z.enum(adminEntityTypes),
+  ein: optionalNullableString,
+  stateOfFormation: optionalNullableString,
+  formationDate: nullableString,
+  registeredAgent: optionalNullableString,
+  address: optionalNullableString,
+  status: z.enum(adminEntityStatus).optional().default('active'),
+  notes: optionalNullableString,
+})
+
+export const adminEntityUpdateSchema = adminEntityInputSchema.partial()
+
+export const adminEntityOwnershipInputSchema = z.object({
+  parentEntityId: z.string().uuid(),
+  childEntityId: z.string().uuid(),
+  ownershipPercentage: percentage,
+  notes: optionalNullableString,
+})
+
+export const adminTaxItemInputSchema = z.object({
+  taxYear: z.number().int().min(2000).max(2100),
+  category: z.enum(taxItemCategories),
+  entityId: z.string().uuid().nullable().optional(),
+  description: nonEmptyString,
+  amountUsd: nullableNumber,
+  recipientOrSource: optionalNullableString,
+  itemDate: nullableString,
+  dueDate: nullableString,
+  status: z.enum(taxItemStatus).optional().default('pending'),
+  notes: optionalNullableString,
+})
+
+export const adminTaxItemUpdateSchema = adminTaxItemInputSchema.partial()
+
+export const adminTeamMemberInputSchema = z.object({
+  name: nonEmptyString,
+  role: z.enum(teamMemberRoles),
+  company: optionalNullableString,
+  email: optionalNullableString,
+  phone: optionalNullableString,
+  address: optionalNullableString,
+  specialty: optionalNullableString,
+  hourlyRate: nullableNumber,
+  notes: optionalNullableString,
+})
+
+export const adminTeamMemberUpdateSchema = adminTeamMemberInputSchema.partial()
+
+export const adminEngagementInputSchema = z.object({
+  teamMemberId: z.string().uuid(),
+  entityId: z.string().uuid().nullable().optional(),
+  title: nonEmptyString,
+  startDate: nullableString,
+  endDate: nullableString,
+  scope: optionalNullableString,
+  feeStructure: optionalNullableString,
+  documentUrl: optionalNullableString,
+  status: z.enum(engagementStatus).optional().default('active'),
+  notes: optionalNullableString,
+})
+
+export const adminEngagementUpdateSchema = adminEngagementInputSchema.partial()
+
+export const adminEntityDocumentInputSchema = z.object({
+  entityId: z.string().uuid(),
+  documentType: z.enum(entityDocumentTypes),
+  name: nonEmptyString,
+  fileUrl: nonEmptyString,
+  year: z.number().int().min(1900).max(2100).nullable().optional(),
+  notes: optionalNullableString,
+})
+
+export const adminEntityDocumentUpdateSchema = adminEntityDocumentInputSchema.partial()
+
 export const subscriptionPackageInputSchema = z.object({
   name: nonEmptyString,
   description: optionalNullableString,
@@ -301,6 +395,7 @@ export const gpContributionInputSchema = z.object({
   partner: nonEmptyString,
   amountUsd: money,
   contributionMonth: positiveInt,
+  holdingPct: z.number().min(0).max(100).nullable().optional(),
 })
 
 export const gpContributionUpdateSchema = gpContributionInputSchema.partial()

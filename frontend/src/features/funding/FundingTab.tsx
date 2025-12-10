@@ -50,6 +50,7 @@ type GpContributionFormState = {
   partner: string
   amountUsd: string
   contributionMonth: string
+  holdingPct: string
 }
 
 type LoanFormState = {
@@ -81,6 +82,7 @@ const createDefaultGpForm = (): GpContributionFormState => ({
   partner: '',
   amountUsd: '',
   contributionMonth: '1',
+  holdingPct: '',
 })
 
 export function FundingTab({
@@ -133,6 +135,13 @@ export function FundingTab({
     () => gpRows.reduce((sum, row) => sum + (row.amountUsd || 0), 0),
     [gpRows],
   )
+
+  const totalHoldingPct = useMemo(
+    () => gpRows.reduce((sum, row) => sum + (row.holdingPct || 0), 0),
+    [gpRows],
+  )
+
+  const holdingPctValid = Math.abs(totalHoldingPct - 100) < 0.01 // Allow small floating point tolerance
 
   const totalLoans = useMemo(
     () => loanRows.reduce((sum, row) => sum + (row.loanAmountUsd || 0), 0),
@@ -198,6 +207,7 @@ export function FundingTab({
           partner: gpRow.partner || '',
           amountUsd: gpRow.amountUsd ? String(gpRow.amountUsd) : '',
           contributionMonth: formatOffsetForInput(gpRow.contributionMonth ?? 0),
+          holdingPct: gpRow.holdingPct != null ? String(gpRow.holdingPct) : '',
         })
       } else {
         setGpForm(createDefaultGpForm())
@@ -227,6 +237,7 @@ export function FundingTab({
     partner: gpForm.partner || null,
     amountUsd: parseOptionalNumber(gpForm.amountUsd),
     contributionMonth: convertMonthInputToOffset(gpForm.contributionMonth),
+    holdingPct: parseOptionalNumber(gpForm.holdingPct),
   })
 
   const requireMonth = (value: string, label: string) => {
@@ -433,6 +444,7 @@ export function FundingTab({
                     <th>Partner</th>
                     <th>Amount (USD)</th>
                     <th>Month</th>
+                    <th>Holding %</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -453,6 +465,7 @@ export function FundingTab({
                             <span className="month-calendar">{getCalendarLabelForOffset(row.contributionMonth ?? 0)}</span>
                           </div>
                         </td>
+                        <td>{row.holdingPct != null ? `${row.holdingPct}%` : '—'}</td>
                         <td>
                           <div className="row-actions">
                             <button type="button" className="icon-button" onClick={() => openModal('gp', row)}>
@@ -468,11 +481,26 @@ export function FundingTab({
                   })}
                   {gpRows.length === 0 && (
                     <tr>
-                      <td colSpan={4}>No GP contributions yet.</td>
+                      <td colSpan={5}>No GP contributions yet.</td>
+                    </tr>
+                  )}
+                  {gpRows.length > 0 && (
+                    <tr className="totals-row">
+                      <td><strong>Total</strong></td>
+                      <td><strong>{formatCurrency(totalGpContributions)}</strong></td>
+                      <td></td>
+                      <td className={holdingPctValid ? 'holding-valid' : 'holding-invalid'}>
+                        <strong>{totalHoldingPct.toFixed(2)}%</strong>
+                        {holdingPctValid ? ' ✓' : ' ⚠️'}
+                      </td>
+                      <td></td>
                     </tr>
                   )}
                 </tbody>
               </table>
+              {gpRows.length > 0 && !holdingPctValid && (
+                <p className="holding-warning">⚠️ Holding percentages must total 100% (currently {totalHoldingPct.toFixed(2)}%)</p>
+              )}
             </div>
           </section>
 
@@ -579,6 +607,19 @@ export function FundingTab({
                       onChange={(e) => setGpForm((prev) => ({ ...prev, contributionMonth: e.target.value }))}
                     />
                     <span className="muted tiny">{getCalendarLabelForInput(gpForm.contributionMonth)}</span>
+                  </label>
+                  <label>
+                    LLC Holding Percentage (%)
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={gpForm.holdingPct}
+                      onChange={(e) => setGpForm((prev) => ({ ...prev, holdingPct: e.target.value }))}
+                      placeholder="e.g., 50"
+                    />
+                    <span className="muted tiny">Ownership percentage in the project LLC</span>
                   </label>
                 </>
               ) : (
