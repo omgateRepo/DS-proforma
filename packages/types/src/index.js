@@ -108,7 +108,7 @@ const legalStructures = ['llc', 'c_corp']
 const taxStatuses = ['passthrough', 'blocked']
 const taxItemCategories = ['gift', 'contribution', 'return', 'depreciation', 'deadline', 'other']
 const taxItemStatus = ['pending', 'filed', 'completed', 'overdue']
-const teamMemberRoles = ['attorney', 'cpa', 'property_manager', 'banker', 'insurance_agent', 'other']
+const teamMemberRoles = ['attorney', 'cpa', 'property_manager', 'banker', 'insurance_agent', 'us_tax_advisor', 'israel_tax_lawyer', 'other']
 const engagementStatus = ['active', 'expired', 'terminated']
 const entityDocumentTypes = ['operating_agreement', 'tax_return', 'certificate', 'contract', 'other']
 

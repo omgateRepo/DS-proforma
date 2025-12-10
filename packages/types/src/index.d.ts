@@ -516,7 +516,7 @@ export type LegalStructure = 'llc' | 'c_corp'
 export type TaxStatus = 'passthrough' | 'blocked'
 export type TaxItemCategory = 'gift' | 'contribution' | 'return' | 'depreciation' | 'deadline' | 'other'
 export type TaxItemStatus = 'pending' | 'filed' | 'completed' | 'overdue'
-export type TeamMemberRole = 'attorney' | 'cpa' | 'property_manager' | 'banker' | 'insurance_agent' | 'other'
+export type TeamMemberRole = 'attorney' | 'cpa' | 'property_manager' | 'banker' | 'insurance_agent' | 'us_tax_advisor' | 'israel_tax_lawyer' | 'other'
 export type EngagementStatus = 'active' | 'expired' | 'terminated'
 export type EntityDocumentType = 'operating_agreement' | 'tax_return' | 'certificate' | 'contract' | 'other'
 

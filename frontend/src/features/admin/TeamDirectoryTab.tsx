@@ -20,6 +20,8 @@ const ROLE_LABELS: Record<TeamMemberRole, string> = {
   property_manager: 'Property Manager',
   banker: 'Banker',
   insurance_agent: 'Insurance Agent',
+  us_tax_advisor: 'US Tax Advisor',
+  israel_tax_lawyer: 'Israel Tax Lawyer',
   other: 'Other',
 }
 
@@ -29,6 +31,8 @@ const ROLE_ICONS: Record<TeamMemberRole, string> = {
   property_manager: '🏢',
   banker: '🏦',
   insurance_agent: '🛡️',
+  us_tax_advisor: '🇺🇸',
+  israel_tax_lawyer: '🇮🇱',
   other: '👤',
 }
 
