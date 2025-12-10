@@ -12,6 +12,8 @@ import {
   fetchProjectDetail,
 } from '../../api'
 
+// Note: createEntityOwnership and deleteEntityOwnership are still used by Holdings management
+
 const ENTITY_TYPE_LABELS: Record<AdminEntityType, string> = {
   llc: 'LLC',
   c_corp: 'C-Corp',
@@ -52,7 +54,6 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingEntity, setEditingEntity] = useState<AdminEntity | null>(null)
-  const [showOwnershipModal, setShowOwnershipModal] = useState(false)
 
   // Form state
   const [formState, setFormState] = useState({
@@ -71,13 +72,6 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
     taxStatus: 'passthrough' as TaxStatus,
   })
 
-  // Ownership form
-  const [ownershipForm, setOwnershipForm] = useState({
-    parentEntityId: '',
-    childEntityId: '',
-    ownershipPercentage: '',
-    notes: '',
-  })
   
   // Holdings modal state (for holding companies)
   const [showHoldingsModal, setShowHoldingsModal] = useState(false)
@@ -160,37 +154,6 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
     }
   }
 
-  const handleAddOwnership = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!ownershipForm.parentEntityId || !ownershipForm.childEntityId || !ownershipForm.ownershipPercentage) return
-    try {
-      await createEntityOwnership({
-        parentEntityId: ownershipForm.parentEntityId,
-        childEntityId: ownershipForm.childEntityId,
-        ownershipPercentage: parseFloat(ownershipForm.ownershipPercentage),
-        notes: ownershipForm.notes || null,
-      })
-      setShowOwnershipModal(false)
-      setOwnershipForm({ parentEntityId: '', childEntityId: '', ownershipPercentage: '', notes: '' })
-      if (selectedEntity) {
-        await loadEntityDetail(selectedEntity.id)
-      }
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Failed to create ownership')
-    }
-  }
-
-  const handleRemoveOwnership = async (ownershipId: EntityId) => {
-    if (!confirm('Remove this ownership relationship?')) return
-    try {
-      await deleteEntityOwnership(String(ownershipId))
-      if (selectedEntity) {
-        await loadEntityDetail(selectedEntity.id)
-      }
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Failed to remove ownership')
-    }
-  }
 
   // Fetch ownership % from GP contributions for a linked project
   const fetchOwnershipFromProject = useCallback(async (projectId: string, currentUserId?: string) => {
@@ -519,69 +482,6 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
                   </div>
                 )}
 
-                {/* Ownership Section */}
-                <div className="detail-section">
-                  <div className="section-header">
-                    <h4>Ownership Structure</h4>
-                    <button className="btn btn-secondary btn-sm" onClick={() => setShowOwnershipModal(true)}>
-                      + Add Ownership
-                    </button>
-                  </div>
-
-                  {/* Owned By (Parents) */}
-                  {selectedEntity.parentRelationships.length > 0 && (
-                    <div className="ownership-group">
-                      <h5>Owned By:</h5>
-                      <div className="ownership-list">
-                        {selectedEntity.parentRelationships.map((rel) => (
-                          <div key={rel.id} className="ownership-item">
-                            <span className="ownership-entity">{rel.parentEntity?.name}</span>
-                            <span className="ownership-pct">{rel.ownershipPercentage}%</span>
-                            <button
-                              className="btn-icon"
-                              onClick={() => handleRemoveOwnership(rel.id)}
-                              title="Remove"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Owns (Children) - only show for non-holding companies */}
-                  {selectedEntity.companyType !== 'holding' && selectedEntity.childRelationships.length > 0 && (
-                    <div className="ownership-group">
-                      <h5>Owns:</h5>
-                      <div className="ownership-list">
-                        {selectedEntity.childRelationships.map((rel) => (
-                          <div key={rel.id} className="ownership-item">
-                            <span className="ownership-entity">{rel.childEntity?.name}</span>
-                            <span className="ownership-pct">{rel.ownershipPercentage}%</span>
-                            <button
-                              className="btn-icon"
-                              onClick={() => handleRemoveOwnership(rel.id)}
-                              title="Remove"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedEntity.parentRelationships.length === 0 && 
-                   (selectedEntity.companyType === 'holding' || selectedEntity.childRelationships.length === 0) && (
-                    <p className="muted">
-                      {selectedEntity.companyType === 'holding' 
-                        ? 'Use "Manage Holdings" above to manage what this holding company owns.'
-                        : 'No ownership relationships defined.'
-                      }
-                    </p>
-                  )}
-                </div>
               </div>
             </>
           ) : (
@@ -761,78 +661,6 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
                 <button type="submit" className="btn btn-primary">
                   {editingEntity ? 'Save Changes' : 'Create Entity'}
                 </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Ownership Modal */}
-      {showOwnershipModal && (
-        <div className="modal-overlay" onClick={() => setShowOwnershipModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Add Ownership Relationship</h3>
-              <button className="modal-close" onClick={() => setShowOwnershipModal(false)}>×</button>
-            </div>
-            <form onSubmit={handleAddOwnership}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Parent Entity (Owner) *</label>
-                  <select
-                    value={ownershipForm.parentEntityId}
-                    onChange={(e) => setOwnershipForm({ ...ownershipForm, parentEntityId: e.target.value })}
-                    required
-                  >
-                    <option value="">Select parent entity...</option>
-                    {entities
-                      .filter((e) => e.id !== selectedEntity?.id)
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Child Entity (Owned) *</label>
-                  <select
-                    value={ownershipForm.childEntityId}
-                    onChange={(e) => setOwnershipForm({ ...ownershipForm, childEntityId: e.target.value })}
-                    required
-                  >
-                    <option value="">Select child entity...</option>
-                    {entities
-                      .filter((e) => e.id !== selectedEntity?.id && e.id !== ownershipForm.parentEntityId)
-                      .map((e) => (
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Ownership Percentage *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={ownershipForm.ownershipPercentage}
-                    onChange={(e) => setOwnershipForm({ ...ownershipForm, ownershipPercentage: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Notes</label>
-                  <textarea
-                    value={ownershipForm.notes}
-                    onChange={(e) => setOwnershipForm({ ...ownershipForm, notes: e.target.value })}
-                    rows={2}
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowOwnershipModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">Add Ownership</button>
               </div>
             </form>
           </div>

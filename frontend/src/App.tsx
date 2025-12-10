@@ -102,7 +102,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.31'
+const APP_VERSION = '1.0.33'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -1858,13 +1858,15 @@ useEffect(() => {
         <header className="main-app-header">
           <div className="main-header-top">
             <h1 className="app-title">Ventures Hub <span className="app-version">v{APP_VERSION}</span></h1>
-            <button
-              type="button"
-              className="add-board-project"
-              onClick={() => activeBoard === 'realEstate' ? openCreateModal() : setIsBusinessCreateModalOpen(true)}
-            >
-              + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
-            </button>
+            {activeBoard !== 'admin' && (
+              <button
+                type="button"
+                className="add-board-project"
+                onClick={() => activeBoard === 'realEstate' ? openCreateModal() : setIsBusinessCreateModalOpen(true)}
+              >
+                + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
+              </button>
+            )}
           </div>
           {(showRealEstateTab || showBusinessTab || isSuperAdmin) && (
             <div className="board-selector">
