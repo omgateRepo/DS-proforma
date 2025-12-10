@@ -102,7 +102,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.29'
+const APP_VERSION = '1.0.30'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null

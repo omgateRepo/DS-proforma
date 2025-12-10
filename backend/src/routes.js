@@ -1355,7 +1355,7 @@ router.patch('/projects/:id/stage', async (req, res) => {
 
       // Auto-create LLC entity when project moves to "under_contract" stage
       // Only if user is super admin and no entity exists for this project yet
-      if (stage === 'under_contract' && req.user?.is_super_admin) {
+      if (stage === 'under_contract' && req.user?.isSuperAdmin) {
         const existingEntity = await tx.admin_entities.findFirst({
           where: { linked_project_id: req.params.id, deleted_at: null },
         })
