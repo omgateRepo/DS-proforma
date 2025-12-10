@@ -4280,3 +4280,209 @@ td {
 .muted {
   color: var(--muted);
 }
+
+/* ============================================
+   Admin Hub Mobile Responsive Styles
+   ============================================ */
+
+@media (max-width: 1024px) {
+  .admin-hub {
+    padding: 1rem;
+  }
+
+  .entities-layout,
+  .team-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: auto;
+  }
+
+  .entities-list-panel,
+  .team-list-panel {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .entity-detail-panel,
+  .team-detail-panel {
+    min-height: 500px;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-hub {
+    padding: 0.75rem;
+  }
+
+  .admin-hub-tabs {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .admin-hub-tabs button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    flex: 1;
+    min-width: 80px;
+    text-align: center;
+  }
+
+  .entities-layout,
+  .team-layout {
+    gap: 1rem;
+  }
+
+  .entities-list-panel,
+  .team-list-panel {
+    max-height: 300px;
+    padding: 0.75rem;
+  }
+
+  .entity-detail-panel,
+  .team-detail-panel {
+    padding: 1rem;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+
+  .detail-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Tax Center Mobile */
+  .tax-center-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+
+  .year-selector {
+    width: 100%;
+  }
+
+  .category-tabs {
+    flex-wrap: wrap;
+  }
+
+  .category-tabs .tab {
+    flex: 1;
+    min-width: 80px;
+    text-align: center;
+    font-size: 0.8rem;
+  }
+
+  .tax-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .data-table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  /* Document Library Mobile */
+  .library-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .filters {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .filter-group select {
+    flex: 1;
+  }
+
+  .documents-list,
+  .documents-flat {
+    grid-template-columns: 1fr;
+  }
+
+  /* Holdings Grid Mobile */
+  .holdings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Modal Mobile */
+  .modal-content {
+    width: 95vw;
+    max-height: 85vh;
+  }
+
+  .modal-content.modal-lg {
+    width: 95vw;
+  }
+
+  .modal-body .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-header h3 {
+    font-size: 1.1rem;
+  }
+
+  /* Form Sections Mobile */
+  .form-section {
+    padding: 0.75rem;
+  }
+
+  .radio-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-hub-tabs button {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .tax-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-card,
+  .team-card {
+    padding: 0.6rem;
+  }
+
+  .entity-name,
+  .team-card-name {
+    font-size: 0.9rem;
+  }
+
+  .holdings-checklist {
+    max-height: 300px;
+  }
+
+  .holding-checkbox-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .ownership-input {
+    width: 100%;
+  }
+
+  .ownership-input input {
+    flex: 1;
+  }
+}
