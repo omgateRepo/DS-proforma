@@ -166,7 +166,7 @@ export function TripsBoard({
           ownerName={selectedTrip.ownerName}
           ownerEmail={selectedTrip.ownerEmail}
           collaborators={selectedTrip.collaborators.map((c) => ({
-            id: c.id,
+            id: String(c.id),
             displayName: c.displayName || '',
             email: c.email,
           }))}
