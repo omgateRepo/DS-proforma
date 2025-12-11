@@ -529,6 +529,46 @@ export interface TripInput {
   quarter: string
 }
 
+export type TripItemType = 'flight' | 'stay' | 'vehicle' | 'attraction'
+
+export declare const TRIP_ITEM_TYPES: readonly TripItemType[]
+
+export interface TripItem {
+  id: EntityId
+  tripId: EntityId
+  itemType: TripItemType
+  name: string
+  location: string | null
+  confirmationNo: string | null
+  notes: string | null
+  costUsd: number | null
+  startDate: string
+  startTime: string | null
+  endDate: string | null
+  endTime: string | null
+  departTime: string | null  // flights only
+  arriveTime: string | null  // flights only
+  sortOrder: number
+  ownerId: EntityId
+  createdAt: string
+}
+
+export interface TripItemInput {
+  itemType: TripItemType
+  name: string
+  location?: string | null
+  confirmationNo?: string | null
+  notes?: string | null
+  costUsd?: number | null
+  startDate: string
+  startTime?: string | null
+  endDate?: string | null
+  endTime?: string | null
+  departTime?: string | null
+  arriveTime?: string | null
+  sortOrder?: number
+}
+
 // ============================================
 // ADMIN HUB TYPES
 // ============================================

@@ -953,3 +953,46 @@ export async function deleteTrip(tripId) {
   })
   return handleJsonResponse(res, 'Failed to delete trip')
 }
+
+// ============================================
+// TRIP ITEMS
+// ============================================
+
+export async function fetchTripItems(tripId) {
+  const res = await request(`/api/trips/${tripId}/items`)
+  return handleJsonResponse(res, 'Failed to load trip items')
+}
+
+export async function createTripItem(tripId, payload) {
+  const res = await request(`/api/trips/${tripId}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create trip item')
+}
+
+export async function updateTripItem(itemId, payload) {
+  const res = await request(`/api/trip-items/${itemId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update trip item')
+}
+
+export async function deleteTripItem(itemId) {
+  const res = await request(`/api/trip-items/${itemId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete trip item')
+}
+
+export async function reorderTripItems(tripId, items) {
+  const res = await request(`/api/trips/${tripId}/items/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  })
+  return handleJsonResponse(res, 'Failed to reorder items')
+}

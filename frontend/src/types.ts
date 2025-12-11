@@ -50,6 +50,9 @@ export type {
   // Trips
   Trip,
   TripInput,
+  TripItemType,
+  TripItem,
+  TripItemInput,
   // Admin Hub
   AdminEntityType,
   AdminEntityStatus,
@@ -93,6 +96,8 @@ export {
   BUSINESS_STAGE_LABELS,
   BUSINESS_STAGE_CRITERIA,
   PACKAGE_METRIC_TYPES,
+  // Trips
+  TRIP_ITEM_TYPES,
   // Admin Hub
   ADMIN_ENTITY_TYPES,
   ADMIN_ENTITY_STATUS,

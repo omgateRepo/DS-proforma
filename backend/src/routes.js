@@ -4538,4 +4538,211 @@ router.delete('/trips/:id', async (req, res) => {
   }
 })
 
+// ============================================
+// TRIP ITEMS ROUTES
+// ============================================
+
+const mapTripItem = (row) => ({
+  id: row.id,
+  tripId: row.trip_id,
+  itemType: row.item_type,
+  name: row.name,
+  location: row.location,
+  confirmationNo: row.confirmation_no,
+  notes: row.notes,
+  costUsd: row.cost_usd != null ? Number(row.cost_usd) : null,
+  startDate: row.start_date?.toISOString().split('T')[0] || null,
+  startTime: row.start_time,
+  endDate: row.end_date?.toISOString().split('T')[0] || null,
+  endTime: row.end_time,
+  departTime: row.depart_time,
+  arriveTime: row.arrive_time,
+  sortOrder: row.sort_order,
+  ownerId: row.owner_id,
+  createdAt: row.created_at?.toISOString(),
+})
+
+// GET all items for a trip
+router.get('/trips/:tripId/items', async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    // Verify trip ownership
+    const trip = await prisma.trips.findFirst({
+      where: { id: req.params.tripId, owner_id: req.user.id },
+    })
+    if (!trip) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    const rows = await prisma.trip_items.findMany({
+      where: { trip_id: req.params.tripId },
+      orderBy: [{ start_date: 'asc' }, { start_time: 'asc' }, { sort_order: 'asc' }],
+    })
+    res.json(rows.map(mapTripItem))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch trip items', details: err.message })
+  }
+})
+
+// POST create trip item
+router.post('/trips/:tripId/items', async (req, res) => {
+  if (SKIP_DB) return res.status(201).json({ id: 'stub-trip-item', ...req.body })
+  try {
+    // Verify trip ownership
+    const trip = await prisma.trips.findFirst({
+      where: { id: req.params.tripId, owner_id: req.user.id },
+    })
+    if (!trip) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    const {
+      itemType,
+      name,
+      location,
+      confirmationNo,
+      notes,
+      costUsd,
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      departTime,
+      arriveTime,
+      sortOrder,
+    } = req.body
+    if (!itemType || !name || !startDate) {
+      return res.status(400).json({ error: 'itemType, name, and startDate are required' })
+    }
+    // Get max sort_order for this trip
+    const maxSortItem = await prisma.trip_items.findFirst({
+      where: { trip_id: req.params.tripId },
+      orderBy: { sort_order: 'desc' },
+    })
+    const nextSortOrder = sortOrder ?? ((maxSortItem?.sort_order ?? -1) + 1)
+    const row = await prisma.trip_items.create({
+      data: {
+        trip_id: req.params.tripId,
+        item_type: itemType,
+        name,
+        location: location || null,
+        confirmation_no: confirmationNo || null,
+        notes: notes || null,
+        cost_usd: costUsd != null ? costUsd : null,
+        start_date: new Date(startDate),
+        start_time: startTime || null,
+        end_date: endDate ? new Date(endDate) : null,
+        end_time: endTime || null,
+        depart_time: departTime || null,
+        arrive_time: arriveTime || null,
+        sort_order: nextSortOrder,
+        owner_id: req.user.id,
+      },
+    })
+    res.status(201).json(mapTripItem(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create trip item', details: err.message })
+  }
+})
+
+// PUT update trip item
+router.put('/trip-items/:id', async (req, res) => {
+  if (SKIP_DB) return res.json({ id: req.params.id, ...req.body })
+  try {
+    // Verify ownership via trip
+    const existing = await prisma.trip_items.findFirst({
+      where: { id: req.params.id },
+      include: { trip: true },
+    })
+    if (!existing || existing.trip.owner_id !== req.user.id) {
+      return res.status(404).json({ error: 'Trip item not found' })
+    }
+    const {
+      itemType,
+      name,
+      location,
+      confirmationNo,
+      notes,
+      costUsd,
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      departTime,
+      arriveTime,
+      sortOrder,
+    } = req.body
+    const data = {}
+    if (itemType !== undefined) data.item_type = itemType
+    if (name !== undefined) data.name = name
+    if (location !== undefined) data.location = location || null
+    if (confirmationNo !== undefined) data.confirmation_no = confirmationNo || null
+    if (notes !== undefined) data.notes = notes || null
+    if (costUsd !== undefined) data.cost_usd = costUsd
+    if (startDate !== undefined) data.start_date = new Date(startDate)
+    if (startTime !== undefined) data.start_time = startTime || null
+    if (endDate !== undefined) data.end_date = endDate ? new Date(endDate) : null
+    if (endTime !== undefined) data.end_time = endTime || null
+    if (departTime !== undefined) data.depart_time = departTime || null
+    if (arriveTime !== undefined) data.arrive_time = arriveTime || null
+    if (sortOrder !== undefined) data.sort_order = sortOrder
+    const row = await prisma.trip_items.update({
+      where: { id: req.params.id },
+      data,
+    })
+    res.json(mapTripItem(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Trip item not found' })
+    res.status(500).json({ error: 'Failed to update trip item', details: err.message })
+  }
+})
+
+// DELETE trip item
+router.delete('/trip-items/:id', async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    // Verify ownership via trip
+    const existing = await prisma.trip_items.findFirst({
+      where: { id: req.params.id },
+      include: { trip: true },
+    })
+    if (!existing || existing.trip.owner_id !== req.user.id) {
+      return res.status(404).json({ error: 'Trip item not found' })
+    }
+    await prisma.trip_items.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Trip item not found' })
+    res.status(500).json({ error: 'Failed to delete trip item', details: err.message })
+  }
+})
+
+// PUT reorder trip items
+router.put('/trips/:tripId/items/reorder', async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    // Verify trip ownership
+    const trip = await prisma.trips.findFirst({
+      where: { id: req.params.tripId, owner_id: req.user.id },
+    })
+    if (!trip) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    const { items } = req.body // Array of { id, sortOrder }
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'items array is required' })
+    }
+    // Update all items in a transaction
+    await prisma.$transaction(
+      items.map(({ id, sortOrder }) =>
+        prisma.trip_items.update({
+          where: { id },
+          data: { sort_order: sortOrder },
+        })
+      )
+    )
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reorder items', details: err.message })
+  }
+})
+
 export default router

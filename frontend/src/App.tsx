@@ -39,6 +39,12 @@ import {
   createTrip,
   updateTrip,
   deleteTrip,
+  // Trip Items
+  fetchTripItems,
+  createTripItem,
+  updateTripItem,
+  deleteTripItem,
+  reorderTripItems,
 } from './api.js'
 import { RevenueSection } from './features/revenue/RevenueSection'
 import { HardCostsSection } from './features/costs/HardCostsSection'
@@ -94,6 +100,8 @@ import type {
   // Trips
   Trip,
   TripInput,
+  TripItem,
+  TripItemInput,
 } from './types'
 import { BUSINESS_STAGES, BUSINESS_STAGE_LABELS, BUSINESS_STAGE_CRITERIA } from './types'
 
@@ -610,6 +618,10 @@ function App() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [tripsStatus, setTripsStatus] = useState<LoadStatus>('idle')
   const [tripsError, setTripsError] = useState('')
+  
+  // Trip items state
+  const [tripItems, setTripItems] = useState<TripItem[]>([])
+  const [tripItemsStatus, setTripItemsStatus] = useState<LoadStatus>('idle')
 
   const availableUsers = useMemo(() => {
     if (!selectedProject) return []
@@ -1143,6 +1155,43 @@ function App() {
   const handleDeleteTrip = async (tripId: EntityId) => {
     await deleteTrip(tripId)
     await loadTrips()
+  }
+
+  // Trip items functions
+  const loadTripItems = async (tripId: EntityId) => {
+    setTripItemsStatus('loading')
+    try {
+      const items = (await fetchTripItems(tripId)) as TripItem[]
+      setTripItems(items)
+      setTripItemsStatus('loaded')
+    } catch (err) {
+      console.error('Failed to load trip items', err)
+      setTripItemsStatus('error')
+    }
+  }
+
+  const handleCreateTripItem = async (tripId: EntityId, input: TripItemInput) => {
+    await createTripItem(tripId, input)
+    await loadTripItems(tripId)
+  }
+
+  const handleUpdateTripItem = async (itemId: EntityId, input: Partial<TripItemInput>) => {
+    const item = tripItems.find((i) => i.id === itemId)
+    if (!item) return
+    await updateTripItem(itemId, input)
+    await loadTripItems(item.tripId)
+  }
+
+  const handleDeleteTripItem = async (itemId: EntityId) => {
+    const item = tripItems.find((i) => i.id === itemId)
+    if (!item) return
+    await deleteTripItem(itemId)
+    await loadTripItems(item.tripId)
+  }
+
+  const handleReorderTripItems = async (tripId: EntityId, items: { id: string; sortOrder: number }[]) => {
+    await reorderTripItems(tripId, items)
+    await loadTripItems(tripId)
   }
 
   const loadCurrentUser = useCallback(async () => {
@@ -2101,6 +2150,13 @@ useEffect(() => {
             onCreateTrip={handleCreateTrip}
             onUpdateTrip={handleUpdateTrip}
             onDeleteTrip={handleDeleteTrip}
+            tripItems={tripItems}
+            tripItemsStatus={tripItemsStatus}
+            onLoadTripItems={loadTripItems}
+            onCreateTripItem={handleCreateTripItem}
+            onUpdateTripItem={handleUpdateTripItem}
+            onDeleteTripItem={handleDeleteTripItem}
+            onReorderTripItems={handleReorderTripItems}
           />
         </div>
       ) : activeBoard === 'realEstate' && selectedProjectId ? (

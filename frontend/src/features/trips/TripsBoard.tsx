@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, type KeyboardEvent, type FormEvent } from 'react'
-import type { Trip, TripInput, EntityId } from '../../types'
+import type { Trip, TripInput, TripItem, TripItemInput, EntityId } from '../../types'
+import { TripDetailView } from './TripDetailView'
 
 type QuarterOption = {
   id: string
@@ -13,6 +14,14 @@ type TripsBoardProps = {
   onCreateTrip: (input: TripInput) => Promise<void>
   onUpdateTrip: (tripId: EntityId, input: Partial<TripInput>) => Promise<void>
   onDeleteTrip: (tripId: EntityId) => Promise<void>
+  // Trip items
+  tripItems: TripItem[]
+  tripItemsStatus: 'idle' | 'loading' | 'loaded' | 'error'
+  onLoadTripItems: (tripId: EntityId) => Promise<void>
+  onCreateTripItem: (tripId: EntityId, input: TripItemInput) => Promise<void>
+  onUpdateTripItem: (itemId: EntityId, input: Partial<TripItemInput>) => Promise<void>
+  onDeleteTripItem: (itemId: EntityId) => Promise<void>
+  onReorderTripItems: (tripId: EntityId, items: { id: string; sortOrder: number }[]) => Promise<void>
 }
 
 function getQuarterFromDate(date: Date): string {
@@ -61,10 +70,28 @@ export function TripsBoard({
   onCreateTrip,
   onUpdateTrip,
   onDeleteTrip,
+  tripItems,
+  tripItemsStatus,
+  onLoadTripItems,
+  onCreateTripItem,
+  onUpdateTripItem,
+  onDeleteTripItem,
+  onReorderTripItems,
 }: TripsBoardProps) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [addForm, setAddForm] = useState({ name: '', destination: '', startDate: '', endDate: '' })
   const [addStatus, setAddStatus] = useState<'idle' | 'saving'>('idle')
+  const [selectedTripId, setSelectedTripId] = useState<EntityId | null>(null)
+  
+  const selectedTrip = useMemo(() => {
+    if (!selectedTripId) return null
+    return trips.find((t) => t.id === selectedTripId) || null
+  }, [trips, selectedTripId])
+  
+  const handleSelectTrip = useCallback(async (tripId: EntityId) => {
+    setSelectedTripId(tripId)
+    await onLoadTripItems(tripId)
+  }, [onLoadTripItems])
 
   const quarterOptions = useMemo(() => getQuarterOptions(), [])
   
@@ -86,8 +113,12 @@ export function TripsBoard({
   const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>, tripId: EntityId) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      // Could open a detail modal here in the future
+      handleSelectTrip(tripId)
     }
+  }
+  
+  const handleCardClick = (tripId: EntityId) => {
+    handleSelectTrip(tripId)
   }
 
   const handleDelete = useCallback(async (tripId: EntityId) => {
@@ -128,11 +159,29 @@ export function TripsBoard({
     return <p className="error">{tripsError || 'Failed to load trips'}</p>
   }
 
+  // If a trip is selected, show full-screen detail view
+  if (selectedTrip) {
+    return (
+      <div className="trip-detail-fullscreen">
+        <TripDetailView
+          trip={selectedTrip}
+          items={tripItems}
+          itemsStatus={tripItemsStatus}
+          onCreateItem={(input) => onCreateTripItem(selectedTrip.id, input)}
+          onUpdateItem={onUpdateTripItem}
+          onDeleteItem={onDeleteTripItem}
+          onReorderItems={(items) => onReorderTripItems(selectedTrip.id, items)}
+          onClose={() => setSelectedTripId(null)}
+        />
+      </div>
+    )
+  }
+
   return (
     <>
       <div className="trips-header">
         <h2>Trips</h2>
-        <button type="button" className="primary" onClick={() => openAddModal()}>
+        <button type="button" className="btn btn-accent" onClick={() => openAddModal()}>
           + Add Trip
         </button>
       </div>
@@ -143,14 +192,18 @@ export function TripsBoard({
             const quarterTrips = tripsByQuarter[quarter.id] || []
             return (
               <div className="kanban-column" key={quarter.id}>
-                <div className="column-header">
+                <div className="kanban-column-header">
                   <h3>{quarter.label}</h3>
                   <span className="pill">{quarterTrips.length}</span>
                 </div>
                 <div className="column-body">
                   {quarterTrips.length > 0 ? (
                     quarterTrips.map((trip) => (
-                      <article key={trip.id} className="project-card trip-card">
+                      <article 
+                        key={trip.id} 
+                        className="project-card trip-card"
+                        onClick={() => handleCardClick(trip.id)}
+                      >
                         <div
                           role="button"
                           tabIndex={0}
@@ -174,11 +227,14 @@ export function TripsBoard({
                         <div className="trip-card-actions">
                           <button
                             type="button"
-                            className="icon-btn danger"
-                            onClick={() => handleDelete(trip.id)}
+                            className="btn-icon danger"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(trip.id)
+                            }}
                             title="Delete trip"
                           >
-                            🗑
+                            🗑️
                           </button>
                         </div>
                       </article>

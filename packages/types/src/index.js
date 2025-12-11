@@ -100,6 +100,9 @@ export const BUSINESS_STAGE_CRITERIA = {
 // Package metric types for Unit Economy
 export const PACKAGE_METRIC_TYPES = ['frequency', 'quantity', 'na']
 
+// Trip item types
+export const TRIP_ITEM_TYPES = ['flight', 'stay', 'vehicle', 'attraction']
+
 // Admin Hub constants
 const adminEntityTypes = ['llc', 'c_corp', 's_corp', 'lp', 'trust', 'individual']
 const adminEntityStatus = ['active', 'dissolved', 'inactive']

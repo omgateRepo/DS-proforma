@@ -168,6 +168,7 @@ model users {
   business_collaborations       business_project_collaborators[]
   // Trips
   trips                         trips[]                          @relation("trips_owner")
+  trip_items                    trip_items[]                     @relation("trip_items_owner")
   // Admin Hub
   admin_entities                admin_entities[]                 @relation("admin_entities_owner")
   admin_tax_items               admin_tax_items[]                @relation("admin_tax_items_owner")
@@ -373,17 +374,46 @@ model subscription_package_items {
 // ============================================
 
 model trips {
-  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   name        String
   destination String?
-  start_date  DateTime? @db.Date
-  end_date    DateTime? @db.Date
-  quarter     String    // e.g., "Q1-2025", "Q2-2025"
-  owner_id    String    @db.Uuid
-  created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  start_date  DateTime?    @db.Date
+  end_date    DateTime?    @db.Date
+  quarter     String       // e.g., "Q1-2025", "Q2-2025"
+  owner_id    String       @db.Uuid
+  created_at  DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
   
-  owner       users     @relation("trips_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  owner       users        @relation("trips_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  items       trip_items[]
+}
+
+model trip_items {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  trip_id         String    @db.Uuid
+  item_type       String    // 'flight' | 'stay' | 'vehicle' | 'attraction'
+  name            String
+  location        String?
+  confirmation_no String?
+  notes           String?
+  cost_usd        Decimal?  @db.Decimal
+  
+  // Date/time fields
+  start_date      DateTime  @db.Date
+  start_time      String?   // HH:MM format
+  end_date        DateTime? @db.Date
+  end_time        String?   // HH:MM format
+  
+  // Flight-specific (departure/arrival)
+  depart_time     String?   // Required for flights
+  arrive_time     String?   // Required for flights
+  
+  sort_order      Int       @default(0)
+  owner_id        String    @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  
+  trip            trips     @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+  owner           users     @relation("trip_items_owner", fields: [owner_id], references: [id], onDelete: Cascade)
 }
 
 // ============================================
