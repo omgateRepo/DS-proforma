@@ -109,22 +109,9 @@ export function TripDetailView({
   const [collaboratorSelection, setCollaboratorSelection] = useState('')
   const [collaboratorStatus, setCollaboratorStatus] = useState<'idle' | 'saving'>('idle')
 
-  // Sort items by date, then time, then sort_order
+  // Sort items by sort_order (allows manual reordering via drag and drop)
   const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => {
-      // First compare by start_date
-      const dateA = a.startDate || ''
-      const dateB = b.startDate || ''
-      if (dateA !== dateB) return dateA.localeCompare(dateB)
-      
-      // Then by start_time (or depart_time for flights)
-      const timeA = a.itemType === 'flight' ? (a.departTime || '') : (a.startTime || '')
-      const timeB = b.itemType === 'flight' ? (b.departTime || '') : (b.startTime || '')
-      if (timeA !== timeB) return timeA.localeCompare(timeB)
-      
-      // Finally by sort_order
-      return a.sortOrder - b.sortOrder
-    })
+    return [...items].sort((a, b) => a.sortOrder - b.sortOrder)
   }, [items])
 
   const openAddModal = useCallback((itemType: TripItemType) => {
