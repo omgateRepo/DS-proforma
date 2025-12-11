@@ -509,6 +509,15 @@ export declare const formatZodErrors: (error: z.ZodError) => string
 // TRIPS
 // ============================================
 
+export interface TripCollaborator {
+  id: EntityId
+  tripId: EntityId
+  userId: EntityId
+  email: string
+  displayName: string | null
+  createdAt: string
+}
+
 export interface Trip {
   id: EntityId
   name: string
@@ -517,6 +526,9 @@ export interface Trip {
   endDate: string | null
   quarter: string
   ownerId: EntityId
+  ownerName: string
+  ownerEmail: string
+  collaborators: TripCollaborator[]
   createdAt: string
   updatedAt: string
 }

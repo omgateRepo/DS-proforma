@@ -50,6 +50,7 @@ export type {
   // Trips
   Trip,
   TripInput,
+  TripCollaborator,
   TripItemType,
   TripItem,
   TripItemInput,

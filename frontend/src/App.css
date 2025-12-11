@@ -4807,17 +4807,10 @@ td {
 }
 
 /* Trip Collaboration Section */
-.trip-collaboration-section {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 1.5rem;
-}
-
-.trip-collaboration-section .collaborators-panel {
-  background: transparent;
-  border: none;
-  padding: 0;
+.trip-collaboration-wrapper {
+  width: 100%;
+  max-width: 360px;
+  min-width: 240px;
 }
 
 .trip-items-list {
@@ -5359,8 +5352,9 @@ td {
   }
 
   /* Collaboration Section */
-  .trip-collaboration-section {
-    padding: 1rem;
+  .trip-collaboration-wrapper {
+    max-width: none;
+    width: 100%;
   }
 
   .collaborator-form {

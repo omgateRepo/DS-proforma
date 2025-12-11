@@ -169,6 +169,7 @@ model users {
   // Trips
   trips                         trips[]                          @relation("trips_owner")
   trip_items                    trip_items[]                     @relation("trip_items_owner")
+  trip_collaborations           trip_collaborators[]             @relation("trip_collaborations")
   // Admin Hub
   admin_entities                admin_entities[]                 @relation("admin_entities_owner")
   admin_tax_items               admin_tax_items[]                @relation("admin_tax_items_owner")
@@ -384,8 +385,20 @@ model trips {
   created_at  DateTime     @default(now()) @db.Timestamptz(6)
   updated_at  DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
   
-  owner       users        @relation("trips_owner", fields: [owner_id], references: [id], onDelete: Cascade)
-  items       trip_items[]
+  owner         users                @relation("trips_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  items         trip_items[]
+  collaborators trip_collaborators[]
+}
+
+model trip_collaborators {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  trip_id    String   @db.Uuid
+  user_id    String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  trip       trips    @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+  user       users    @relation("trip_collaborations", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([trip_id, user_id])
 }
 
 model trip_items {

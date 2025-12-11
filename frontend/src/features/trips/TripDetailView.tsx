@@ -417,7 +417,7 @@ export function TripDetailView({
 
       {/* Collaboration Tab */}
       {activeTab === 'collaboration' && (
-        <div className="trip-collaboration-section">
+        <div className="trip-collaboration-wrapper">
           <section className="collaborators-panel">
             <div className="section-header">
               <h4>Collaborators</h4>
@@ -472,7 +472,7 @@ export function TripDetailView({
                 </label>
                 <button
                   type="submit"
-                  className="btn btn-primary btn-sm"
+                  className="primary"
                   disabled={collaboratorStatus === 'saving' || !collaboratorSelection}
                 >
                   {collaboratorStatus === 'saving' ? 'Adding…' : 'Add collaborator'}

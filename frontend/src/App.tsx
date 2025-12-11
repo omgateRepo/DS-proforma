@@ -39,6 +39,9 @@ import {
   createTrip,
   updateTrip,
   deleteTrip,
+  // Trip Collaborators
+  addTripCollaborator,
+  removeTripCollaborator,
   // Trip Items
   fetchTripItems,
   createTripItem,
@@ -119,7 +122,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.35'
+const APP_VERSION = '1.0.36'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -1230,6 +1233,16 @@ function App() {
     await loadTripItems(tripId)
   }
 
+  const handleAddTripCollaborator = async (tripId: EntityId, email: string) => {
+    await addTripCollaborator(tripId, email)
+    await loadTrips() // Reload trips to update collaborators list
+  }
+
+  const handleRemoveTripCollaborator = async (tripId: EntityId, collaboratorId: string) => {
+    await removeTripCollaborator(tripId, collaboratorId)
+    await loadTrips() // Reload trips to update collaborators list
+  }
+
   const loadCurrentUser = useCallback(async () => {
     try {
       const me = (await fetchCurrentUser()) as UserSummary
@@ -2197,6 +2210,9 @@ useEffect(() => {
             onUpdateTripItem={handleUpdateTripItem}
             onDeleteTripItem={handleDeleteTripItem}
             onReorderTripItems={handleReorderTripItems}
+            onAddTripCollaborator={handleAddTripCollaborator}
+            onRemoveTripCollaborator={handleRemoveTripCollaborator}
+            users={users}
           />
         </div>
       ) : activeBoard === 'realEstate' && selectedProjectId ? (

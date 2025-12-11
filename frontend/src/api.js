@@ -955,6 +955,31 @@ export async function deleteTrip(tripId) {
 }
 
 // ============================================
+// TRIP COLLABORATORS
+// ============================================
+
+export async function fetchTripCollaborators(tripId) {
+  const res = await request(`/api/trips/${tripId}/collaborators`)
+  return handleJsonResponse(res, 'Failed to load trip collaborators')
+}
+
+export async function addTripCollaborator(tripId, email) {
+  const res = await request(`/api/trips/${tripId}/collaborators`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  return handleJsonResponse(res, 'Failed to add collaborator')
+}
+
+export async function removeTripCollaborator(tripId, collaboratorId) {
+  const res = await request(`/api/trips/${tripId}/collaborators/${collaboratorId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to remove collaborator')
+}
+
+// ============================================
 // TRIP ITEMS
 // ============================================
 

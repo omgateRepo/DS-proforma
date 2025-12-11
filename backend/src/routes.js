@@ -4428,19 +4428,39 @@ const mapTrip = (row) => ({
   endDate: row.end_date?.toISOString().split('T')[0] || null,
   quarter: row.quarter,
   ownerId: row.owner_id,
+  ownerName: row.owner?.display_name || row.owner?.email || 'Unknown',
+  ownerEmail: row.owner?.email || '',
   createdAt: row.created_at.toISOString(),
   updatedAt: row.updated_at.toISOString(),
+  collaborators: Array.isArray(row.collaborators)
+    ? row.collaborators.map((c) => ({
+        id: c.id,
+        email: c.user?.email,
+        displayName: c.user?.display_name,
+      }))
+    : [],
 })
 
-// GET all trips for current user
+// GET all trips for current user (owned or collaborator)
 router.get('/trips', async (req, res) => {
   if (SKIP_DB) {
     return res.json([])
   }
   try {
     const rows = await prisma.trips.findMany({
-      where: { owner_id: req.user.id },
+      where: {
+        OR: [
+          { owner_id: req.user.id },
+          { collaborators: { some: { user_id: req.user.id } } },
+        ],
+      },
       orderBy: [{ quarter: 'asc' }, { start_date: 'asc' }],
+      include: {
+        owner: { select: { id: true, email: true, display_name: true } },
+        collaborators: {
+          include: { user: { select: { id: true, email: true, display_name: true } } },
+        },
+      },
     })
     res.json(rows.map(mapTrip))
   } catch (err) {
@@ -4535,6 +4555,127 @@ router.delete('/trips/:id', async (req, res) => {
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Trip not found' })
     res.status(500).json({ error: 'Failed to delete trip', details: err.message })
+  }
+})
+
+// ============================================
+// TRIP COLLABORATORS ROUTES
+// ============================================
+
+const mapTripCollaborator = (row) => ({
+  id: row.id,
+  tripId: row.trip_id,
+  userId: row.user_id,
+  email: row.user?.email,
+  displayName: row.user?.display_name,
+  createdAt: row.created_at?.toISOString(),
+})
+
+const fetchTripCollaborators = (tripId) =>
+  prisma.trip_collaborators.findMany({
+    where: { trip_id: tripId },
+    orderBy: { created_at: 'asc' },
+    include: {
+      user: {
+        select: { id: true, email: true, display_name: true },
+      },
+    },
+  })
+
+const canManageTripCollaborators = (user, trip) => {
+  if (user?.isSuperAdmin) return true
+  if (!trip?.owner_id) return false
+  return canUseUserId(user) && trip.owner_id === user.id
+}
+
+// GET trip collaborators
+router.get('/trips/:tripId/collaborators', async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    // Verify trip access
+    const trip = await prisma.trips.findFirst({
+      where: { id: req.params.tripId, owner_id: req.user.id },
+    })
+    if (!trip) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    const rows = await fetchTripCollaborators(req.params.tripId)
+    res.json(rows.map(mapTripCollaborator))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load trip collaborators', details: err.message })
+  }
+})
+
+// POST add trip collaborator
+router.post('/trips/:tripId/collaborators', async (req, res) => {
+  if (SKIP_DB) return res.status(201).json([])
+  try {
+    const trip = await prisma.trips.findFirst({
+      where: { id: req.params.tripId },
+    })
+    if (!trip) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    if (!canManageTripCollaborators(req.user, trip)) {
+      return res.status(403).json({ error: 'Only owners or super admins can manage collaborators' })
+    }
+    const email = normalizeEmail(req.body?.email)
+    if (!email) {
+      return res.status(400).json({ error: 'email is required' })
+    }
+    const user = await prisma.users.findUnique({
+      where: { email },
+      select: { id: true, email: true, display_name: true },
+    })
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    if (user.id === trip.owner_id) {
+      return res.status(400).json({ error: 'Owner already has access' })
+    }
+    const existing = await prisma.trip_collaborators.findFirst({
+      where: { trip_id: trip.id, user_id: user.id },
+    })
+    if (existing) {
+      return res.status(400).json({ error: 'User already added to this trip' })
+    }
+    await prisma.trip_collaborators.create({
+      data: {
+        trip_id: trip.id,
+        user_id: user.id,
+      },
+    })
+    const collaborators = await fetchTripCollaborators(trip.id)
+    res.status(201).json(collaborators.map(mapTripCollaborator))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add collaborator', details: err.message })
+  }
+})
+
+// DELETE trip collaborator
+router.delete('/trips/:tripId/collaborators/:collaboratorId', async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    const trip = await prisma.trips.findFirst({
+      where: { id: req.params.tripId },
+    })
+    if (!trip) {
+      return res.status(404).json({ error: 'Trip not found' })
+    }
+    if (!canManageTripCollaborators(req.user, trip)) {
+      return res.status(403).json({ error: 'Only owners or super admins can manage collaborators' })
+    }
+    const collaborator = await prisma.trip_collaborators.findFirst({
+      where: { id: req.params.collaboratorId, trip_id: trip.id },
+    })
+    if (!collaborator) {
+      return res.status(404).json({ error: 'Collaborator not found' })
+    }
+    await prisma.trip_collaborators.delete({ where: { id: collaborator.id } })
+    const collaborators = await fetchTripCollaborators(trip.id)
+    res.json(collaborators.map(mapTripCollaborator))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove collaborator', details: err.message })
   }
 })
 

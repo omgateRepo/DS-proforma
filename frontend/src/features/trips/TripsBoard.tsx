@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, type KeyboardEvent } from 'react'
-import type { Trip, TripInput, TripItem, TripItemInput, EntityId } from '../../types'
+import type { Trip, TripInput, TripItem, TripItemInput, TripCollaborator, EntityId, UserSummary } from '../../types'
 import { TripDetailView } from './TripDetailView'
 
 type QuarterOption = {
@@ -21,7 +21,12 @@ type TripsBoardProps = {
   onCreateTripItem: (tripId: EntityId, input: TripItemInput) => Promise<void>
   onUpdateTripItem: (itemId: EntityId, input: Partial<TripItemInput>) => Promise<void>
   onDeleteTripItem: (itemId: EntityId) => Promise<void>
+  // Trip collaborators
+  onAddTripCollaborator: (tripId: EntityId, email: string) => Promise<void>
+  onRemoveTripCollaborator: (tripId: EntityId, collaboratorId: string) => Promise<void>
   onReorderTripItems: (tripId: EntityId, items: { id: string; sortOrder: number }[]) => Promise<void>
+  // Users for collaboration
+  users: UserSummary[]
 }
 
 function getQuarterFromDate(date: Date): string {
@@ -77,6 +82,9 @@ export function TripsBoard({
   onUpdateTripItem,
   onDeleteTripItem,
   onReorderTripItems,
+  onAddTripCollaborator,
+  onRemoveTripCollaborator,
+  users,
 }: TripsBoardProps) {
   const [selectedTripId, setSelectedTripId] = useState<EntityId | null>(null)
   
@@ -84,6 +92,17 @@ export function TripsBoard({
     if (!selectedTripId) return null
     return trips.find((t) => t.id === selectedTripId) || null
   }, [trips, selectedTripId])
+
+  // Filter available users for collaboration (exclude owner and existing collaborators)
+  const availableUsersForTrip = useMemo(() => {
+    if (!selectedTrip) return []
+    const excluded = new Set<string>()
+    if (selectedTrip.ownerId) excluded.add(String(selectedTrip.ownerId))
+    selectedTrip.collaborators?.forEach((collab) => {
+      if (collab.userId) excluded.add(String(collab.userId))
+    })
+    return users.filter((user) => user.id && !excluded.has(String(user.id)))
+  }, [selectedTrip, users])
   
   const handleSelectTrip = useCallback(async (tripId: EntityId) => {
     setSelectedTripId(tripId)
@@ -144,6 +163,16 @@ export function TripsBoard({
           onDeleteItem={onDeleteTripItem}
           onReorderItems={(items) => onReorderTripItems(selectedTrip.id, items)}
           onClose={() => setSelectedTripId(null)}
+          ownerName={selectedTrip.ownerName}
+          ownerEmail={selectedTrip.ownerEmail}
+          collaborators={selectedTrip.collaborators.map((c) => ({
+            id: c.id,
+            displayName: c.displayName || '',
+            email: c.email,
+          }))}
+          availableUsers={availableUsersForTrip}
+          onAddCollaborator={(email) => onAddTripCollaborator(selectedTrip.id, email)}
+          onRemoveCollaborator={(collaboratorId) => onRemoveTripCollaborator(selectedTrip.id, collaboratorId)}
         />
       </div>
     )
