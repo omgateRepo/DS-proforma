@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, type KeyboardEvent, type FormEvent } from 'react'
+import { useState, useMemo, useCallback, type KeyboardEvent } from 'react'
 import type { Trip, TripInput, TripItem, TripItemInput, EntityId } from '../../types'
 import { TripDetailView } from './TripDetailView'
 
@@ -78,9 +78,6 @@ export function TripsBoard({
   onDeleteTripItem,
   onReorderTripItems,
 }: TripsBoardProps) {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [addForm, setAddForm] = useState({ name: '', destination: '', startDate: '', endDate: '' })
-  const [addStatus, setAddStatus] = useState<'idle' | 'saving'>('idle')
   const [selectedTripId, setSelectedTripId] = useState<EntityId | null>(null)
   
   const selectedTrip = useMemo(() => {
@@ -126,31 +123,6 @@ export function TripsBoard({
     await onDeleteTrip(tripId)
   }, [onDeleteTrip])
 
-  const handleAddSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!addForm.name.trim() || !addForm.startDate) return
-    setAddStatus('saving')
-    try {
-      const quarter = getQuarterFromDateString(addForm.startDate)
-      await onCreateTrip({
-        name: addForm.name.trim(),
-        destination: addForm.destination?.trim() || null,
-        startDate: addForm.startDate || null,
-        endDate: addForm.endDate || null,
-        quarter,
-      })
-      setShowAddModal(false)
-      setAddForm({ name: '', destination: '', startDate: '', endDate: '' })
-    } finally {
-      setAddStatus('idle')
-    }
-  }
-
-  const openAddModal = () => {
-    setAddForm({ name: '', destination: '', startDate: '', endDate: '' })
-    setShowAddModal(true)
-  }
-
   if (tripsStatus === 'loading') {
     return <p className="muted">Loading trips...</p>
   }
@@ -179,13 +151,6 @@ export function TripsBoard({
 
   return (
     <>
-      <div className="trips-header">
-        <h2>Trips</h2>
-        <button type="button" className="btn btn-accent" onClick={() => openAddModal()}>
-          + Add Trip
-        </button>
-      </div>
-
       <section className="kanban-section">
         <div className="kanban">
           {quarterOptions.map((quarter) => {
@@ -248,63 +213,6 @@ export function TripsBoard({
           })}
         </div>
       </section>
-
-      {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Add Trip</h3>
-            <form onSubmit={handleAddSubmit}>
-              <label>
-                Name *
-                <input
-                  type="text"
-                  value={addForm.name}
-                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Trip name"
-                  autoFocus
-                  required
-                />
-              </label>
-              <label>
-                Destination
-                <input
-                  type="text"
-                  value={addForm.destination || ''}
-                  onChange={(e) => setAddForm((f) => ({ ...f, destination: e.target.value }))}
-                  placeholder="City, Country"
-                />
-              </label>
-              <div className="form-row">
-                <label>
-                  Start Date *
-                  <input
-                    type="date"
-                    value={addForm.startDate || ''}
-                    onChange={(e) => setAddForm((f) => ({ ...f, startDate: e.target.value }))}
-                    required
-                  />
-                </label>
-                <label>
-                  End Date
-                  <input
-                    type="date"
-                    value={addForm.endDate || ''}
-                    onChange={(e) => setAddForm((f) => ({ ...f, endDate: e.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setShowAddModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary" disabled={addStatus === 'saving'}>
-                  {addStatus === 'saving' ? 'Adding...' : 'Add Trip'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </>
   )
 }

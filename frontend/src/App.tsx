@@ -119,7 +119,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.34'
+const APP_VERSION = '1.0.35'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -618,6 +618,13 @@ function App() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [tripsStatus, setTripsStatus] = useState<LoadStatus>('idle')
   const [tripsError, setTripsError] = useState('')
+  const [isTripCreateModalOpen, setIsTripCreateModalOpen] = useState(false)
+  const [newTripName, setNewTripName] = useState('')
+  const [newTripDestination, setNewTripDestination] = useState('')
+  const [newTripStartDate, setNewTripStartDate] = useState('')
+  const [newTripEndDate, setNewTripEndDate] = useState('')
+  const [tripCreateStatus, setTripCreateStatus] = useState<RequestStatus>('idle')
+  const [tripCreateError, setTripCreateError] = useState('')
   
   // Trip items state
   const [tripItems, setTripItems] = useState<TripItem[]>([])
@@ -1145,6 +1152,35 @@ function App() {
   const handleCreateTrip = async (input: TripInput) => {
     await createTrip(input)
     await loadTrips()
+  }
+
+  const handleCreateTripFromModal = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!newTripName.trim() || !newTripStartDate) return
+    setTripCreateStatus('saving')
+    setTripCreateError('')
+    try {
+      const startDate = new Date(newTripStartDate)
+      const quarter = Math.floor(startDate.getMonth() / 3) + 1
+      const year = startDate.getFullYear()
+      await createTrip({
+        name: newTripName.trim(),
+        destination: newTripDestination.trim() || null,
+        startDate: newTripStartDate || null,
+        endDate: newTripEndDate || null,
+        quarter: `Q${quarter}-${year}`,
+      })
+      setNewTripName('')
+      setNewTripDestination('')
+      setNewTripStartDate('')
+      setNewTripEndDate('')
+      setIsTripCreateModalOpen(false)
+      setTripCreateStatus('idle')
+      await loadTrips()
+    } catch (err) {
+      setTripCreateError(getErrorMessage(err))
+      setTripCreateStatus('error')
+    }
   }
 
   const handleUpdateTrip = async (tripId: EntityId, input: Partial<TripInput>) => {
@@ -1951,13 +1987,17 @@ useEffect(() => {
         <header className="main-app-header">
           <div className="main-header-top">
             <h1 className="app-title">Ventures Hub <span className="app-version">v{APP_VERSION}</span></h1>
-            {activeBoard !== 'admin' && activeBoard !== 'trips' && (
+            {activeBoard !== 'admin' && (
               <button
                 type="button"
                 className="add-board-project"
-                onClick={() => activeBoard === 'realEstate' ? openCreateModal() : setIsBusinessCreateModalOpen(true)}
+                onClick={() => 
+                  activeBoard === 'realEstate' ? openCreateModal() : 
+                  activeBoard === 'business' ? setIsBusinessCreateModalOpen(true) :
+                  setIsTripCreateModalOpen(true)
+                }
               >
-                + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
+                + New {activeBoard === 'realEstate' ? 'Property' : activeBoard === 'business' ? 'Business' : 'Trip'}
               </button>
             )}
           </div>
@@ -2663,6 +2703,78 @@ useEffect(() => {
         </div>
       )}
 
+      {isTripCreateModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-panel trip-create-modal">
+            <h3>✈️ New Trip</h3>
+            <form onSubmit={handleCreateTripFromModal} className="modal-form">
+              <div className="form-group">
+                <label>Trip Name *</label>
+                <input
+                  type="text"
+                  value={newTripName}
+                  onChange={(e) => setNewTripName(e.target.value)}
+                  placeholder="e.g., Summer Vacation 2025"
+                  required
+                  disabled={tripCreateStatus === 'saving'}
+                />
+              </div>
+              <div className="form-group">
+                <label>Destination</label>
+                <input
+                  type="text"
+                  value={newTripDestination}
+                  onChange={(e) => setNewTripDestination(e.target.value)}
+                  placeholder="e.g., Paris, France"
+                  disabled={tripCreateStatus === 'saving'}
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Start Date *</label>
+                  <input
+                    type="date"
+                    value={newTripStartDate}
+                    onChange={(e) => setNewTripStartDate(e.target.value)}
+                    required
+                    disabled={tripCreateStatus === 'saving'}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>End Date</label>
+                  <input
+                    type="date"
+                    value={newTripEndDate}
+                    onChange={(e) => setNewTripEndDate(e.target.value)}
+                    disabled={tripCreateStatus === 'saving'}
+                  />
+                </div>
+              </div>
+              {tripCreateError && <p className="error">{tripCreateError}</p>}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setIsTripCreateModalOpen(false)
+                    setNewTripName('')
+                    setNewTripDestination('')
+                    setNewTripStartDate('')
+                    setNewTripEndDate('')
+                    setTripCreateError('')
+                  }}
+                  disabled={tripCreateStatus === 'saving'}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="primary" disabled={tripCreateStatus === 'saving' || !newTripStartDate}>
+                  {tripCreateStatus === 'saving' ? 'Creating…' : 'Create Trip'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {pendingDeleteProjectId && (
         <div className="modal-backdrop">
