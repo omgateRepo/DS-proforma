@@ -3999,18 +3999,32 @@ router.get('/admin/team-members', requireSuperAdmin, async (req, res) => {
   }
 })
 
-// GET single team member with engagements
+// GET single team member with engagements and payments
 router.get('/admin/team-members/:id', requireSuperAdmin, async (req, res) => {
   if (SKIP_DB) return res.status(404).json({ error: 'Team member not found' })
   try {
     const row = await prisma.admin_team_members.findFirst({
       where: { id: req.params.id, deleted_at: null, owner_id: req.user.id },
-      include: { engagements: { include: { entity: true } } },
+      include: { 
+        engagements: { include: { entity: true } },
+        payments: { orderBy: { payment_date: 'desc' } },
+      },
     })
     if (!row) return res.status(404).json({ error: 'Team member not found' })
     res.json({
       ...mapAdminTeamMember(row),
       engagements: row.engagements.map(mapAdminEngagement),
+      payments: row.payments.map((p) => ({
+        id: p.id,
+        teamMemberId: p.team_member_id,
+        invoiceUrl: p.invoice_url,
+        amountUsd: toNumber(p.amount_usd),
+        invoiceDate: p.invoice_date?.toISOString().split('T')[0] || null,
+        paymentDate: p.payment_date?.toISOString().split('T')[0] || null,
+        notes: p.notes,
+        ownerId: p.owner_id,
+        createdAt: p.created_at.toISOString(),
+      })),
     })
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch team member', details: err.message })
@@ -4194,6 +4208,109 @@ router.delete('/admin/engagements/:id', requireSuperAdmin, async (req, res) => {
   } catch (err) {
     if (err.code === 'P2025') return res.status(404).json({ error: 'Engagement not found' })
     res.status(500).json({ error: 'Failed to delete engagement', details: err.message })
+  }
+})
+
+// ---- TEAM MEMBER PAYMENTS ROUTES ----
+
+const mapAdminTeamMemberPayment = (row) => ({
+  id: row.id,
+  teamMemberId: row.team_member_id,
+  invoiceUrl: row.invoice_url,
+  amountUsd: toNumber(row.amount_usd),
+  invoiceDate: row.invoice_date?.toISOString().split('T')[0] || null,
+  paymentDate: row.payment_date?.toISOString().split('T')[0] || null,
+  notes: row.notes,
+  ownerId: row.owner_id,
+  createdAt: row.created_at.toISOString(),
+})
+
+// GET payments for a team member
+router.get('/admin/team-members/:id/payments', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json([])
+  try {
+    const rows = await prisma.admin_team_member_payments.findMany({
+      where: { team_member_id: req.params.id, owner_id: req.user.id },
+      orderBy: { payment_date: 'desc' },
+    })
+    res.json(rows.map(mapAdminTeamMemberPayment))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch payments', details: err.message })
+  }
+})
+
+// POST create payment
+router.post('/admin/team-member-payments', requireSuperAdmin, async (req, res) => {
+  const { teamMemberId, invoiceUrl, amountUsd, invoiceDate, paymentDate, notes } = req.body
+  if (!teamMemberId || amountUsd === undefined || !paymentDate) {
+    return res.status(400).json({ error: 'teamMemberId, amountUsd, and paymentDate are required' })
+  }
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `payment-${Date.now()}`,
+      teamMemberId,
+      invoiceUrl: invoiceUrl || null,
+      amountUsd,
+      invoiceDate: invoiceDate || null,
+      paymentDate,
+      notes: notes || null,
+      ownerId: 'stub-user',
+      createdAt: new Date().toISOString(),
+    })
+  }
+  try {
+    const row = await prisma.admin_team_member_payments.create({
+      data: {
+        team_member_id: teamMemberId,
+        invoice_url: invoiceUrl || null,
+        amount_usd: amountUsd,
+        invoice_date: invoiceDate ? new Date(invoiceDate) : null,
+        payment_date: new Date(paymentDate),
+        notes: notes || null,
+        owner_id: req.user.id,
+      },
+    })
+    res.status(201).json(mapAdminTeamMemberPayment(row))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create payment', details: err.message })
+  }
+})
+
+// PATCH update payment
+router.patch('/admin/team-member-payments/:id', requireSuperAdmin, async (req, res) => {
+  const { invoiceUrl, amountUsd, invoiceDate, paymentDate, notes } = req.body
+  const data = {}
+  if (invoiceUrl !== undefined) data.invoice_url = invoiceUrl || null
+  if (amountUsd !== undefined) data.amount_usd = amountUsd
+  if (invoiceDate !== undefined) data.invoice_date = invoiceDate ? new Date(invoiceDate) : null
+  if (paymentDate !== undefined) data.payment_date = new Date(paymentDate)
+  if (notes !== undefined) data.notes = notes || null
+
+  if (Object.keys(data).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' })
+  }
+  if (SKIP_DB) return res.json({ id: req.params.id, ...req.body })
+  try {
+    const row = await prisma.admin_team_member_payments.update({
+      where: { id: req.params.id },
+      data,
+    })
+    res.json(mapAdminTeamMemberPayment(row))
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Payment not found' })
+    res.status(500).json({ error: 'Failed to update payment', details: err.message })
+  }
+})
+
+// DELETE payment
+router.delete('/admin/team-member-payments/:id', requireSuperAdmin, async (req, res) => {
+  if (SKIP_DB) return res.json({ success: true })
+  try {
+    await prisma.admin_team_member_payments.delete({ where: { id: req.params.id } })
+    res.json({ success: true })
+  } catch (err) {
+    if (err.code === 'P2025') return res.status(404).json({ error: 'Payment not found' })
+    res.status(500).json({ error: 'Failed to delete payment', details: err.message })
   }
 })
 

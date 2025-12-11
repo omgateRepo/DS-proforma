@@ -711,6 +711,28 @@ export interface AdminEngagementInput {
   notes?: string | null
 }
 
+// Team Member Payments
+export interface AdminTeamMemberPayment {
+  id: EntityId
+  teamMemberId: EntityId
+  invoiceUrl?: string | null
+  amountUsd: number
+  invoiceDate?: string | null
+  paymentDate: string
+  notes?: string | null
+  ownerId: EntityId
+  createdAt: string
+}
+
+export interface AdminTeamMemberPaymentInput {
+  teamMemberId: string
+  invoiceUrl?: string | null
+  amountUsd: number
+  invoiceDate?: string | null
+  paymentDate: string
+  notes?: string | null
+}
+
 // Entity Documents
 export interface AdminEntityDocument {
   id: EntityId

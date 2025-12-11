@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { AdminTeamMember, AdminEngagement, AdminEntity, TeamMemberRole, EngagementStatus, EntityId } from '../../types'
+import type { AdminTeamMember, AdminEngagement, AdminEntity, AdminTeamMemberPayment, TeamMemberRole, EngagementStatus, EntityId } from '../../types'
 import { TEAM_MEMBER_ROLES, ENGAGEMENT_STATUS } from '../../types'
 import {
   fetchTeamMembers,
@@ -12,6 +12,9 @@ import {
   updateEngagement,
   deleteEngagement,
   fetchAdminEntities,
+  createTeamMemberPayment,
+  updateTeamMemberPayment,
+  deleteTeamMemberPayment,
 } from '../../api'
 
 const ROLE_LABELS: Record<TeamMemberRole, string> = {
@@ -48,6 +51,7 @@ type TeamDirectoryTabProps = {
 
 type TeamMemberWithEngagements = AdminTeamMember & {
   engagements: AdminEngagement[]
+  payments: AdminTeamMemberPayment[]
 }
 
 export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
@@ -57,8 +61,10 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
   const [loading, setLoading] = useState(true)
   const [showMemberModal, setShowMemberModal] = useState(false)
   const [showEngagementModal, setShowEngagementModal] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [editingMember, setEditingMember] = useState<AdminTeamMember | null>(null)
   const [editingEngagement, setEditingEngagement] = useState<AdminEngagement | null>(null)
+  const [editingPayment, setEditingPayment] = useState<AdminTeamMemberPayment | null>(null)
 
   const [memberForm, setMemberForm] = useState({
     name: '',
@@ -81,6 +87,14 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
     feeStructure: '',
     documentUrl: '',
     status: 'active' as EngagementStatus,
+    notes: '',
+  })
+
+  const [paymentForm, setPaymentForm] = useState({
+    amountUsd: '',
+    invoiceDate: '',
+    paymentDate: '',
+    invoiceUrl: '',
     notes: '',
   })
 
@@ -205,6 +219,47 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
     }
   }
 
+  // Payment CRUD
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedMember) return
+    try {
+      const payload = {
+        teamMemberId: String(selectedMember.id),
+        amountUsd: parseFloat(paymentForm.amountUsd),
+        invoiceDate: paymentForm.invoiceDate || null,
+        paymentDate: paymentForm.paymentDate,
+        invoiceUrl: paymentForm.invoiceUrl || null,
+        notes: paymentForm.notes || null,
+      }
+
+      if (editingPayment) {
+        await updateTeamMemberPayment(String(editingPayment.id), payload)
+      } else {
+        await createTeamMemberPayment(payload)
+      }
+
+      setShowPaymentModal(false)
+      setEditingPayment(null)
+      resetPaymentForm()
+      await loadMemberDetail(selectedMember.id)
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to save payment')
+    }
+  }
+
+  const handlePaymentDelete = async (paymentId: EntityId) => {
+    if (!confirm('Are you sure you want to delete this payment?')) return
+    try {
+      await deleteTeamMemberPayment(String(paymentId))
+      if (selectedMember) {
+        await loadMemberDetail(selectedMember.id)
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Failed to delete payment')
+    }
+  }
+
   const resetMemberForm = () => {
     setMemberForm({
       name: '',
@@ -229,6 +284,16 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
       feeStructure: '',
       documentUrl: '',
       status: 'active',
+      notes: '',
+    })
+  }
+
+  const resetPaymentForm = () => {
+    setPaymentForm({
+      amountUsd: '',
+      invoiceDate: '',
+      paymentDate: '',
+      invoiceUrl: '',
       notes: '',
     })
   }
@@ -275,6 +340,24 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
       notes: engagement.notes || '',
     })
     setShowEngagementModal(true)
+  }
+
+  const openAddPaymentModal = () => {
+    setEditingPayment(null)
+    resetPaymentForm()
+    setShowPaymentModal(true)
+  }
+
+  const openEditPaymentModal = (payment: AdminTeamMemberPayment) => {
+    setEditingPayment(payment)
+    setPaymentForm({
+      amountUsd: payment.amountUsd?.toString() || '',
+      invoiceDate: payment.invoiceDate || '',
+      paymentDate: payment.paymentDate || '',
+      invoiceUrl: payment.invoiceUrl || '',
+      notes: payment.notes || '',
+    })
+    setShowPaymentModal(true)
   }
 
   // Group members by role
@@ -445,6 +528,48 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
                               ✏️
                             </button>
                             <button className="btn-icon" onClick={() => handleEngagementDelete(eng.id)}>
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Payments */}
+                <div className="detail-section">
+                  <div className="section-header">
+                    <h4>Payments</h4>
+                    <button className="btn btn-secondary btn-sm" onClick={openAddPaymentModal}>
+                      + Add Payment
+                    </button>
+                  </div>
+
+                  {selectedMember.payments.length === 0 ? (
+                    <p className="muted">No payments recorded.</p>
+                  ) : (
+                    <div className="payments-list">
+                      {selectedMember.payments.map((payment) => (
+                        <div key={payment.id} className="payment-card">
+                          <div className="payment-header">
+                            <h5>${payment.amountUsd?.toLocaleString()}</h5>
+                          </div>
+                          <div className="payment-dates">
+                            {payment.invoiceDate && <span>Invoice: {payment.invoiceDate}</span>}
+                            <span>Paid: {payment.paymentDate}</span>
+                          </div>
+                          {payment.invoiceUrl && (
+                            <a href={payment.invoiceUrl} target="_blank" rel="noopener noreferrer" className="doc-link">
+                              📄 View Invoice
+                            </a>
+                          )}
+                          {payment.notes && <div className="payment-notes">{payment.notes}</div>}
+                          <div className="payment-actions">
+                            <button className="btn-icon" onClick={() => openEditPaymentModal(payment)}>
+                              ✏️
+                            </button>
+                            <button className="btn-icon" onClick={() => handlePaymentDelete(payment.id)}>
                               🗑️
                             </button>
                           </div>
@@ -676,6 +801,77 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
                 </button>
                 <button type="submit" className="btn btn-primary">
                   {editingEngagement ? 'Save Changes' : 'Add Engagement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Payment Modal */}
+      {showPaymentModal && (
+        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+          <div className="modal-content modal-md" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{editingPayment ? 'Edit Payment' : 'Add Payment'}</h3>
+              <button className="modal-close" onClick={() => setShowPaymentModal(false)}>×</button>
+            </div>
+            <form onSubmit={handlePaymentSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Amount (USD) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={paymentForm.amountUsd}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, amountUsd: e.target.value })}
+                    required
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Invoice Date</label>
+                    <input
+                      type="date"
+                      value={paymentForm.invoiceDate}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, invoiceDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Payment Date *</label>
+                    <input
+                      type="date"
+                      value={paymentForm.paymentDate}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Invoice URL (optional)</label>
+                  <input
+                    type="url"
+                    value={paymentForm.invoiceUrl}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, invoiceUrl: e.target.value })}
+                    placeholder="Link to invoice document"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Notes</label>
+                  <textarea
+                    value={paymentForm.notes}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {editingPayment ? 'Save Changes' : 'Add Payment'}
                 </button>
               </div>
             </form>

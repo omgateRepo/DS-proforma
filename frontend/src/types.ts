@@ -72,6 +72,8 @@ export type {
   AdminTeamMemberInput,
   AdminEngagement,
   AdminEngagementInput,
+  AdminTeamMemberPayment,
+  AdminTeamMemberPaymentInput,
   AdminEntityDocument,
   AdminEntityDocumentInput,
 } from '@ds-proforma/types'

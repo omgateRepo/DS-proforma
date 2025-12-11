@@ -3969,6 +3969,55 @@ td {
   border-top: 1px solid var(--border);
 }
 
+/* Payment Cards */
+.payments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.payment-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.payment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.payment-header h5 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--primary);
+}
+
+.payment-dates {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.5rem 0;
+}
+
+.payment-notes {
+  font-size: 0.85rem;
+  color: var(--text);
+  margin: 0.5rem 0;
+}
+
+.payment-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
 /* Document Library Tab */
 .document-library-tab {
   padding: 0.5rem 0;

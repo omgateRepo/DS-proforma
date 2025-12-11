@@ -857,6 +857,37 @@ export async function deleteEngagement(engagementId) {
   return handleJsonResponse(res, 'Failed to delete engagement')
 }
 
+// Team Member Payments
+export async function fetchTeamMemberPayments(teamMemberId) {
+  const res = await request(`/api/admin/team-members/${teamMemberId}/payments`)
+  return handleJsonResponse(res, 'Failed to load payments')
+}
+
+export async function createTeamMemberPayment(payload) {
+  const res = await request('/api/admin/team-member-payments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create payment')
+}
+
+export async function updateTeamMemberPayment(paymentId, payload) {
+  const res = await request(`/api/admin/team-member-payments/${paymentId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update payment')
+}
+
+export async function deleteTeamMemberPayment(paymentId) {
+  const res = await request(`/api/admin/team-member-payments/${paymentId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete payment')
+}
+
 // Entity Documents
 export async function fetchEntityDocuments(entityId = null) {
   const url = entityId ? `/api/admin/entities/${entityId}/documents` : '/api/admin/entity-documents'
