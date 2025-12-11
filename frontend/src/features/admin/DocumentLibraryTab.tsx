@@ -187,7 +187,7 @@ export function DocumentLibraryTab({ onError }: DocumentLibraryTabProps) {
             </select>
           </div>
         </div>
-        <button className="btn btn-primary" onClick={openAddModal}>
+        <button className="btn btn-accent" onClick={openAddModal}>
           + Add Document
         </button>
       </div>

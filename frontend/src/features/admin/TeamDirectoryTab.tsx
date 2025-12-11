@@ -378,7 +378,7 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
         <div className="team-list-panel">
           <div className="panel-header">
             <h3>Team Directory</h3>
-            <button className="btn btn-primary btn-sm" onClick={openAddMemberModal}>
+            <button className="btn btn-accent btn-sm" onClick={openAddMemberModal}>
               + Add Member
             </button>
           </div>
@@ -420,11 +420,11 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
                   </div>
                 </div>
                 <div className="detail-actions">
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEditMemberModal(selectedMember)}>
-                    Edit
+                  <button className="btn-icon" onClick={() => openEditMemberModal(selectedMember)} title="Edit">
+                    ✏️
                   </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => handleMemberDelete(selectedMember.id)}>
-                    Delete
+                  <button className="btn-icon danger" onClick={() => handleMemberDelete(selectedMember.id)} title="Delete">
+                    🗑️
                   </button>
                 </div>
               </div>
@@ -490,7 +490,7 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
                 <div className="detail-section">
                   <div className="section-header">
                     <h4>Engagements</h4>
-                    <button className="btn btn-secondary btn-sm" onClick={openAddEngagementModal}>
+                    <button className="btn btn-accent btn-sm" onClick={openAddEngagementModal}>
                       + Add Engagement
                     </button>
                   </div>
@@ -541,7 +541,7 @@ export function TeamDirectoryTab({ onError }: TeamDirectoryTabProps) {
                 <div className="detail-section">
                   <div className="section-header">
                     <h4>Payments</h4>
-                    <button className="btn btn-secondary btn-sm" onClick={openAddPaymentModal}>
+                    <button className="btn btn-accent btn-sm" onClick={openAddPaymentModal}>
                       + Add Payment
                     </button>
                   </div>

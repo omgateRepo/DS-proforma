@@ -310,7 +310,7 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
         <div className="entities-list-panel">
           <div className="panel-header">
             <h3>Legal Entities</h3>
-            <button className="btn btn-primary btn-sm" onClick={openAddModal}>
+            <button className="btn btn-accent btn-sm" onClick={openAddModal}>
               + Add Entity
             </button>
           </div>
@@ -371,11 +371,11 @@ export function EntitiesTab({ onError }: EntitiesTabProps) {
               <div className="detail-header">
                 <h2>{selectedEntity.name}</h2>
                 <div className="detail-actions">
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEditModal(selectedEntity)}>
-                    Edit
+                  <button className="btn-icon" onClick={() => openEditModal(selectedEntity)} title="Edit">
+                    ✏️
                   </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => handleDelete(selectedEntity.id)}>
-                    Delete
+                  <button className="btn-icon danger" onClick={() => handleDelete(selectedEntity.id)} title="Delete">
+                    🗑️
                   </button>
                 </div>
               </div>

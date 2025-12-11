@@ -197,7 +197,7 @@ export function TaxCenterTab({ onError }: TaxCenterTabProps) {
             ))}
           </select>
         </div>
-        <button className="btn btn-primary" onClick={() => openAddModal()}>
+        <button className="btn btn-accent" onClick={() => openAddModal()}>
           + Add Item
         </button>
       </div>
