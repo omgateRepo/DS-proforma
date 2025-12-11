@@ -489,173 +489,209 @@ export function TripDetailView({
       {/* Add/Edit Item Modal */}
       {showItemModal && (
         <div className="modal-overlay" onClick={() => setShowItemModal(false)}>
-          <div className="modal-content modal-md" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content trip-item-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>
-                {ITEM_TYPE_ICONS[itemForm.itemType]} {editingItem ? 'Edit' : 'Add'} {ITEM_TYPE_LABELS[itemForm.itemType]}
-              </h3>
+              <div className="modal-header-icon" data-type={itemForm.itemType}>
+                {ITEM_TYPE_ICONS[itemForm.itemType]}
+              </div>
+              <div>
+                <h3>{editingItem ? 'Edit' : 'Add'} {ITEM_TYPE_LABELS[itemForm.itemType]}</h3>
+                <p className="modal-subtitle">
+                  {itemForm.itemType === 'flight' ? 'Add your flight details' :
+                   itemForm.itemType === 'stay' ? 'Add your accommodation' :
+                   itemForm.itemType === 'vehicle' ? 'Add your rental car' :
+                   'Add an activity or attraction'}
+                </p>
+              </div>
               <button className="modal-close" onClick={() => setShowItemModal(false)}>×</button>
             </div>
             <form onSubmit={handleFormSubmit}>
-              <div className="form-group">
-                <label>
-                  Name *
-                  <input
-                    type="text"
-                    value={itemForm.name}
-                    onChange={(e) => setItemForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder={
-                      itemForm.itemType === 'flight' ? 'Flight number or description' :
-                      itemForm.itemType === 'stay' ? 'Hotel or property name' :
-                      itemForm.itemType === 'vehicle' ? 'Rental company' :
-                      'Activity name'
-                    }
-                    autoFocus
-                    required
-                  />
-                </label>
-              </div>
-
-              <div className="form-group">
-                <label>
-                  Location
-                  <input
-                    type="text"
-                    value={itemForm.location}
-                    onChange={(e) => setItemForm((f) => ({ ...f, location: e.target.value }))}
-                    placeholder={
-                      itemForm.itemType === 'flight' ? 'Route (e.g., JFK → LAX)' :
-                      itemForm.itemType === 'stay' ? 'Address' :
-                      itemForm.itemType === 'vehicle' ? 'Pickup location' :
-                      'Address or venue'
-                    }
-                  />
-                </label>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>
-                    {itemForm.itemType === 'flight' ? 'Departure Date *' :
-                     itemForm.itemType === 'stay' ? 'Check-in Date *' :
-                     itemForm.itemType === 'vehicle' ? 'Pickup Date *' :
-                     'Date *'}
+              <div className="modal-body">
+                {/* Basic Info Section */}
+                <div className="form-section">
+                  <div className="form-section-title">Basic Info</div>
+                  <div className="form-group">
+                    <label>Name *</label>
                     <input
-                      type="date"
-                      value={itemForm.startDate}
-                      onChange={(e) => setItemForm((f) => ({ ...f, startDate: e.target.value }))}
+                      type="text"
+                      value={itemForm.name}
+                      onChange={(e) => setItemForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder={
+                        itemForm.itemType === 'flight' ? 'e.g., United UA123' :
+                        itemForm.itemType === 'stay' ? 'e.g., Hilton Downtown' :
+                        itemForm.itemType === 'vehicle' ? 'e.g., Hertz - SUV' :
+                        'e.g., City Walking Tour'
+                      }
+                      autoFocus
                       required
                     />
-                  </label>
+                  </div>
+                  <div className="form-group">
+                    <label>Location</label>
+                    <input
+                      type="text"
+                      value={itemForm.location}
+                      onChange={(e) => setItemForm((f) => ({ ...f, location: e.target.value }))}
+                      placeholder={
+                        itemForm.itemType === 'flight' ? 'e.g., JFK → LAX' :
+                        itemForm.itemType === 'stay' ? 'e.g., 123 Main St, City' :
+                        itemForm.itemType === 'vehicle' ? 'e.g., Airport Terminal 1' :
+                        'e.g., Museum of Art'
+                      }
+                    />
+                  </div>
                 </div>
 
-                {itemForm.itemType === 'flight' ? (
-                  <>
-                    <div className="form-group">
-                      <label>
-                        Depart Time *
+                {/* Date & Time Section */}
+                <div className="form-section">
+                  <div className="form-section-title">
+                    {itemForm.itemType === 'flight' ? 'Flight Schedule' :
+                     itemForm.itemType === 'stay' ? 'Check-in / Check-out' :
+                     itemForm.itemType === 'vehicle' ? 'Pickup / Drop-off' :
+                     'Date & Time'}
+                  </div>
+                  
+                  {itemForm.itemType === 'flight' ? (
+                    <>
+                      <div className="form-row form-row-3">
+                        <div className="form-group">
+                          <label>Departure Date *</label>
+                          <input
+                            type="date"
+                            value={itemForm.startDate}
+                            onChange={(e) => setItemForm((f) => ({ ...f, startDate: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Depart Time *</label>
+                          <input
+                            type="time"
+                            value={itemForm.departTime}
+                            onChange={(e) => setItemForm((f) => ({ ...f, departTime: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Arrive Time *</label>
+                          <input
+                            type="time"
+                            value={itemForm.arriveTime}
+                            onChange={(e) => setItemForm((f) => ({ ...f, arriveTime: e.target.value }))}
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>Arrival Date</label>
+                          <input
+                            type="date"
+                            value={itemForm.endDate}
+                            onChange={(e) => setItemForm((f) => ({ ...f, endDate: e.target.value }))}
+                          />
+                        </div>
+                        <div className="form-group" />
+                      </div>
+                    </>
+                  ) : itemForm.itemType === 'stay' || itemForm.itemType === 'vehicle' ? (
+                    <>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>{itemForm.itemType === 'stay' ? 'Check-in Date *' : 'Pickup Date *'}</label>
+                          <input
+                            type="date"
+                            value={itemForm.startDate}
+                            onChange={(e) => setItemForm((f) => ({ ...f, startDate: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>{itemForm.itemType === 'stay' ? 'Check-in Time' : 'Pickup Time'}</label>
+                          <input
+                            type="time"
+                            value={itemForm.startTime}
+                            onChange={(e) => setItemForm((f) => ({ ...f, startTime: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-row">
+                        <div className="form-group">
+                          <label>{itemForm.itemType === 'stay' ? 'Check-out Date' : 'Drop-off Date'}</label>
+                          <input
+                            type="date"
+                            value={itemForm.endDate}
+                            onChange={(e) => setItemForm((f) => ({ ...f, endDate: e.target.value }))}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>{itemForm.itemType === 'stay' ? 'Check-out Time' : 'Drop-off Time'}</label>
+                          <input
+                            type="time"
+                            value={itemForm.endTime}
+                            onChange={(e) => setItemForm((f) => ({ ...f, endTime: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Date *</label>
                         <input
-                          type="time"
-                          value={itemForm.departTime}
-                          onChange={(e) => setItemForm((f) => ({ ...f, departTime: e.target.value }))}
+                          type="date"
+                          value={itemForm.startDate}
+                          onChange={(e) => setItemForm((f) => ({ ...f, startDate: e.target.value }))}
                           required
                         />
-                      </label>
-                    </div>
-                    <div className="form-group">
-                      <label>
-                        Arrive Time *
+                      </div>
+                      <div className="form-group">
+                        <label>Time</label>
                         <input
                           type="time"
-                          value={itemForm.arriveTime}
-                          onChange={(e) => setItemForm((f) => ({ ...f, arriveTime: e.target.value }))}
-                          required
+                          value={itemForm.startTime}
+                          onChange={(e) => setItemForm((f) => ({ ...f, startTime: e.target.value }))}
                         />
-                      </label>
-                    </div>
-                  </>
-                ) : (
-                  <div className="form-group">
-                    <label>
-                      {itemForm.itemType === 'stay' ? 'Check-in Time' :
-                       itemForm.itemType === 'vehicle' ? 'Pickup Time' :
-                       'Time'}
-                      <input
-                        type="time"
-                        value={itemForm.startTime}
-                        onChange={(e) => setItemForm((f) => ({ ...f, startTime: e.target.value }))}
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-
-              {(itemForm.itemType === 'flight' || itemForm.itemType === 'stay' || itemForm.itemType === 'vehicle') && (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>
-                      {itemForm.itemType === 'flight' ? 'Arrival Date' :
-                       itemForm.itemType === 'stay' ? 'Check-out Date' :
-                       'Drop-off Date'}
-                      <input
-                        type="date"
-                        value={itemForm.endDate}
-                        onChange={(e) => setItemForm((f) => ({ ...f, endDate: e.target.value }))}
-                      />
-                    </label>
-                  </div>
-                  {itemForm.itemType !== 'flight' && (
-                    <div className="form-group">
-                      <label>
-                        {itemForm.itemType === 'stay' ? 'Check-out Time' : 'Drop-off Time'}
-                        <input
-                          type="time"
-                          value={itemForm.endTime}
-                          onChange={(e) => setItemForm((f) => ({ ...f, endTime: e.target.value }))}
-                        />
-                      </label>
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>
-                    Confirmation #
-                    <input
-                      type="text"
-                      value={itemForm.confirmationNo}
-                      onChange={(e) => setItemForm((f) => ({ ...f, confirmationNo: e.target.value }))}
-                      placeholder="Booking reference"
+                {/* Booking Details Section */}
+                <div className="form-section">
+                  <div className="form-section-title">Booking Details</div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Confirmation #</label>
+                      <input
+                        type="text"
+                        value={itemForm.confirmationNo}
+                        onChange={(e) => setItemForm((f) => ({ ...f, confirmationNo: e.target.value }))}
+                        placeholder="e.g., ABC123"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Cost (USD)</label>
+                      <input
+                        type="number"
+                        value={itemForm.costUsd}
+                        onChange={(e) => setItemForm((f) => ({ ...f, costUsd: e.target.value }))}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Notes</label>
+                    <textarea
+                      value={itemForm.notes}
+                      onChange={(e) => setItemForm((f) => ({ ...f, notes: e.target.value }))}
+                      placeholder="Additional notes or reminders..."
+                      rows={2}
                     />
-                  </label>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>
-                    Cost (USD)
-                    <input
-                      type="number"
-                      value={itemForm.costUsd}
-                      onChange={(e) => setItemForm((f) => ({ ...f, costUsd: e.target.value }))}
-                      placeholder="0.00"
-                      min="0"
-                      step="0.01"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>
-                  Notes
-                  <textarea
-                    value={itemForm.notes}
-                    onChange={(e) => setItemForm((f) => ({ ...f, notes: e.target.value }))}
-                    placeholder="Additional notes..."
-                    rows={3}
-                  />
-                </label>
               </div>
 
               <div className="modal-actions">
@@ -663,7 +699,7 @@ export function TripDetailView({
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={formStatus === 'saving'}>
-                  {formStatus === 'saving' ? 'Saving...' : editingItem ? 'Save Changes' : 'Add Item'}
+                  {formStatus === 'saving' ? 'Saving...' : editingItem ? 'Save Changes' : `Add ${ITEM_TYPE_LABELS[itemForm.itemType]}`}
                 </button>
               </div>
             </form>

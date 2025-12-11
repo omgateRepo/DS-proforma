@@ -4945,6 +4945,163 @@ td {
   gap: 0.25rem;
 }
 
+/* Trip Item Modal */
+.trip-item-modal {
+  width: min(550px, 95vw);
+}
+
+.trip-item-modal .modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.trip-item-modal .modal-header-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.trip-item-modal .modal-header-icon[data-type="flight"] {
+  background: #dbeafe;
+}
+
+.trip-item-modal .modal-header-icon[data-type="stay"] {
+  background: #fef3c7;
+}
+
+.trip-item-modal .modal-header-icon[data-type="vehicle"] {
+  background: #dcfce7;
+}
+
+.trip-item-modal .modal-header-icon[data-type="attraction"] {
+  background: #fce7f3;
+}
+
+.trip-item-modal .modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.trip-item-modal .modal-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.trip-item-modal .modal-close {
+  margin-left: auto;
+}
+
+.trip-item-modal .modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.trip-item-modal .form-section {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.trip-item-modal .form-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.trip-item-modal .form-group {
+  margin-bottom: 0.75rem;
+}
+
+.trip-item-modal .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.trip-item-modal .form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+
+.trip-item-modal .form-group input,
+.trip-item-modal .form-group select,
+.trip-item-modal .form-group textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.trip-item-modal .form-group input:focus,
+.trip-item-modal .form-group select:focus,
+.trip-item-modal .form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.trip-item-modal .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.trip-item-modal .form-row-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.trip-item-modal .modal-actions {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: #f8fafc;
+  border-radius: 0 0 16px 16px;
+}
+
+@media (max-width: 600px) {
+  .trip-item-modal .form-row,
+  .trip-item-modal .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-item-modal .modal-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .trip-item-modal .modal-header-icon {
+    margin: 0 auto;
+  }
+
+  .trip-item-modal .modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+  }
+}
+
 .add-trip-btn {
   background: transparent;
   border: 1px dashed var(--border);
