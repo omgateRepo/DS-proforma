@@ -40,6 +40,7 @@ type ItemFormState = {
   name: string
   location: string
   confirmationNo: string
+  bookingUrl: string
   notes: string
   costUsd: string
   startDate: string
@@ -55,6 +56,7 @@ const EMPTY_FORM: ItemFormState = {
   name: '',
   location: '',
   confirmationNo: '',
+  bookingUrl: '',
   notes: '',
   costUsd: '',
   startDate: '',
@@ -139,6 +141,7 @@ export function TripDetailView({
       name: item.name,
       location: item.location || '',
       confirmationNo: item.confirmationNo || '',
+      bookingUrl: item.bookingUrl || '',
       notes: item.notes || '',
       costUsd: item.costUsd != null ? String(item.costUsd) : '',
       startDate: item.startDate || '',
@@ -162,6 +165,7 @@ export function TripDetailView({
         name: itemForm.name.trim(),
         location: itemForm.location.trim() || null,
         confirmationNo: itemForm.confirmationNo.trim() || null,
+        bookingUrl: itemForm.bookingUrl.trim() || null,
         notes: itemForm.notes.trim() || null,
         costUsd: itemForm.costUsd ? parseFloat(itemForm.costUsd) : null,
         startDate: itemForm.startDate,
@@ -385,6 +389,16 @@ export function TripDetailView({
                 </div>
                 {item.confirmationNo && (
                   <p className="trip-item-confirmation">Conf: {item.confirmationNo}</p>
+                )}
+                {item.bookingUrl && (
+                  <a 
+                    href={item.bookingUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="trip-item-booking-link"
+                  >
+                    🔗 View Booking
+                  </a>
                 )}
                 {item.notes && (
                   <p className="trip-item-notes">{item.notes}</p>
@@ -681,6 +695,15 @@ export function TripDetailView({
                         step="0.01"
                       />
                     </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Booking Link</label>
+                    <input
+                      type="url"
+                      value={itemForm.bookingUrl}
+                      onChange={(e) => setItemForm((f) => ({ ...f, bookingUrl: e.target.value }))}
+                      placeholder="https://..."
+                    />
                   </div>
                   <div className="form-group">
                     <label>Notes</label>

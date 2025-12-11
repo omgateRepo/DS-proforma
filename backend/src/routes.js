@@ -4690,6 +4690,7 @@ const mapTripItem = (row) => ({
   name: row.name,
   location: row.location,
   confirmationNo: row.confirmation_no,
+  bookingUrl: row.booking_url,
   notes: row.notes,
   costUsd: row.cost_usd != null ? Number(row.cost_usd) : null,
   startDate: row.start_date?.toISOString().split('T')[0] || null,
@@ -4740,6 +4741,7 @@ router.post('/trips/:tripId/items', async (req, res) => {
       name,
       location,
       confirmationNo,
+      bookingUrl,
       notes,
       costUsd,
       startDate,
@@ -4766,6 +4768,7 @@ router.post('/trips/:tripId/items', async (req, res) => {
         name,
         location: location || null,
         confirmation_no: confirmationNo || null,
+        booking_url: bookingUrl || null,
         notes: notes || null,
         cost_usd: costUsd != null ? costUsd : null,
         start_date: new Date(startDate),
@@ -4801,6 +4804,7 @@ router.put('/trip-items/:id', async (req, res) => {
       name,
       location,
       confirmationNo,
+      bookingUrl,
       notes,
       costUsd,
       startDate,
@@ -4816,6 +4820,7 @@ router.put('/trip-items/:id', async (req, res) => {
     if (name !== undefined) data.name = name
     if (location !== undefined) data.location = location || null
     if (confirmationNo !== undefined) data.confirmation_no = confirmationNo || null
+    if (bookingUrl !== undefined) data.booking_url = bookingUrl || null
     if (notes !== undefined) data.notes = notes || null
     if (costUsd !== undefined) data.cost_usd = costUsd
     if (startDate !== undefined) data.start_date = new Date(startDate)

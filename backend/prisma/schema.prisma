@@ -408,6 +408,7 @@ model trip_items {
   name            String
   location        String?
   confirmation_no String?
+  booking_url     String?
   notes           String?
   cost_usd        Decimal?  @db.Decimal
   

@@ -552,6 +552,7 @@ export interface TripItem {
   name: string
   location: string | null
   confirmationNo: string | null
+  bookingUrl: string | null
   notes: string | null
   costUsd: number | null
   startDate: string
@@ -570,6 +571,7 @@ export interface TripItemInput {
   name: string
   location?: string | null
   confirmationNo?: string | null
+  bookingUrl?: string | null
   notes?: string | null
   costUsd?: number | null
   startDate: string

@@ -4938,6 +4938,18 @@ td {
   font-family: monospace;
 }
 
+.trip-item-booking-link {
+  display: inline-block;
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.trip-item-booking-link:hover {
+  text-decoration: underline;
+}
+
 .trip-item-notes {
   margin: 0.5rem 0 0;
   font-size: 0.8rem;
