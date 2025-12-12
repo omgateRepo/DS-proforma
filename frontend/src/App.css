@@ -4936,6 +4936,25 @@ td {
   font-size: 0.75rem;
   color: var(--muted);
   font-family: monospace;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trip-item-confirmation .copy-btn {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.25rem;
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.trip-item-confirmation .copy-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .trip-item-booking-link {
@@ -5086,6 +5105,16 @@ td {
 
 .trip-item-modal .form-row-3 {
   grid-template-columns: 1fr 1fr 1fr;
+}
+
+.trip-item-modal .modal-error {
+  margin: 0 1.5rem;
+  padding: 0.75rem 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 0.875rem;
 }
 
 .trip-item-modal .modal-actions {

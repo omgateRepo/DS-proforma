@@ -104,6 +104,7 @@ export function TripDetailView({
   const [editingItem, setEditingItem] = useState<TripItem | null>(null)
   const [itemForm, setItemForm] = useState<ItemFormState>(EMPTY_FORM)
   const [formStatus, setFormStatus] = useState<'idle' | 'saving'>('idle')
+  const [formError, setFormError] = useState('')
   const [showAddDropdown, setShowAddDropdown] = useState(false)
   const [draggedItemId, setDraggedItemId] = useState<EntityId | null>(null)
   const [collaboratorSelection, setCollaboratorSelection] = useState('')
@@ -117,6 +118,7 @@ export function TripDetailView({
   const openAddModal = useCallback((itemType: TripItemType) => {
     setEditingItem(null)
     setItemForm({ ...EMPTY_FORM, itemType })
+    setFormError('')
     setShowItemModal(true)
     setShowAddDropdown(false)
   }, [])
@@ -138,14 +140,19 @@ export function TripDetailView({
       departTime: item.departTime || '',
       arriveTime: item.arriveTime || '',
     })
+    setFormError('')
     setShowItemModal(true)
   }, [])
 
   const handleFormSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!itemForm.name.trim() || !itemForm.startDate) return
+    if (!itemForm.name.trim() || !itemForm.startDate) {
+      setFormError('Name and date are required')
+      return
+    }
 
     setFormStatus('saving')
+    setFormError('')
     try {
       const input: TripItemInput = {
         itemType: itemForm.itemType,
@@ -171,6 +178,8 @@ export function TripDetailView({
       setShowItemModal(false)
       setItemForm(EMPTY_FORM)
       setEditingItem(null)
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save item. Please try again.')
     } finally {
       setFormStatus('idle')
     }
@@ -375,7 +384,20 @@ export function TripDetailView({
                   )}
                 </div>
                 {item.confirmationNo && (
-                  <p className="trip-item-confirmation">Conf: {item.confirmationNo}</p>
+                  <p className="trip-item-confirmation">
+                    Conf: {item.confirmationNo}
+                    <button
+                      type="button"
+                      className="copy-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigator.clipboard.writeText(item.confirmationNo || '')
+                      }}
+                      title="Copy to clipboard"
+                    >
+                      📋
+                    </button>
+                  </p>
                 )}
                 {item.bookingUrl && (
                   <a 
@@ -702,6 +724,7 @@ export function TripDetailView({
                 </div>
               </div>
 
+              {formError && <p className="error modal-error">{formError}</p>}
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowItemModal(false)}>
                   Cancel

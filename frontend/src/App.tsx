@@ -1485,6 +1485,12 @@ useEffect(() => {
   refreshUsers()
 }, [selectedBusinessProjectId, refreshUsers])
 
+// Load users for trip collaborators
+useEffect(() => {
+  if (activeBoard !== 'trips') return
+  refreshUsers()
+}, [activeBoard, refreshUsers])
+
   useEffect(() => {
     setExpandedCashflowRows(new Set())
   }, [selectedProjectId])
