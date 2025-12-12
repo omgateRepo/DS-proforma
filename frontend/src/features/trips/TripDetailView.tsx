@@ -454,7 +454,7 @@ export function TripDetailView({
                 </li>
               ))}
             </ul>
-            {onAddCollaborator && availableUsers.length > 0 && (
+            {onAddCollaborator && (
               <form onSubmit={handleAddCollaborator} className="collaborator-form">
                 <label>
                   <span className="muted tiny">Invite collaborator</span>
@@ -463,7 +463,7 @@ export function TripDetailView({
                     onChange={(e) => setCollaboratorSelection(e.target.value)}
                     disabled={collaboratorStatus === 'saving'}
                   >
-                    <option value="">Select a user…</option>
+                    <option value="">Select user</option>
                     {availableUsers.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.displayName || user.email}
@@ -471,17 +471,15 @@ export function TripDetailView({
                     ))}
                   </select>
                 </label>
+                {!availableUsers.length && <p className="muted tiny">No additional users available.</p>}
                 <button
                   type="submit"
                   className="primary"
-                  disabled={collaboratorStatus === 'saving' || !collaboratorSelection}
+                  disabled={collaboratorStatus === 'saving' || !availableUsers.length}
                 >
                   {collaboratorStatus === 'saving' ? 'Adding…' : 'Add collaborator'}
                 </button>
               </form>
-            )}
-            {!onAddCollaborator && (
-              <p className="muted tiny">Collaboration features coming soon.</p>
             )}
           </section>
         </div>
