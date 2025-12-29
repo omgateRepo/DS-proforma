@@ -762,7 +762,7 @@ const selectedHardSoftTotal =
       </section>
 
       <section>
-        <h3>Carrying Costs (Annualized)</h3>
+        <h3>Stabilized Expenses</h3>
         <div className="metrics-table-wrapper">
           <table className="metrics-table">
             <thead>
@@ -777,7 +777,7 @@ const selectedHardSoftTotal =
             </thead>
             <tbody>
               <tr>
-                <td>Building Management</td>
+                <td>Building Expenses</td>
                 <td>{formatCurrency(managementAnnualBase)}</td>
                 <td>
                   <input
@@ -821,7 +821,7 @@ const selectedHardSoftTotal =
                 <td>{formatCurrency(selectedManagementAnnual)}</td>
               </tr>
               <tr>
-                <td>Stabilized RE Tax</td>
+                <td>Stabilized Property Tax</td>
                 <td>{formatCurrency(stabilizedTaxAnnualBase)}</td>
                 <td>
                   <input

@@ -158,6 +158,79 @@
   cursor: pointer;
 }
 
+/* Kanban with settings wrapper */
+.kanban-with-settings {
+  position: relative;
+}
+
+/* Kanban settings dropdown */
+.kanban-settings-wrapper {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+}
+
+.kanban-settings-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  font-size: 1.25rem;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.kanban-settings-btn:hover {
+  background: var(--border);
+  border-color: var(--muted);
+}
+
+.kanban-settings-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+}
+
+.kanban-settings-dropdown .dropdown-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.25rem 0.75rem 0.5rem;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.kanban-settings-dropdown .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.kanban-settings-dropdown .dropdown-item:hover {
+  background: var(--border);
+}
+
+.kanban-settings-dropdown .dropdown-item input[type="checkbox"] {
+  width: 0.9rem;
+  height: 0.9rem;
+  cursor: pointer;
+}
+
 .kanban-section {
   background: var(--card-bg);
   border: 1px solid var(--border);
@@ -182,6 +255,10 @@
   .kanban {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
+  
+  .kanban:has(.archived) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 
 .kanban-column {
@@ -190,6 +267,15 @@
   display: flex;
   flex-direction: column;
   max-height: 520px;
+}
+
+.kanban-column.archived {
+  background: #f1f5f9;
+  opacity: 0.8;
+}
+
+.kanban-column.archived .kanban-column-header {
+  color: var(--muted);
 }
 
 .kanban-column-header {

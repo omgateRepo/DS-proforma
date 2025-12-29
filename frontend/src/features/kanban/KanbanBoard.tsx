@@ -8,6 +8,7 @@ type StageOption = {
 
 type KanbanBoardProps = {
   stageOptions: StageOption[]
+  stageOptionsForDropdown?: StageOption[]
   projectsByStage: Record<ProjectStage, ProjectSummary[]>
   onSelectProject: (projectId: EntityId) => void
   onStageChange: (projectId: EntityId, stage: ProjectStage) => void
@@ -17,12 +18,14 @@ type KanbanBoardProps = {
 
 export function KanbanBoard({
   stageOptions,
+  stageOptionsForDropdown,
   projectsByStage,
   onSelectProject,
   onStageChange,
   stageUpdatingFor,
   onAddProject,
 }: KanbanBoardProps) {
+  const dropdownOptions = stageOptionsForDropdown || stageOptions
   const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>, projectId: EntityId) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
@@ -37,7 +40,7 @@ export function KanbanBoard({
           {stageOptions.map((stage) => {
             const projects = projectsByStage[stage.id] || []
             return (
-              <div className="kanban-column" key={stage.id}>
+              <div className={`kanban-column ${stage.id === 'archived' ? 'archived' : ''}`} key={stage.id}>
                 <div className="column-header">
                   <h3>{stage.label}</h3>
                   <span className="pill">{projects.length}</span>
@@ -66,7 +69,7 @@ export function KanbanBoard({
                           onChange={(e) => onStageChange(project.id, e.target.value as ProjectStage)}
                           disabled={stageUpdatingFor === project.id}
                         >
-                          {stageOptions.map((option) => (
+                          {dropdownOptions.map((option) => (
                             <option key={option.id} value={option.id}>
                               {option.label}
                             </option>

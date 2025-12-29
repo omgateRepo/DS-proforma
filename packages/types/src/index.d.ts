@@ -2,7 +2,7 @@ import type { z } from 'zod'
 
 export type Nullable<T> = T | null
 export type EntityId = string | number
-export type ProjectStage = 'new' | 'offer_submitted' | 'under_contract' | 'in_development' | 'stabilized'
+export type ProjectStage = 'new' | 'offer_submitted' | 'under_contract' | 'in_development' | 'stabilized' | 'archived'
 
 export interface UserSummary {
   id: EntityId

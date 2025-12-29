@@ -104,14 +104,18 @@ export function onUnauthorized(handler) {
   }
 }
 
-export function stageLabels() {
-  return [
+export function stageLabels(includeArchived = false) {
+  const stages = [
     { id: 'new', label: 'New' },
     { id: 'offer_submitted', label: 'Offer Submitted' },
     { id: 'under_contract', label: 'Under Contract' },
     { id: 'in_development', label: 'In Development' },
     { id: 'stabilized', label: 'Stabilized' },
   ]
+  if (includeArchived) {
+    stages.push({ id: 'archived', label: 'Archived' })
+  }
+  return stages
 }
 
 export async function fetchProjects() {

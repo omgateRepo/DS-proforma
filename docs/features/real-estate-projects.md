@@ -7,7 +7,7 @@ last_updated: 2025-12-05
 Operate a single web application that tracks multifamily real-estate deals from sourcing through stabilization. Users can add/delete projects, manage their position on a Kanban board, and capture detailed revenue/cost data for each project.
 
 ## 2. Objectives
-- Centralize every deal with an auditable lifecycle (New → Offer Submitted → Under Contract → In Development → Stabilized).
+- Centralize every deal with an auditable lifecycle (New → Offer Submitted → Under Contract → In Development → Stabilized → Archived).
 - Provide a canonical place to model rent roll assumptions, construction budgets, and carrying costs for each project.
 - Produce a cashflow rollup (budget vs actual) without exporting to spreadsheets.
 
@@ -27,11 +27,12 @@ Two co-founders (you and your partner) share the same workspace. No role-based a
    - Triggered from a global “Add Project” button that opens a modal asking only for the name (keeps the Kanban board uncluttered).  
    - Optional metadata (future): address, target units, notes.
 2. **Kanban board**  
-   - Columns: New, Offer Submitted, Under Contract, In Development, Stabilized.  
+   - Columns: New, Offer Submitted, Under Contract, In Development, Stabilized (+ Archived when enabled).  
    - Cards show name + key stats (units, current rent, total cost).  
    - Drag-and-drop (or dropdown) to change stage; record timestamp in history table.  
    - The Kanban view is dedicated: it shows only the board plus the global “Add Project” button (full-width layout with generous spacing). Selecting a card navigates to the project detail view (no split-pane).
    - Stage transitions enforce data-completeness gates (documented in §6.1.1) so deals cannot advance without the required General tab information.
+   - **Archived stage**: Projects can be moved to "Archived" from any stage without validation requirements. The archived column is hidden by default to keep the active pipeline uncluttered. A small "Show archived projects" checkbox in the top-right corner of the Kanban view reveals the archived column when checked. The stage dropdown on each card always includes "Archived" so users can archive deals even when the column is hidden.
 3. **Delete project**  
    - Allowed from any stage; must cascade delete all child records (apartments, costs, cashflow lines).  
    - Soft delete for compliance (mark `deleted_at`) is acceptable if we keep data for reporting.  
@@ -368,7 +369,7 @@ No existing functionality depends on this table, so rollback is clean.
 
 | Table | Key Fields | Notes |
 | --- | --- | --- |
-| `projects` | `id (uuid)`, `name`, `stage`, `address_line1`, `city`, `state`, `zip`, `property_type`, `purchase_price_usd`, `target_units`, `target_sqft`, `created_at`, `updated_at`, `deleted_at` | Stage enum: `new`, `offer_submitted`, `under_contract`, `in_development`, `stabilized`. |
+| `projects` | `id (uuid)`, `name`, `stage`, `address_line1`, `city`, `state`, `zip`, `property_type`, `purchase_price_usd`, `target_units`, `target_sqft`, `created_at`, `updated_at`, `deleted_at` | Stage enum: `new`, `offer_submitted`, `under_contract`, `in_development`, `stabilized`, `archived`. |
 | `project_stage_history` | `id`, `project_id`, `from_stage`, `to_stage`, `changed_by`, `changed_at` | Append-only log for analytics. |
 | `apartment_types` | `id`, `project_id`, `type_label`, `unit_sqft`, `unit_count`, `rent_budget`, `rent_actual` | Revenue tab rows. |
 | `cost_items` | `id`, `project_id`, `category` (`hard`, `soft`, `carrying`), `cost_name`, `amount_usd`, `payment_month`, `start_month`, `end_month`, `carrying_type`, `loan_mode`, `loan_amount_usd`, `loan_term_months`, `interest_rate_pct`, `funding_month`, `repayment_start_month`, `interval_unit` | Carrying rows now track richer attributes per type; hard/soft rows continue to use scheduling + measurement columns documented above. |
@@ -418,6 +419,7 @@ No existing functionality depends on this table, so rollback is clean.
 3. Cashflow time horizon defaults (36 vs 60 months)?
 
 ## 9. Changelog
+- `2025-12-11` – Added Archived stage to Kanban board. Projects can be archived from any stage without validation. The archived column is hidden by default with a toggle checkbox to reveal it.
 - `2025-12-05` – Added Docs tab specification (§6.8) for external document links with phased implementation plan.
 - `2025-11-26` – Drafted initial specification covering Kanban workflow, detailed tabs, and schema outline.
 

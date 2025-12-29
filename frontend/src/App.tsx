@@ -122,7 +122,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.36'
+const APP_VERSION = '1.0.37'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -594,6 +594,9 @@ function App() {
   const [projectWeather, setProjectWeather] = useState<WeatherReading | null>(null)
   const [projectWeatherStatus, setProjectWeatherStatus] = useState<LoadStatus>('idle')
   const [projectWeatherError, setProjectWeatherError] = useState('')
+  const [hiddenStages, setHiddenStages] = useState<Set<ProjectStage>>(new Set(['archived']))
+  const [showKanbanSettings, setShowKanbanSettings] = useState(false)
+  const kanbanSettingsRef = useRef<HTMLDivElement | null>(null)
   const [collaboratorSelection, setCollaboratorSelection] = useState('')
   const [collaboratorStatus, setCollaboratorStatus] = useState<RequestStatus>('idle')
   const [collaboratorError, setCollaboratorError] = useState('')
@@ -667,7 +670,9 @@ function App() {
     }
   }, [availableUsersForBusiness, businessCollaboratorSelection])
 
-  const stageOptions = stageLabels() as Array<{ id: ProjectStage; label: string }>
+  const allStageOptions = stageLabels(true) as Array<{ id: ProjectStage; label: string }>
+  const stageOptionsForDisplay = allStageOptions.filter((s) => !hiddenStages.has(s.id))
+  const stageOptionsForDropdown = allStageOptions
   const apiOrigin = (API_BASE || '').replace(/\/$/, '')
   const baseDate = useMemo(() => {
     const closingDate = selectedProject?.general?.closingDate
@@ -993,11 +998,11 @@ function App() {
   }, [selectedProject])
 
   const projectsByStage = useMemo<Record<ProjectStage, ProjectSummary[]>>(() => {
-    return stageOptions.reduce((acc, stage) => {
+    return stageOptionsForDisplay.reduce((acc, stage) => {
       acc[stage.id] = projects.filter((project) => project.stage === stage.id)
       return acc
     }, {} as Record<ProjectStage, ProjectSummary[]>)
-  }, [projects, stageOptions])
+  }, [projects, stageOptionsForDisplay])
   const isKanbanView = activeBoard === 'admin' || activeBoard === 'trips' ? true : (activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId)
   const showAccountMenu = isAuthReady && !isAuthModalOpen && Boolean(currentUser)
   const isSuperAdmin = currentUser?.isSuperAdmin ?? false
@@ -1506,6 +1511,30 @@ useEffect(() => {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [accountMenuOpen])
 
+  // Click outside handler for kanban settings
+  useEffect(() => {
+    if (!showKanbanSettings) return
+    const handleClick = (event: MouseEvent) => {
+      if (kanbanSettingsRef.current && !kanbanSettingsRef.current.contains(event.target as Node)) {
+        setShowKanbanSettings(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showKanbanSettings])
+
+  const toggleStageVisibility = (stageId: ProjectStage) => {
+    setHiddenStages((prev) => {
+      const next = new Set(prev)
+      if (next.has(stageId)) {
+        next.delete(stageId)
+      } else {
+        next.add(stageId)
+      }
+      return next
+    })
+  }
+
   useEffect(() => {
     const unsubscribe = onUnauthorized(() => {
       clearAuthCredentials()
@@ -2005,18 +2034,17 @@ useEffect(() => {
       {isKanbanView && (
         <header className="main-app-header">
           <div className="main-header-top">
-            <h1 className="app-title">Ventures Hub <span className="app-version">v{APP_VERSION}</span></h1>
-            {activeBoard !== 'admin' && (
+            <h1 className="app-title">Financial Freedom <span className="app-version">v{APP_VERSION}</span></h1>
+            {activeBoard !== 'admin' && activeBoard !== 'trips' && (
               <button
                 type="button"
                 className="add-board-project"
                 onClick={() => 
                   activeBoard === 'realEstate' ? openCreateModal() : 
-                  activeBoard === 'business' ? setIsBusinessCreateModalOpen(true) :
-                  setIsTripCreateModalOpen(true)
+                  setIsBusinessCreateModalOpen(true)
                 }
               >
-                + New {activeBoard === 'realEstate' ? 'Property' : activeBoard === 'business' ? 'Business' : 'Trip'}
+                + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
               </button>
             )}
           </div>
@@ -2049,6 +2077,7 @@ useEffect(() => {
                   💼 Business ({projectCounts.business})
                 </button>
               )}
+              {/* Trips tab hidden for now - uncomment to restore
               <button
                 type="button"
                 className={activeBoard === 'trips' ? 'active' : ''}
@@ -2056,20 +2085,49 @@ useEffect(() => {
               >
                 ✈️ Trips ({trips.length})
               </button>
+              */}
             </div>
           )}
         </header>
       )}
 
       {isKanbanView && activeBoard === 'realEstate' ? (
-        <KanbanBoard
-          stageOptions={stageOptions}
-          projectsByStage={projectsByStage}
-          onSelectProject={setSelectedProjectId}
-          onStageChange={handleStageChange}
-          stageUpdatingFor={stageUpdatingFor}
-          onAddProject={openCreateModal}
-        />
+        <div className="kanban-with-settings">
+          <div className="kanban-settings-wrapper" ref={kanbanSettingsRef}>
+            <button
+              type="button"
+              className="kanban-settings-btn"
+              onClick={() => setShowKanbanSettings((prev) => !prev)}
+              title="Board settings"
+            >
+              ⋮
+            </button>
+            {showKanbanSettings && (
+              <div className="kanban-settings-dropdown">
+                <p className="dropdown-title">Show columns</p>
+                {allStageOptions.map((stage) => (
+                  <label key={stage.id} className="dropdown-item">
+                    <input
+                      type="checkbox"
+                      checked={!hiddenStages.has(stage.id)}
+                      onChange={() => toggleStageVisibility(stage.id)}
+                    />
+                    {stage.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <KanbanBoard
+            stageOptions={stageOptionsForDisplay}
+            stageOptionsForDropdown={stageOptionsForDropdown}
+            projectsByStage={projectsByStage}
+            onSelectProject={setSelectedProjectId}
+            onStageChange={handleStageChange}
+            stageUpdatingFor={stageUpdatingFor}
+            onAddProject={openCreateModal}
+          />
+        </div>
       ) : isKanbanView && activeBoard === 'business' ? (
         <div className="business-kanban">
           <section className="kanban-section">
