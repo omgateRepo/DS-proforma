@@ -429,7 +429,7 @@ export function FundingTab({
           <section className="funding-section">
             <div className="section-header">
               <div>
-                <h4>GP Contributions</h4>
+                <h4>GP/LP Contributions</h4>
                 <p className="muted tiny">One-time capital infusions from sponsors.</p>
               </div>
               <button type="button" className="primary" onClick={() => openModal('gp')}>
@@ -481,7 +481,7 @@ export function FundingTab({
                   })}
                   {gpRows.length === 0 && (
                     <tr>
-                      <td colSpan={5}>No GP contributions yet.</td>
+                      <td colSpan={5}>No GP/LP contributions yet.</td>
                     </tr>
                   )}
                   {gpRows.length > 0 && (
@@ -575,7 +575,7 @@ export function FundingTab({
       {isModalOpen && activeModal && (
         <div className="modal-backdrop">
           <div className="modal-panel">
-            <h3>{editingGpId || editingLoanId ? 'Edit' : 'Add'} {activeModal === 'gp' ? 'GP Contribution' : 'Loan'}</h3>
+            <h3>{editingGpId || editingLoanId ? 'Edit' : 'Add'} {activeModal === 'gp' ? 'GP/LP Contribution' : 'Loan'}</h3>
             <form className="modal-form" onSubmit={handleSubmit}>
               {activeModal === 'gp' ? (
                 <>
@@ -588,6 +588,7 @@ export function FundingTab({
                           {option.label}
                         </option>
                       ))}
+                      <option value="LP">LP</option>
                     </select>
                   </label>
                   <label>
@@ -705,7 +706,7 @@ export function FundingTab({
       {pendingGpDeleteId && (
         <div className="modal-backdrop">
           <div className="modal-panel">
-            <h3>Delete GP contribution?</h3>
+            <h3>Delete GP/LP contribution?</h3>
             {gpDeleteError && <p className="error">{gpDeleteError}</p>}
             <div className="modal-actions">
               <button type="button" className="ghost" onClick={cancelDeleteGp} disabled={gpDeleteStatus === 'saving'}>
