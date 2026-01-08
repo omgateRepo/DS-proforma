@@ -101,6 +101,7 @@ type MetricsPreferences = {
   stabilizedInterestRatePct: string
   stabilizedTermYears: string
   refinanceAmount: string
+  salesCostPct: string
 }
 
 const STORAGE_KEY = 'metrics-preferences-v1'
@@ -153,6 +154,7 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
   const [stabilizedInterestRatePct, setStabilizedInterestRatePct] = useState('5.25')
   const [stabilizedTermYears, setStabilizedTermYears] = useState('30')
   const [refinanceAmount, setRefinanceAmount] = useState('0')
+  const [salesCostPct, setSalesCostPct] = useState('2')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
   const hydratingRef = useRef(false)
   const markDirty = () => {
@@ -173,6 +175,7 @@ useEffect(() => {
     setStabilizedInterestRatePct('5.25')
     setStabilizedTermYears('30')
     setRefinanceAmount('0')
+    setSalesCostPct('2')
     setSaveStatus('idle')
     hydratingRef.current = false
     return
@@ -202,6 +205,7 @@ useEffect(() => {
   setStabilizedInterestRatePct(stored?.stabilizedInterestRatePct ?? '5.25')
   setStabilizedTermYears(stored?.stabilizedTermYears ?? '30')
   setRefinanceAmount(stored?.refinanceAmount ?? '0')
+  setSalesCostPct(stored?.salesCostPct ?? '2')
   setSaveStatus('idle')
   hydratingRef.current = false
 }, [project?.id, projectId])
@@ -220,6 +224,7 @@ useEffect(() => {
       stabilizedInterestRatePct,
       stabilizedTermYears,
       refinanceAmount,
+      salesCostPct,
     }
     savePreferences(projectId, payload)
     setSaveStatus('saved')
@@ -1016,6 +1021,64 @@ const selectedHardSoftTotal =
             </div>
           </div>
         </div>
+      </section>
+
+      <section>
+        <h3>Exit Strategy</h3>
+        <div className="exit-strategy-controls">
+          <label>
+            Sales Costs (%)
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={salesCostPct}
+              onChange={(e) => {
+                setSalesCostPct(e.target.value)
+                markDirty()
+              }}
+            />
+          </label>
+          <p className="muted tiny">Total Project Costs: {formatCurrency(constructionLoanAmount + gpTotal)}</p>
+        </div>
+        <div className="metrics-table-wrapper">
+          <table className="metrics-table exit-table">
+            <thead>
+              <tr>
+                <th>Exit Cap Rate</th>
+                <th>Sale Price</th>
+                <th>Sales Costs</th>
+                <th>Net Proceeds</th>
+                <th>Total Project Costs</th>
+                <th>Money in Hand</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[7.5, 7, 6.5, 6, 5.5, 5].map((capRateValue) => {
+                const salePrice = noi && capRateValue ? noi / (capRateValue / 100) : 0
+                const salesCostValue = toNumber(salesCostPct)
+                const salesCosts = salePrice * (salesCostValue / 100)
+                const netProceeds = salePrice - salesCosts
+                const totalProjectCosts = constructionLoanAmount + gpTotal
+                const moneyInHand = netProceeds - totalProjectCosts
+                return (
+                  <tr key={capRateValue} className={moneyInHand >= 0 ? 'positive' : 'negative'}>
+                    <td><strong>{capRateValue}%</strong></td>
+                    <td>{formatCurrency(salePrice)}</td>
+                    <td>{formatCurrency(salesCosts)}</td>
+                    <td>{formatCurrency(netProceeds)}</td>
+                    <td>{formatCurrency(totalProjectCosts)}</td>
+                    <td className={moneyInHand >= 0 ? 'money-positive' : 'money-negative'}>
+                      <strong>{formatCurrency(moneyInHand)}</strong>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted tiny">Sale Price = NOI ({formatCurrency(noi)}) ÷ Cap Rate</p>
       </section>
     </div>
   )
