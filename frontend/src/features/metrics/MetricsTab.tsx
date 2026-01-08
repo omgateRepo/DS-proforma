@@ -290,10 +290,10 @@ useEffect(() => {
   const selectedExpensesAnnual = selectedManagementAnnual + selectedStabilizedTaxAnnual
 
 const hardSoftBaseTotal = hardCostsTotal + softCostsTotal
-const buildCostPerSqftDefault = buildableSqft > 0 ? hardSoftBaseTotal / buildableSqft : hardSoftBaseTotal
+const buildCostPerSqftDefault = buildableSqft > 0 ? hardCostsTotal / buildableSqft : hardCostsTotal
 const selectedBuildCostPerSqft = selectScenarioValue(buildCostOverride, buildCostPerSqftDefault)
 const selectedHardSoftTotal =
-  buildableSqft > 0 ? selectedBuildCostPerSqft * buildableSqft : hardSoftBaseTotal
+  buildableSqft > 0 ? selectedBuildCostPerSqft * buildableSqft : hardCostsTotal
 
   const computeRevenueLine = (
     row: ApartmentRevenueRow | ParkingRevenueRow,

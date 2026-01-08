@@ -40,7 +40,7 @@ const HASH_ROUNDS = Number(process.env.AUTH_HASH_ROUNDS || 10)
 const WEATHER_DEFAULT_LOCATION = { lat: 39.9526, lon: -75.1652, label: 'Philadelphia' }
 const WEATHER_URL_BASE = 'https://api.open-meteo.com/v1/forecast'
 
-const STAGES = ['new', 'offer_submitted', 'under_contract', 'in_development', 'stabilized']
+const STAGES = ['new', 'offer_submitted', 'under_contract', 'in_development', 'stabilized', 'archived']
 const STAGE_LABELS = {
   new: 'New',
   offer_submitted: 'Offer Submitted',
