@@ -1112,80 +1112,135 @@ const selectedHardSoftTotal =
 
       <section>
         <h3>GP/LP Returns</h3>
-        <div className="metrics-table-wrapper">
-          <table className="metrics-table gp-returns-table">
-            <thead>
-              <tr>
-                <th>Partner</th>
-                <th>Contribution</th>
-                <th>Holding %</th>
-                <th>CoC Before Refi</th>
-                <th>CoC After Refi</th>
-                <th>Cash In After Refi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gpContributions.length === 0 && (
-                <tr>
-                  <td colSpan={6}>No GP/LP contributions defined.</td>
-                </tr>
-              )}
-              {gpContributions.map((row) => {
-                const contribution = toNumber(row.amountUsd)
-                const holdingPct = toNumber(row.holdingPct) / 100
-                const cashShareBeforeRefi = availableCashBeforeRefi * holdingPct
-                const cashShareAfterRefi = availableCashAnnual * holdingPct
-                const cocBeforeRefi = contribution > 0 ? cashShareBeforeRefi / contribution : 0
-                const cocAfterRefi = contribution > 0 ? cashShareAfterRefi / contribution : 0
-                const cashReceivedFromRefi = refinanceAmountValue * holdingPct
-                const cashStillInAfterRefi = contribution - cashReceivedFromRefi
-                return (
-                  <tr key={row.id}>
-                    <td>{getPartnerLabel(row.partner)}</td>
-                    <td>{formatCurrency(contribution)}</td>
-                    <td>{row.holdingPct != null ? `${row.holdingPct}%` : '—'}</td>
-                    <td className={cocBeforeRefi >= 0 ? 'coc-positive' : 'coc-negative'}>
-                      <strong>{formatPercent(cocBeforeRefi)}</strong>
-                      <span className="coc-detail">{formatCurrency(cashShareBeforeRefi)}/yr</span>
-                    </td>
-                    <td className={cocAfterRefi >= 0 ? 'coc-positive' : 'coc-negative'}>
-                      <strong>{formatPercent(cocAfterRefi)}</strong>
-                      <span className="coc-detail">{formatCurrency(cashShareAfterRefi)}/yr</span>
-                    </td>
-                    <td>
-                      <strong>{formatCurrency(cashStillInAfterRefi)}</strong>
-                    </td>
-                  </tr>
-                )
-              })}
-              {gpContributions.length > 0 && (() => {
-                const totalHoldingPct = gpContributions.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
-                const totalCashBeforeRefi = availableCashBeforeRefi * totalHoldingPct
-                const totalCashAfterRefi = availableCashAnnual * totalHoldingPct
-                const totalCashReceivedFromRefi = refinanceAmountValue * totalHoldingPct
-                const totalCashStillInAfterRefi = gpTotal - totalCashReceivedFromRefi
-                return (
-                  <tr className="totals-row">
-                    <td><strong>Total</strong></td>
-                    <td><strong>{formatCurrency(gpTotal)}</strong></td>
-                    <td><strong>{(totalHoldingPct * 100).toFixed(1)}%</strong></td>
-                    <td>
-                      <strong>{formatCurrency(totalCashBeforeRefi)}/yr</strong>
-                    </td>
-                    <td>
-                      <strong>{formatCurrency(totalCashAfterRefi)}/yr</strong>
-                    </td>
-                    <td>
-                      <strong>{formatCurrency(totalCashStillInAfterRefi)}</strong>
-                    </td>
-                  </tr>
-                )
-              })()}
-            </tbody>
-          </table>
-        </div>
-        <p className="muted tiny">CoC = Cash on Cash Return (Annual Cash Share ÷ Contribution)</p>
-        <p className="muted tiny">Before Refi: Debt Service on {formatCurrency(constructionLoanAmount)} | After Refi: Debt Service on {formatCurrency(stabilizedLoanPrincipal)}</p>
+        {(() => {
+          // Separate LPs and GPs
+          const lpRows = gpContributions.filter((row) => row.partner === 'LP')
+          const gpRows = gpContributions.filter((row) => row.partner !== 'LP')
+
+          // Calculate LP pool (proportional to holding)
+          const totalLpHoldingPct = lpRows.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
+          const lpRefiPool = refinanceAmountValue * totalLpHoldingPct
+
+          // Calculate GP pool
+          const totalGpHoldingPct = gpRows.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
+          const gpRefiPool = refinanceAmountValue * totalGpHoldingPct
+          const totalGpContributions = gpRows.reduce((sum, row) => sum + toNumber(row.amountUsd), 0)
+
+          // GP distribution: remaining cash-in proportional to their holdings within GP group
+          const gpDistribution: Record<string, number> = {}
+          if (gpRows.length > 0 && totalGpHoldingPct > 0) {
+            // Total GP cash remaining after refi
+            const totalGpCashRemaining = totalGpContributions - gpRefiPool
+
+            gpRows.forEach((row) => {
+              const contribution = toNumber(row.amountUsd)
+              const holdingPct = toNumber(row.holdingPct) / 100
+              // Their share of GP holdings (relative to other GPs)
+              const shareOfGpHoldings = holdingPct / totalGpHoldingPct
+              // Target cash-in after refi (proportional to their share of GP holdings)
+              const targetCashIn = totalGpCashRemaining * shareOfGpHoldings
+              // Refi received = contribution - target (but not negative)
+              const refiReceived = Math.max(0, contribution - targetCashIn)
+              gpDistribution[row.id as string] = refiReceived
+            })
+          }
+
+          // LP distribution is proportional to their holding within LP group
+          const lpDistribution: Record<string, number> = {}
+          lpRows.forEach((row) => {
+            const lpHoldingPct = toNumber(row.holdingPct) / 100
+            lpDistribution[row.id as string] = refinanceAmountValue * lpHoldingPct
+          })
+
+          // Combine for easy lookup
+          const refiDistribution = { ...gpDistribution, ...lpDistribution }
+
+          return (
+            <>
+              <div className="metrics-table-wrapper">
+                <table className="metrics-table gp-returns-table">
+                  <thead>
+                    <tr>
+                      <th>Partner</th>
+                      <th>Type</th>
+                      <th>Contribution</th>
+                      <th>Holding %</th>
+                      <th>CoC Before Refi</th>
+                      <th>CoC After Refi</th>
+                      <th>Refi Received</th>
+                      <th>Cash In After Refi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gpContributions.length === 0 && (
+                      <tr>
+                        <td colSpan={8}>No GP/LP contributions defined.</td>
+                      </tr>
+                    )}
+                    {gpContributions.map((row) => {
+                      const contribution = toNumber(row.amountUsd)
+                      const holdingPct = toNumber(row.holdingPct) / 100
+                      const cashShareBeforeRefi = availableCashBeforeRefi * holdingPct
+                      const cashShareAfterRefi = availableCashAnnual * holdingPct
+                      const cocBeforeRefi = contribution > 0 ? cashShareBeforeRefi / contribution : 0
+                      const refiReceived = refiDistribution[row.id as string] || 0
+                      const cashStillInAfterRefi = contribution - refiReceived
+                      const cocAfterRefi = cashStillInAfterRefi > 0 ? cashShareAfterRefi / cashStillInAfterRefi : 0
+                      const isLp = row.partner === 'LP'
+                      return (
+                        <tr key={row.id}>
+                          <td>{getPartnerLabel(row.partner)}</td>
+                          <td>{isLp ? 'LP' : 'GP'}</td>
+                          <td>{formatCurrency(contribution)}</td>
+                          <td>{row.holdingPct != null ? `${row.holdingPct}%` : '—'}</td>
+                          <td className={cocBeforeRefi >= 0 ? 'coc-positive' : 'coc-negative'}>
+                            <strong>{formatPercent(cocBeforeRefi)}</strong>
+                            <span className="coc-detail">{formatCurrency(cashShareBeforeRefi)}/yr</span>
+                          </td>
+                          <td className={cocAfterRefi >= 0 ? 'coc-positive' : 'coc-negative'}>
+                            <strong>{formatPercent(cocAfterRefi)}</strong>
+                            <span className="coc-detail">{formatCurrency(cashShareAfterRefi)}/yr</span>
+                          </td>
+                          <td>{formatCurrency(refiReceived)}</td>
+                          <td>
+                            <strong>{formatCurrency(cashStillInAfterRefi)}</strong>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {gpContributions.length > 0 && (() => {
+                      const totalHoldingPct = gpContributions.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
+                      const totalCashBeforeRefi = availableCashBeforeRefi * totalHoldingPct
+                      const totalCashAfterRefi = availableCashAnnual * totalHoldingPct
+                      const totalRefiReceived = Object.values(refiDistribution).reduce((sum, v) => sum + v, 0)
+                      const totalCashStillInAfterRefi = gpTotal - totalRefiReceived
+                      return (
+                        <tr className="totals-row">
+                          <td><strong>Total</strong></td>
+                          <td></td>
+                          <td><strong>{formatCurrency(gpTotal)}</strong></td>
+                          <td><strong>{(totalHoldingPct * 100).toFixed(1)}%</strong></td>
+                          <td>
+                            <strong>{formatCurrency(totalCashBeforeRefi)}/yr</strong>
+                          </td>
+                          <td>
+                            <strong>{formatCurrency(totalCashAfterRefi)}/yr</strong>
+                          </td>
+                          <td><strong>{formatCurrency(totalRefiReceived)}</strong></td>
+                          <td>
+                            <strong>{formatCurrency(totalCashStillInAfterRefi)}</strong>
+                          </td>
+                        </tr>
+                      )
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+              <p className="muted tiny">CoC Before Refi = Annual Cash ÷ Original Contribution | CoC After Refi = Annual Cash ÷ Cash Still In</p>
+              <p className="muted tiny">GP Refi Pool: {formatCurrency(gpRefiPool)} (equalized) | LP Refi Pool: {formatCurrency(lpRefiPool)} (proportional)</p>
+            </>
+          )
+        })()}
       </section>
     </div>
   )
