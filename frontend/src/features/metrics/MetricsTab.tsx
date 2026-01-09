@@ -1157,22 +1157,28 @@ const selectedHardSoftTotal =
                   </tr>
                 )
               })}
-              {gpContributions.length > 0 && (
-                <tr className="totals-row">
-                  <td><strong>Total</strong></td>
-                  <td><strong>{formatCurrency(gpTotal)}</strong></td>
-                  <td><strong>{gpContributions.reduce((sum, row) => sum + toNumber(row.holdingPct), 0).toFixed(1)}%</strong></td>
-                  <td>
-                    <strong>{formatCurrency(availableCashBeforeRefi)}/yr</strong>
-                  </td>
-                  <td>
-                    <strong>{formatCurrency(availableCashAnnual)}/yr</strong>
-                  </td>
-                  <td>
-                    <strong>{formatCurrency(refinanceAmountValue)}</strong>
-                  </td>
-                </tr>
-              )}
+              {gpContributions.length > 0 && (() => {
+                const totalHoldingPct = gpContributions.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
+                const totalCashBeforeRefi = availableCashBeforeRefi * totalHoldingPct
+                const totalCashAfterRefi = availableCashAnnual * totalHoldingPct
+                const totalCashInFromRefi = refinanceAmountValue * totalHoldingPct
+                return (
+                  <tr className="totals-row">
+                    <td><strong>Total</strong></td>
+                    <td><strong>{formatCurrency(gpTotal)}</strong></td>
+                    <td><strong>{(totalHoldingPct * 100).toFixed(1)}%</strong></td>
+                    <td>
+                      <strong>{formatCurrency(totalCashBeforeRefi)}/yr</strong>
+                    </td>
+                    <td>
+                      <strong>{formatCurrency(totalCashAfterRefi)}/yr</strong>
+                    </td>
+                    <td>
+                      <strong>{formatCurrency(totalCashInFromRefi)}</strong>
+                    </td>
+                  </tr>
+                )
+              })()}
             </tbody>
           </table>
         </div>
