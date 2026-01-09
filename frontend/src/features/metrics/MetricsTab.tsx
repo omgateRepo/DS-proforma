@@ -1121,7 +1121,7 @@ const selectedHardSoftTotal =
                 <th>Holding %</th>
                 <th>CoC Before Refi</th>
                 <th>CoC After Refi</th>
-                <th>Cash In (Refi)</th>
+                <th>Cash In After Refi</th>
               </tr>
             </thead>
             <tbody>
@@ -1137,7 +1137,8 @@ const selectedHardSoftTotal =
                 const cashShareAfterRefi = availableCashAnnual * holdingPct
                 const cocBeforeRefi = contribution > 0 ? cashShareBeforeRefi / contribution : 0
                 const cocAfterRefi = contribution > 0 ? cashShareAfterRefi / contribution : 0
-                const cashInFromRefi = refinanceAmountValue * holdingPct
+                const cashReceivedFromRefi = refinanceAmountValue * holdingPct
+                const cashStillInAfterRefi = contribution - cashReceivedFromRefi
                 return (
                   <tr key={row.id}>
                     <td>{getPartnerLabel(row.partner)}</td>
@@ -1152,7 +1153,7 @@ const selectedHardSoftTotal =
                       <span className="coc-detail">{formatCurrency(cashShareAfterRefi)}/yr</span>
                     </td>
                     <td>
-                      <strong>{formatCurrency(cashInFromRefi)}</strong>
+                      <strong>{formatCurrency(cashStillInAfterRefi)}</strong>
                     </td>
                   </tr>
                 )
@@ -1161,7 +1162,8 @@ const selectedHardSoftTotal =
                 const totalHoldingPct = gpContributions.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
                 const totalCashBeforeRefi = availableCashBeforeRefi * totalHoldingPct
                 const totalCashAfterRefi = availableCashAnnual * totalHoldingPct
-                const totalCashInFromRefi = refinanceAmountValue * totalHoldingPct
+                const totalCashReceivedFromRefi = refinanceAmountValue * totalHoldingPct
+                const totalCashStillInAfterRefi = gpTotal - totalCashReceivedFromRefi
                 return (
                   <tr className="totals-row">
                     <td><strong>Total</strong></td>
@@ -1174,7 +1176,7 @@ const selectedHardSoftTotal =
                       <strong>{formatCurrency(totalCashAfterRefi)}/yr</strong>
                     </td>
                     <td>
-                      <strong>{formatCurrency(totalCashInFromRefi)}</strong>
+                      <strong>{formatCurrency(totalCashStillInAfterRefi)}</strong>
                     </td>
                   </tr>
                 )
