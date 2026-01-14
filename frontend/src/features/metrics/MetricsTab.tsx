@@ -1070,7 +1070,7 @@ const selectedHardSoftTotal =
             />
           </label>
           <p className="muted tiny">Total Project Costs: {formatCurrency(constructionLoanAmount + gpTotal)}</p>
-        </div>
+    </div>
         <div className="metrics-table-wrapper">
           <table className="metrics-table exit-table">
             <thead>
@@ -1113,47 +1113,19 @@ const selectedHardSoftTotal =
       <section>
         <h3>GP/LP Returns</h3>
         {(() => {
-          // Separate LPs and GPs
-          const lpRows = gpContributions.filter((row) => row.partner === 'LP')
-          const gpRows = gpContributions.filter((row) => row.partner !== 'LP')
-
-          // Calculate LP pool (proportional to holding)
-          const totalLpHoldingPct = lpRows.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
-          const lpRefiPool = refinanceAmountValue * totalLpHoldingPct
-
-          // Calculate GP pool
-          const totalGpHoldingPct = gpRows.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
-          const gpRefiPool = refinanceAmountValue * totalGpHoldingPct
-          const totalGpContributions = gpRows.reduce((sum, row) => sum + toNumber(row.amountUsd), 0)
-
-          // GP distribution: remaining cash-in proportional to their holdings within GP group
-          const gpDistribution: Record<string, number> = {}
-          if (gpRows.length > 0 && totalGpHoldingPct > 0) {
-            // Total GP cash remaining after refi
-            const totalGpCashRemaining = totalGpContributions - gpRefiPool
-
-            gpRows.forEach((row) => {
+          // Refi is distributed based on capital contribution percentage (not holding %)
+          // Each investor gets: (their contribution / total contributions) × refi amount
+          const refiDistribution: Record<string, number> = {}
+          
+          if (gpTotal > 0) {
+            gpContributions.forEach((row) => {
               const contribution = toNumber(row.amountUsd)
-              const holdingPct = toNumber(row.holdingPct) / 100
-              // Their share of GP holdings (relative to other GPs)
-              const shareOfGpHoldings = holdingPct / totalGpHoldingPct
-              // Target cash-in after refi (proportional to their share of GP holdings)
-              const targetCashIn = totalGpCashRemaining * shareOfGpHoldings
-              // Refi received = contribution - target (but not negative)
-              const refiReceived = Math.max(0, contribution - targetCashIn)
-              gpDistribution[row.id as string] = refiReceived
+              // Share of refi based on capital contribution percentage
+              const capitalSharePct = contribution / gpTotal
+              const refiReceived = refinanceAmountValue * capitalSharePct
+              refiDistribution[row.id as string] = refiReceived
             })
           }
-
-          // LP distribution is proportional to their holding within LP group
-          const lpDistribution: Record<string, number> = {}
-          lpRows.forEach((row) => {
-            const lpHoldingPct = toNumber(row.holdingPct) / 100
-            lpDistribution[row.id as string] = refinanceAmountValue * lpHoldingPct
-          })
-
-          // Combine for easy lookup
-          const refiDistribution = { ...gpDistribution, ...lpDistribution }
 
           return (
             <>
@@ -1237,7 +1209,7 @@ const selectedHardSoftTotal =
                 </table>
               </div>
               <p className="muted tiny">CoC Before Refi = Annual Cash ÷ Original Contribution | CoC After Refi = Annual Cash ÷ Cash Still In</p>
-              <p className="muted tiny">GP Refi Pool: {formatCurrency(gpRefiPool)} (equalized) | LP Refi Pool: {formatCurrency(lpRefiPool)} (proportional)</p>
+              <p className="muted tiny">Refi distributed by capital contribution % (not holding %)</p>
             </>
           )
         })()}
