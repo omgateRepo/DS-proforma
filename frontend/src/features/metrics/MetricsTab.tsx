@@ -1212,7 +1212,8 @@ const selectedHardSoftTotal =
                       <th>Contribution</th>
                       <th>Holding %</th>
                       <th>CoC Before Refi</th>
-                      <th>Preferred Return</th>
+                      <th>Pref Return Owed</th>
+                      <th>Pref Return Paid</th>
                       <th>Capital Return</th>
                       <th>Total Refi</th>
                       <th>Cash In After Refi</th>
@@ -1221,7 +1222,7 @@ const selectedHardSoftTotal =
                   <tbody>
                     {gpContributions.length === 0 && (
                       <tr>
-                        <td colSpan={9}>No GP/LP contributions defined.</td>
+                        <td colSpan={10}>No GP/LP contributions defined.</td>
                       </tr>
                     )}
                     {gpContributions.map((row) => {
@@ -1230,6 +1231,7 @@ const selectedHardSoftTotal =
                       const cashShareBeforeRefi = availableCashBeforeRefi * holdingPct
                       const cocBeforeRefi = contribution > 0 ? cashShareBeforeRefi / contribution : 0
                       const isLp = row.partner === 'LP'
+                      const prefReturnOwed = preferredReturnOwed[row.id as string] || 0
                       const prefReturnPaid = preferredPaidFromRefi[row.id as string] || 0
                       const capitalReturn = capitalReturnFromRefi[row.id as string] || 0
                       const totalRefiReceived = prefReturnPaid + capitalReturn
@@ -1244,6 +1246,7 @@ const selectedHardSoftTotal =
                             <strong>{formatPercent(cocBeforeRefi)}</strong>
                             <span className="coc-detail">{formatCurrency(cashShareBeforeRefi)}/yr</span>
                           </td>
+                          <td>{prefReturnOwed > 0 ? formatCurrency(prefReturnOwed) : '—'}</td>
                           <td>{prefReturnPaid > 0 ? formatCurrency(prefReturnPaid) : '—'}</td>
                           <td>{formatCurrency(capitalReturn)}</td>
                           <td><strong>{formatCurrency(totalRefiReceived)}</strong></td>
@@ -1256,6 +1259,7 @@ const selectedHardSoftTotal =
                     {gpContributions.length > 0 && (() => {
                       const totalHoldingPct = gpContributions.reduce((sum, row) => sum + toNumber(row.holdingPct), 0) / 100
                       const totalCashBeforeRefi = availableCashBeforeRefi * totalHoldingPct
+                      const totalPrefOwed = Object.values(preferredReturnOwed).reduce((sum, v) => sum + v, 0)
                       const totalPrefPaid = Object.values(preferredPaidFromRefi).reduce((sum, v) => sum + v, 0)
                       const totalCapitalReturn = Object.values(capitalReturnFromRefi).reduce((sum, v) => sum + v, 0)
                       const totalRefi = totalPrefPaid + totalCapitalReturn
@@ -1269,6 +1273,7 @@ const selectedHardSoftTotal =
                           <td>
                             <strong>{formatCurrency(totalCashBeforeRefi)}/yr</strong>
                           </td>
+                          <td><strong>{formatCurrency(totalPrefOwed)}</strong></td>
                           <td><strong>{formatCurrency(totalPrefPaid)}</strong></td>
                           <td><strong>{formatCurrency(totalCapitalReturn)}</strong></td>
                           <td><strong>{formatCurrency(totalRefi)}</strong></td>
