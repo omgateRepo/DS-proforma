@@ -154,6 +154,114 @@ The complete distribution priority (waterfall) for capital return events:
    - LP receives their holding % (e.g., 5% each)
 ```
 
+## Major Project Events
+
+A typical real estate investment has three major return events over its lifecycle:
+
+### Timeline Overview
+
+```
+Year 0        Year 2         Year 3              Year 4-6           Year 6
+   |             |              |                    |                 |
+   v             v              v                    v                 v
+Purchase → Construction → Stabilization → Annual NOI Returns → Sale
+           (2 years)      (1 year)         (3 years)
+                              |
+                              v
+                         REFINANCE
+                         EVENT #1
+```
+
+### Event 1: Refinance (Year 3)
+
+**When:** After construction ends and stabilization period completes (typically 2 years construction + 1 year stabilization = 3 years from purchase)
+
+**What happens:**
+- The property is refinanced based on its stabilized value and NOI
+- Cash is pulled out from the refinance proceeds
+
+**LP receives:**
+1. **Preferred Return** - Accumulated during the 3-year period (e.g., 8% × 3 years = 24% of invested capital)
+2. **Capital Return** - Up to 100% of their original invested capital (if refinance proceeds are sufficient)
+
+**Distribution priority:**
+1. Pay LP preferred return first
+2. Return LP capital (up to 100% of investment)
+3. Return GP capital
+4. Any excess → profit split by holding %
+
+**Example:**
+- LP invested: $100,000
+- Preferred rate: 8% annually
+- Period: 3 years
+- LP receives: $24,000 (preferred) + $100,000 (capital) = **$124,000**
+
+### Event 2: Annual NOI Distribution (Years 4-6)
+
+**When:** Each year during the 3 years following refinance
+
+**What happens:**
+- Property generates Net Operating Income (NOI) from tenant leases
+- Loan service (debt payments) is deducted
+- Remaining cash flow is distributed to investors
+
+**LP receives:**
+- Their **holding percentage** of the available cash flow
+- Formula: `(NOI - Loan Service) × LP Holding %`
+
+**Example (per year):**
+- Annual NOI: $500,000
+- Loan Service: $300,000
+- Available Cash: $200,000
+- LP Holding: 5%
+- LP receives: $200,000 × 5% = **$10,000/year**
+
+### Event 3: Sale (Year 6)
+
+**When:** Approximately 3 years after refinance (6 years from original purchase)
+
+**What happens:**
+- The property is sold
+- Outstanding loan is paid off
+- Net proceeds are distributed to investors
+
+**LP receives:**
+- Their **holding percentage** of the profit
+- Since capital was already returned at refinance, this is pure profit
+
+**Distribution:**
+1. Pay off remaining loan balance
+2. Pay any outstanding preferred return (if applicable)
+3. Return any remaining capital (if not fully returned at refi)
+4. **Profit split by holding %**
+
+**Example:**
+- Sale Price: $15,000,000
+- Loan Payoff: $7,000,000
+- Net Proceeds: $8,000,000
+- Original Total Cost: $10,000,000
+- Total Capital Already Returned: $3,000,000
+- Profit: $8,000,000 - remaining obligations
+- LP Holding: 5%
+- LP profit share: Profit × 5%
+
+### Summary Timeline
+
+| Event | Timing | What LP Receives | Basis |
+|-------|--------|------------------|-------|
+| Refinance | Year 3 | Preferred Return + Capital (up to 100%) | Capital contribution % |
+| NOI Year 1 | Year 4 | (NOI - Debt Service) × Holding % | Holding % |
+| NOI Year 2 | Year 5 | (NOI - Debt Service) × Holding % | Holding % |
+| NOI Year 3 | Year 6 | (NOI - Debt Service) × Holding % | Holding % |
+| Sale | Year 6 | Profit × Holding % | Holding % |
+
+### Key Distinction
+
+- **Capital Return events (Refinance, Sale):** Distributed by **capital contribution percentage**
+- **Cash Flow events (NOI):** Distributed by **holding percentage**
+
+This distinction is important because GP may have a larger holding % than their capital contribution would suggest (due to promote), so they benefit more from cash flow and profit distributions than from capital return distributions.
+
 ## Worked Example
 
 ### Project Setup
