@@ -104,6 +104,7 @@ type MetricsPreferences = {
   salesCostPct: string
   preferredReturnPct: string
   stabilizationPeriodMonths: string
+  sellingCapRatePct: string
 }
 
 const STORAGE_KEY = 'metrics-preferences-v1'
@@ -159,6 +160,7 @@ export function MetricsTab({ project, projectId }: MetricsTabProps) {
   const [salesCostPct, setSalesCostPct] = useState('2')
   const [preferredReturnPct, setPreferredReturnPct] = useState('0')
   const [stabilizationPeriodMonths, setStabilizationPeriodMonths] = useState('12')
+  const [sellingCapRatePct, setSellingCapRatePct] = useState('6')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle')
   const hydratingRef = useRef(false)
   const markDirty = () => {
@@ -182,6 +184,7 @@ useEffect(() => {
     setSalesCostPct('2')
     setPreferredReturnPct('0')
     setStabilizationPeriodMonths('12')
+    setSellingCapRatePct('6')
     setSaveStatus('idle')
     hydratingRef.current = false
     return
@@ -214,6 +217,7 @@ useEffect(() => {
   setSalesCostPct(stored?.salesCostPct ?? '2')
   setPreferredReturnPct(stored?.preferredReturnPct ?? '0')
   setStabilizationPeriodMonths(stored?.stabilizationPeriodMonths ?? '12')
+  setSellingCapRatePct(stored?.sellingCapRatePct ?? '6')
   setSaveStatus('idle')
   hydratingRef.current = false
 }, [project?.id, projectId])
@@ -235,6 +239,7 @@ useEffect(() => {
       salesCostPct,
       preferredReturnPct,
       stabilizationPeriodMonths,
+      sellingCapRatePct,
     }
     savePreferences(projectId, payload)
     setSaveStatus('saved')
@@ -1150,6 +1155,20 @@ const selectedHardSoftTotal =
               }}
             />
           </label>
+          <label>
+            Selling Cap Rate (%)
+            <input
+              type="number"
+              step="0.25"
+              min="0"
+              value={sellingCapRatePct}
+              placeholder="e.g. 6"
+              onChange={(e) => {
+                setSellingCapRatePct(e.target.value)
+                markDirty()
+              }}
+            />
+          </label>
           <p className="muted tiny">
             Preferred return period: {constructionPeriodMonths} (construction) + {stabilizationPeriodMonths} (stabilization) = {toNumber(constructionPeriodMonths) + toNumber(stabilizationPeriodMonths)} months
           </p>
@@ -1201,6 +1220,15 @@ const selectedHardSoftTotal =
             })
           }
 
+          // Calculate profit after selling based on selling cap rate
+          const sellingCapRate = toNumber(sellingCapRatePct)
+          const salePrice = noi && sellingCapRate ? noi / (sellingCapRate / 100) : 0
+          const salesCostValue = toNumber(salesCostPct)
+          const salesCosts = salePrice * (salesCostValue / 100)
+          const netProceeds = salePrice - salesCosts
+          const totalProjectCosts = constructionLoanAmount + gpTotal
+          const totalProfitAfterSale = netProceeds - totalProjectCosts
+
           return (
             <>
               <div className="metrics-table-wrapper">
@@ -1211,18 +1239,19 @@ const selectedHardSoftTotal =
                       <th>Type</th>
                       <th>Contribution</th>
                       <th>Holding %</th>
-                      <th>CoC Before Refi</th>
+                      <th>CoC if NO Refi</th>
                       <th>Pref Return Owed</th>
                       <th>Pref Return Paid</th>
                       <th>Capital Return</th>
                       <th>Total Refi</th>
                       <th>Cash In After Refi</th>
+                      <th>Profit After Sale</th>
                     </tr>
                   </thead>
                   <tbody>
                     {gpContributions.length === 0 && (
                       <tr>
-                        <td colSpan={10}>No GP/LP contributions defined.</td>
+                        <td colSpan={11}>No GP/LP contributions defined.</td>
                       </tr>
                     )}
                     {gpContributions.map((row) => {
@@ -1236,6 +1265,7 @@ const selectedHardSoftTotal =
                       const capitalReturn = capitalReturnFromRefi[row.id as string] || 0
                       const totalRefiReceived = prefReturnPaid + capitalReturn
                       const cashStillInAfterRefi = Math.max(0, contribution - capitalReturn)
+                      const profitAfterSale = totalProfitAfterSale * holdingPct
                       return (
                         <tr key={row.id}>
                           <td>{getPartnerLabel(row.partner)}</td>
@@ -1253,6 +1283,9 @@ const selectedHardSoftTotal =
                           <td>
                             <strong>{formatCurrency(cashStillInAfterRefi)}</strong>
                           </td>
+                          <td className={profitAfterSale >= 0 ? 'money-positive' : 'money-negative'}>
+                            <strong>{formatCurrency(profitAfterSale)}</strong>
+                          </td>
                         </tr>
                       )
                     })}
@@ -1264,6 +1297,7 @@ const selectedHardSoftTotal =
                       const totalCapitalReturn = Object.values(capitalReturnFromRefi).reduce((sum, v) => sum + v, 0)
                       const totalRefi = totalPrefPaid + totalCapitalReturn
                       const totalCashStillIn = gpTotal - totalCapitalReturn
+                      const totalProfitForHolders = totalProfitAfterSale * totalHoldingPct
                       return (
                         <tr className="totals-row">
                           <td><strong>Total</strong></td>
@@ -1280,6 +1314,9 @@ const selectedHardSoftTotal =
                           <td>
                             <strong>{formatCurrency(totalCashStillIn)}</strong>
                           </td>
+                          <td className={totalProfitForHolders >= 0 ? 'money-positive' : 'money-negative'}>
+                            <strong>{formatCurrency(totalProfitForHolders)}</strong>
+                          </td>
                         </tr>
                       )
                     })()}
@@ -1288,6 +1325,10 @@ const selectedHardSoftTotal =
               </div>
               <p className="muted tiny">Preferred Return = LP Capital × Rate × ({toNumber(constructionPeriodMonths) + toNumber(stabilizationPeriodMonths)} months / 12)</p>
               <p className="muted tiny">Refi waterfall: 1) Pay LP Preferred Return → 2) Capital Return by contribution %</p>
+              <p className="muted tiny">Profit After Sale = (Sale Price − Sales Costs − Loans − GP/LP Capital) × Holding %</p>
+              {sellingCapRate > 0 && (
+                <p className="muted tiny">Sale @ {sellingCapRate}% cap: {formatCurrency(salePrice)} − {formatCurrency(salesCosts)} costs − {formatCurrency(totalProjectCosts)} project = {formatCurrency(totalProfitAfterSale)} profit</p>
+              )}
             </>
           )
         })()}
