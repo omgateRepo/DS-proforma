@@ -1244,14 +1244,13 @@ const selectedHardSoftTotal =
                       <th>Pref Return Paid</th>
                       <th>Capital Return</th>
                       <th>Total Refi</th>
-                      <th>Cash In After Refi</th>
                       <th>Profit After Sale</th>
                     </tr>
                   </thead>
                   <tbody>
                     {gpContributions.length === 0 && (
                       <tr>
-                        <td colSpan={11}>No GP/LP contributions defined.</td>
+                        <td colSpan={10}>No GP/LP contributions defined.</td>
                       </tr>
                     )}
                     {gpContributions.map((row) => {
@@ -1264,7 +1263,6 @@ const selectedHardSoftTotal =
                       const prefReturnPaid = preferredPaidFromRefi[row.id as string] || 0
                       const capitalReturn = capitalReturnFromRefi[row.id as string] || 0
                       const totalRefiReceived = prefReturnPaid + capitalReturn
-                      const cashStillInAfterRefi = Math.max(0, contribution - capitalReturn)
                       const profitAfterSale = totalProfitAfterSale * holdingPct
                       return (
                         <tr key={row.id}>
@@ -1280,9 +1278,6 @@ const selectedHardSoftTotal =
                           <td>{prefReturnPaid > 0 ? formatCurrency(prefReturnPaid) : '—'}</td>
                           <td>{formatCurrency(capitalReturn)}</td>
                           <td><strong>{formatCurrency(totalRefiReceived)}</strong></td>
-                          <td>
-                            <strong>{formatCurrency(cashStillInAfterRefi)}</strong>
-                          </td>
                           <td className={profitAfterSale >= 0 ? 'money-positive' : 'money-negative'}>
                             <strong>{formatCurrency(profitAfterSale)}</strong>
                           </td>
@@ -1296,7 +1291,6 @@ const selectedHardSoftTotal =
                       const totalPrefPaid = Object.values(preferredPaidFromRefi).reduce((sum, v) => sum + v, 0)
                       const totalCapitalReturn = Object.values(capitalReturnFromRefi).reduce((sum, v) => sum + v, 0)
                       const totalRefi = totalPrefPaid + totalCapitalReturn
-                      const totalCashStillIn = gpTotal - totalCapitalReturn
                       const totalProfitForHolders = totalProfitAfterSale * totalHoldingPct
                       return (
                         <tr className="totals-row">
@@ -1311,9 +1305,6 @@ const selectedHardSoftTotal =
                           <td><strong>{formatCurrency(totalPrefPaid)}</strong></td>
                           <td><strong>{formatCurrency(totalCapitalReturn)}</strong></td>
                           <td><strong>{formatCurrency(totalRefi)}</strong></td>
-                          <td>
-                            <strong>{formatCurrency(totalCashStillIn)}</strong>
-                          </td>
                           <td className={totalProfitForHolders >= 0 ? 'money-positive' : 'money-negative'}>
                             <strong>{formatCurrency(totalProfitForHolders)}</strong>
                           </td>
