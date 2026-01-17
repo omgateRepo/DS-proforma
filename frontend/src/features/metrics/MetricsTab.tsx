@@ -1226,8 +1226,17 @@ const selectedHardSoftTotal =
           const salesCostValue = toNumber(salesCostPct)
           const salesCosts = salePrice * (salesCostValue / 100)
           const netProceeds = salePrice - salesCosts
-          const totalProjectCosts = constructionLoanAmount + gpTotal
-          const totalProfitAfterSale = netProceeds - totalProjectCosts
+          
+          // Calculate how much capital was already returned from refi
+          const totalCapitalReturnedFromRefi = Object.values(capitalReturnFromRefi).reduce((sum, v) => sum + v, 0)
+          
+          // Net available for GP/LP after paying loan
+          const netAfterLoan = netProceeds - constructionLoanAmount
+          
+          // True profit pool = what's left after returning ALL remaining capital
+          // (capital that wasn't returned from refi)
+          const totalRemainingCapital = gpTotal - totalCapitalReturnedFromRefi
+          const profitPool = netAfterLoan - totalRemainingCapital
 
           return (
             <>
@@ -1241,7 +1250,6 @@ const selectedHardSoftTotal =
                       <th>Holding %</th>
                       <th>CoC if NO Refi</th>
                       <th>Pref Return Owed</th>
-                      <th>Pref Return Paid</th>
                       <th>Capital Return</th>
                       <th>Total Refi</th>
                       <th>Profit After Sale</th>
@@ -1250,7 +1258,7 @@ const selectedHardSoftTotal =
                   <tbody>
                     {gpContributions.length === 0 && (
                       <tr>
-                        <td colSpan={10}>No GP/LP contributions defined.</td>
+                        <td colSpan={9}>No GP/LP contributions defined.</td>
                       </tr>
                     )}
                     {gpContributions.map((row) => {
@@ -1263,7 +1271,10 @@ const selectedHardSoftTotal =
                       const prefReturnPaid = preferredPaidFromRefi[row.id as string] || 0
                       const capitalReturn = capitalReturnFromRefi[row.id as string] || 0
                       const totalRefiReceived = prefReturnPaid + capitalReturn
-                      const profitAfterSale = totalProfitAfterSale * holdingPct
+                      // Remaining capital that wasn't returned from refi
+                      const remainingCapital = Math.max(0, contribution - capitalReturn)
+                      // Profit from sale = remaining capital back + share of profit pool
+                      const profitAfterSale = remainingCapital + (profitPool * holdingPct)
                       return (
                         <tr key={row.id}>
                           <td>{getPartnerLabel(row.partner)}</td>
@@ -1275,7 +1286,6 @@ const selectedHardSoftTotal =
                             <span className="coc-detail">{formatCurrency(cashShareBeforeRefi)}/yr</span>
                           </td>
                           <td>{prefReturnOwed > 0 ? formatCurrency(prefReturnOwed) : '—'}</td>
-                          <td>{prefReturnPaid > 0 ? formatCurrency(prefReturnPaid) : '—'}</td>
                           <td>{formatCurrency(capitalReturn)}</td>
                           <td><strong>{formatCurrency(totalRefiReceived)}</strong></td>
                           <td className={profitAfterSale >= 0 ? 'money-positive' : 'money-negative'}>
@@ -1291,7 +1301,10 @@ const selectedHardSoftTotal =
                       const totalPrefPaid = Object.values(preferredPaidFromRefi).reduce((sum, v) => sum + v, 0)
                       const totalCapitalReturn = Object.values(capitalReturnFromRefi).reduce((sum, v) => sum + v, 0)
                       const totalRefi = totalPrefPaid + totalCapitalReturn
-                      const totalProfitForHolders = totalProfitAfterSale * totalHoldingPct
+                      // Remaining capital for all partners
+                      const totalRemainingCapitalForHolders = gpTotal - totalCapitalReturn
+                      // Total profit = remaining capital + profit share
+                      const totalProfitForHolders = totalRemainingCapitalForHolders + (profitPool * totalHoldingPct)
                       return (
                         <tr className="totals-row">
                           <td><strong>Total</strong></td>
@@ -1302,7 +1315,6 @@ const selectedHardSoftTotal =
                             <strong>{formatCurrency(totalCashBeforeRefi)}/yr</strong>
                           </td>
                           <td><strong>{formatCurrency(totalPrefOwed)}</strong></td>
-                          <td><strong>{formatCurrency(totalPrefPaid)}</strong></td>
                           <td><strong>{formatCurrency(totalCapitalReturn)}</strong></td>
                           <td><strong>{formatCurrency(totalRefi)}</strong></td>
                           <td className={totalProfitForHolders >= 0 ? 'money-positive' : 'money-negative'}>
@@ -1316,9 +1328,9 @@ const selectedHardSoftTotal =
               </div>
               <p className="muted tiny">Preferred Return = LP Capital × Rate × ({toNumber(constructionPeriodMonths) + toNumber(stabilizationPeriodMonths)} months / 12)</p>
               <p className="muted tiny">Refi waterfall: 1) Pay LP Preferred Return → 2) Capital Return by contribution %</p>
-              <p className="muted tiny">Profit After Sale = (Sale Price − Sales Costs − Loans − GP/LP Capital) × Holding %</p>
+              <p className="muted tiny">Profit After Sale = Remaining Capital (not returned from refi) + (Profit Pool × Holding %)</p>
               {sellingCapRate > 0 && (
-                <p className="muted tiny">Sale @ {sellingCapRate}% cap: {formatCurrency(salePrice)} − {formatCurrency(salesCosts)} costs − {formatCurrency(totalProjectCosts)} project = {formatCurrency(totalProfitAfterSale)} profit</p>
+                <p className="muted tiny">Sale @ {sellingCapRate}% cap: {formatCurrency(netAfterLoan)} after loan − {formatCurrency(totalRemainingCapital)} remaining capital = {formatCurrency(profitPool)} profit pool</p>
               )}
             </>
           )
