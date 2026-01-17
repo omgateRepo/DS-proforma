@@ -1253,12 +1253,14 @@ const selectedHardSoftTotal =
                       <th>Capital Return</th>
                       <th>Total Refi</th>
                       <th>Profit After Sale</th>
+                      <th>Total Profit</th>
+                      <th>IRR (Yearly)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {gpContributions.length === 0 && (
                       <tr>
-                        <td colSpan={9}>No GP/LP contributions defined.</td>
+                        <td colSpan={11}>No GP/LP contributions defined.</td>
                       </tr>
                     )}
                     {gpContributions.map((row) => {
@@ -1275,6 +1277,11 @@ const selectedHardSoftTotal =
                       const remainingCapital = Math.max(0, contribution - capitalReturn)
                       // Profit from sale = remaining capital back + share of profit pool
                       const profitAfterSale = remainingCapital + (profitPool * holdingPct)
+                      // Total profit = all money received - contribution
+                      const totalProfit = totalRefiReceived + profitAfterSale - contribution
+                      // IRR = average yearly return over the holding period
+                      const holdingYears = totalPeriodYears
+                      const irr = contribution > 0 && holdingYears > 0 ? (totalProfit / contribution / holdingYears) * 100 : 0
                       return (
                         <tr key={row.id}>
                           <td>{getPartnerLabel(row.partner)}</td>
@@ -1291,6 +1298,12 @@ const selectedHardSoftTotal =
                           <td className={profitAfterSale >= 0 ? 'money-positive' : 'money-negative'}>
                             <strong>{formatCurrency(profitAfterSale)}</strong>
                           </td>
+                          <td className={totalProfit >= 0 ? 'money-positive' : 'money-negative'}>
+                            <strong>{formatCurrency(totalProfit)}</strong>
+                          </td>
+                          <td className={irr >= 0 ? 'money-positive' : 'money-negative'}>
+                            <strong>{irr.toFixed(1)}%</strong>
+                          </td>
                         </tr>
                       )
                     })}
@@ -1305,6 +1318,11 @@ const selectedHardSoftTotal =
                       const totalRemainingCapitalForHolders = gpTotal - totalCapitalReturn
                       // Total profit = remaining capital + profit share
                       const totalProfitForHolders = totalRemainingCapitalForHolders + (profitPool * totalHoldingPct)
+                      // Total profit = all money received - contribution
+                      const totalProfitNet = totalRefi + totalProfitForHolders - gpTotal
+                      // IRR = average yearly return
+                      const holdingYears = totalPeriodYears
+                      const totalIrr = gpTotal > 0 && holdingYears > 0 ? (totalProfitNet / gpTotal / holdingYears) * 100 : 0
                       return (
                         <tr className="totals-row">
                           <td><strong>Total</strong></td>
@@ -1319,6 +1337,12 @@ const selectedHardSoftTotal =
                           <td><strong>{formatCurrency(totalRefi)}</strong></td>
                           <td className={totalProfitForHolders >= 0 ? 'money-positive' : 'money-negative'}>
                             <strong>{formatCurrency(totalProfitForHolders)}</strong>
+                          </td>
+                          <td className={totalProfitNet >= 0 ? 'money-positive' : 'money-negative'}>
+                            <strong>{formatCurrency(totalProfitNet)}</strong>
+                          </td>
+                          <td className={totalIrr >= 0 ? 'money-positive' : 'money-negative'}>
+                            <strong>{totalIrr.toFixed(1)}%</strong>
                           </td>
                         </tr>
                       )
