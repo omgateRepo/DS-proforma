@@ -13,20 +13,57 @@ type LoadStatus = 'idle' | 'loading' | 'saving' | 'error'
 type PlanningMode = 'coverage_first' | 'budget_first' | 'manual'
 
 // Premium rate tables per $1,000 of face amount (annual, whole-life pay basis)
-// These are approximations based on industry averages
+// These are approximations based on industry averages, extended for all ages
 const PREMIUM_RATES: Record<string, Record<string, Record<number, number>>> = {
   male: {
-    preferred_plus: { 25: 6, 30: 7, 35: 9, 40: 12, 45: 16, 50: 21, 55: 28, 60: 38, 65: 52 },
-    preferred: { 25: 7, 30: 8, 35: 11, 40: 14, 45: 19, 50: 25, 55: 33, 60: 44, 65: 60 },
-    standard: { 25: 9, 30: 10, 35: 14, 40: 18, 45: 24, 50: 32, 55: 42, 60: 55, 65: 75 },
-    substandard: { 25: 12, 30: 14, 35: 19, 40: 25, 45: 33, 50: 44, 55: 58, 60: 76, 65: 103 },
+    preferred_plus: { 
+      0: 1.8, 5: 2.0, 10: 2.2, 15: 2.8, 18: 3.5, 20: 4.5, 
+      25: 6, 30: 7, 35: 9, 40: 12, 45: 16, 50: 21, 55: 28, 60: 38, 65: 52, 70: 72, 75: 100, 80: 140 
+    },
+    preferred: { 
+      0: 2.2, 5: 2.4, 10: 2.7, 15: 3.4, 18: 4.2, 20: 5.5,
+      25: 7, 30: 8, 35: 11, 40: 14, 45: 19, 50: 25, 55: 33, 60: 44, 65: 60, 70: 84, 75: 118, 80: 165 
+    },
+    standard: { 
+      0: 2.8, 5: 3.0, 10: 3.4, 15: 4.2, 18: 5.5, 20: 7,
+      25: 9, 30: 10, 35: 14, 40: 18, 45: 24, 50: 32, 55: 42, 60: 55, 65: 75, 70: 105, 75: 147, 80: 205 
+    },
+    substandard: { 
+      0: 3.8, 5: 4.0, 10: 4.5, 15: 5.6, 18: 7.5, 20: 9.5,
+      25: 12, 30: 14, 35: 19, 40: 25, 45: 33, 50: 44, 55: 58, 60: 76, 65: 103, 70: 145, 75: 200, 80: 280 
+    },
   },
   female: {
-    preferred_plus: { 25: 5, 30: 6, 35: 8, 40: 10, 45: 14, 50: 18, 55: 24, 60: 33, 65: 45 },
-    preferred: { 25: 6, 30: 7, 35: 9, 40: 12, 45: 16, 50: 22, 55: 29, 60: 38, 65: 52 },
-    standard: { 25: 8, 30: 9, 35: 12, 40: 15, 45: 20, 50: 27, 55: 36, 60: 48, 65: 65 },
-    substandard: { 25: 10, 30: 12, 35: 16, 40: 21, 45: 28, 50: 37, 55: 50, 60: 66, 65: 90 },
+    preferred_plus: { 
+      0: 1.5, 5: 1.7, 10: 1.9, 15: 2.4, 18: 3.0, 20: 3.8,
+      25: 5, 30: 6, 35: 8, 40: 10, 45: 14, 50: 18, 55: 24, 60: 33, 65: 45, 70: 62, 75: 86, 80: 120 
+    },
+    preferred: { 
+      0: 1.8, 5: 2.0, 10: 2.3, 15: 2.9, 18: 3.6, 20: 4.6,
+      25: 6, 30: 7, 35: 9, 40: 12, 45: 16, 50: 22, 55: 29, 60: 38, 65: 52, 70: 72, 75: 100, 80: 140 
+    },
+    standard: { 
+      0: 2.4, 5: 2.6, 10: 2.9, 15: 3.6, 18: 4.7, 20: 6,
+      25: 8, 30: 9, 35: 12, 40: 15, 45: 20, 50: 27, 55: 36, 60: 48, 65: 65, 70: 90, 75: 126, 80: 175 
+    },
+    substandard: { 
+      0: 3.2, 5: 3.4, 10: 3.9, 15: 4.8, 18: 6.3, 20: 8,
+      25: 10, 30: 12, 35: 16, 40: 21, 45: 28, 50: 37, 55: 50, 60: 66, 65: 90, 70: 125, 75: 175, 80: 245 
+    },
   },
+}
+
+// 7-Pay limit per $1000 face amount by issue age (IRS guideline premium limits)
+// Young ages have HIGHER limits (more permissive) due to low mortality
+// Based on Section 7702A and actuarial guideline standards
+const SEVEN_PAY_RATES: Record<number, number> = {
+  // Children: Very high limits - can fund aggressively
+  0: 74.00, 5: 58.00, 10: 45.00, 15: 32.00, 
+  // Young adults: Gradually decreasing
+  18: 22.00, 20: 17.50, 
+  // Adults: Standard progression
+  25: 12.50, 30: 13.80, 35: 15.40, 40: 17.50, 45: 20.20, 50: 23.80,
+  55: 28.50, 60: 35.00, 65: 44.00, 70: 56.00, 75: 72.00, 80: 95.00, 85: 125.00
 }
 
 // Interpolate rate for ages not in the table
@@ -42,6 +79,11 @@ function interpolateRate(rates: Record<number, number>, age: number): number {
     }
   }
   return rates[ages[Math.floor(ages.length / 2)]]
+}
+
+// Get 7-pay rate for an age (max premium per $1000 to avoid MEC)
+function getSevenPayRate(age: number): number {
+  return interpolateRate(SEVEN_PAY_RATES, age)
 }
 
 // Get base rate per $1,000 (whole-life pay basis)
@@ -65,8 +107,20 @@ function getPaymentMultiplier(payYears: number, issueAge: number): number {
   return Math.min(3.5, compressionRatio * discountFactor)
 }
 
-// Estimate annual premium given face amount
-function estimatePremium(
+// Calculate MEC limit for a given face amount
+function getMecLimit(faceAmount: number, age: number): number {
+  const sevenPayRate = getSevenPayRate(age)
+  return Math.round((faceAmount / 1000) * sevenPayRate)
+}
+
+// Calculate minimum face amount needed for a premium to avoid MEC
+function getMinFaceAmountForMec(premium: number, age: number): number {
+  const sevenPayRate = getSevenPayRate(age)
+  return Math.ceil((premium * 1000) / sevenPayRate)
+}
+
+// Estimate annual premium given face amount (actuarial estimate, may exceed MEC limit)
+function estimateActuarialPremium(
   faceAmount: number,
   age: number,
   sex: string,
@@ -78,8 +132,8 @@ function estimatePremium(
   return Math.round((faceAmount / 1000) * baseRate * multiplier)
 }
 
-// Estimate face amount given premium budget
-function estimateFaceAmount(
+// Estimate face amount given premium budget (actuarial estimate, may result in MEC)
+function estimateActuarialFaceAmount(
   premium: number,
   age: number,
   sex: string,
@@ -89,6 +143,87 @@ function estimateFaceAmount(
   const baseRate = getBaseRate(age, sex, healthClass)
   const multiplier = getPaymentMultiplier(payYears, age)
   return Math.round((premium / (baseRate * multiplier)) * 1000)
+}
+
+interface PremiumEstimate {
+  actuarialPremium: number      // What insurance pricing suggests
+  mecSafePremium: number        // Max premium to avoid MEC
+  isMecAdjusted: boolean        // True if we had to reduce premium
+  savingsFromMecLimit: number   // How much less you pay per year
+  totalSavingsOverPayPeriod: number
+  tradeOff: string              // Explanation of the trade-off
+}
+
+interface FaceAmountEstimate {
+  actuarialFaceAmount: number   // What the premium would normally buy
+  mecSafeFaceAmount: number     // Minimum face amount to avoid MEC
+  isMecAdjusted: boolean        // True if we had to increase face amount
+  extraCoverage: number         // Additional death benefit you get
+  tradeOff: string              // Explanation of the trade-off
+}
+
+// Coverage First: User enters face amount, we calculate premium (capped at MEC limit)
+function estimatePremiumWithMec(
+  faceAmount: number,
+  age: number,
+  sex: string,
+  healthClass: string,
+  payYears: number
+): PremiumEstimate {
+  const actuarialPremium = estimateActuarialPremium(faceAmount, age, sex, healthClass, payYears)
+  const mecLimit = getMecLimit(faceAmount, age)
+  const isMecAdjusted = actuarialPremium > mecLimit
+  const mecSafePremium = Math.min(actuarialPremium, mecLimit)
+  const savingsFromMecLimit = actuarialPremium - mecSafePremium
+  const totalSavingsOverPayPeriod = savingsFromMecLimit * payYears
+
+  let tradeOff = ''
+  if (isMecAdjusted) {
+    tradeOff = `Typical insurance pricing would charge ${formatCurrency(actuarialPremium)}/year, but that exceeds the MEC limit. ` +
+      `To keep tax advantages, your premium is capped at ${formatCurrency(mecSafePremium)}/year. ` +
+      `You save ${formatCurrency(savingsFromMecLimit)}/year (${formatCurrency(totalSavingsOverPayPeriod)} over ${payYears} years), ` +
+      `but cash value will grow slower.`
+  }
+
+  return {
+    actuarialPremium,
+    mecSafePremium,
+    isMecAdjusted,
+    savingsFromMecLimit,
+    totalSavingsOverPayPeriod,
+    tradeOff
+  }
+}
+
+// Budget First: User enters premium, we calculate face amount (increased if needed for MEC)
+function estimateFaceAmountWithMec(
+  premium: number,
+  age: number,
+  sex: string,
+  healthClass: string,
+  payYears: number
+): FaceAmountEstimate {
+  const actuarialFaceAmount = estimateActuarialFaceAmount(premium, age, sex, healthClass, payYears)
+  const minFaceAmountForMec = getMinFaceAmountForMec(premium, age)
+  const isMecAdjusted = actuarialFaceAmount < minFaceAmountForMec
+  const mecSafeFaceAmount = Math.max(actuarialFaceAmount, minFaceAmountForMec)
+  const extraCoverage = mecSafeFaceAmount - actuarialFaceAmount
+
+  let tradeOff = ''
+  if (isMecAdjusted) {
+    tradeOff = `For ${formatCurrency(premium)}/year, insurance pricing would typically provide ${formatCurrency(actuarialFaceAmount)} coverage. ` +
+      `However, to avoid MEC status, the minimum death benefit must be ${formatCurrency(mecSafeFaceAmount)}. ` +
+      `You get ${formatCurrency(extraCoverage)} MORE coverage (${Math.round((extraCoverage / actuarialFaceAmount) * 100)}% bonus), ` +
+      `but cash value per dollar of coverage is lower.`
+  }
+
+  return {
+    actuarialFaceAmount,
+    mecSafeFaceAmount,
+    isMecAdjusted,
+    extraCoverage,
+    tradeOff
+  }
 }
 
 // Calculate age from DOB
@@ -101,7 +236,8 @@ function getAgeFromDob(dob: string): number {
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
     age--
   }
-  return Math.max(18, Math.min(80, age))
+  // Allow ages 0-85 (children can have life insurance policies)
+  return Math.max(0, Math.min(85, age))
 }
 
 interface Withdrawal {
@@ -235,12 +371,20 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
   const [formError, setFormError] = useState('')
   const [planningMode, setPlanningMode] = useState<PlanningMode>('coverage_first')
 
+  // Inline loan input state (tracks loan amount input for each age)
+  const [inlineLoanInputs, setInlineLoanInputs] = useState<Record<number, string>>({})
+  const [addingLoanForAge, setAddingLoanForAge] = useState<number | null>(null)
+
+  // Projections filter: show only years with activity (premium or loan)
+  const [showOnlyActivityYears, setShowOnlyActivityYears] = useState(false)
+
   // Computed values for planning
   const formAge = useMemo(() => getAgeFromDob(policyForm.insuredDob), [policyForm.insuredDob])
   
-  const estimatedPremium = useMemo(() => {
+  // Coverage First mode: estimate premium with MEC adjustment
+  const premiumEstimate = useMemo((): PremiumEstimate | null => {
     if (!policyForm.faceAmount || !policyForm.insuredDob) return null
-    return estimatePremium(
+    return estimatePremiumWithMec(
       parseFloat(policyForm.faceAmount) || 0,
       formAge,
       policyForm.insuredSex,
@@ -249,9 +393,13 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
     )
   }, [policyForm.faceAmount, formAge, policyForm.insuredSex, policyForm.healthClass, policyForm.premiumPaymentYears])
 
-  const estimatedFaceAmount = useMemo(() => {
+  // For backward compatibility
+  const estimatedPremium = premiumEstimate?.mecSafePremium ?? null
+
+  // Budget First mode: estimate face amount with MEC adjustment
+  const faceAmountEstimate = useMemo((): FaceAmountEstimate | null => {
     if (!policyForm.annualPremium || !policyForm.insuredDob) return null
-    return estimateFaceAmount(
+    return estimateFaceAmountWithMec(
       parseFloat(policyForm.annualPremium) || 0,
       formAge,
       policyForm.insuredSex,
@@ -260,7 +408,20 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
     )
   }, [policyForm.annualPremium, formAge, policyForm.insuredSex, policyForm.healthClass, policyForm.premiumPaymentYears])
 
-  // Payment period comparison
+  // For backward compatibility
+  const estimatedFaceAmount = faceAmountEstimate?.mecSafeFaceAmount ?? null
+
+  // 7-pay limit info for display
+  const sevenPayInfo = useMemo(() => {
+    if (!policyForm.insuredDob) return null
+    const rate = getSevenPayRate(formAge)
+    return {
+      rate,
+      perMillion: Math.round(rate * 1000)
+    }
+  }, [policyForm.insuredDob, formAge])
+
+  // Payment period comparison (using MEC-safe values)
   const paymentComparison = useMemo(() => {
     if (!policyForm.insuredDob) return []
     const baseAmount = planningMode === 'coverage_first' 
@@ -268,11 +429,16 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       : estimatedFaceAmount || 500000
     
     const periods = [10, 15, 20, 30]
-    return periods.map(years => ({
-      years,
-      annualPremium: estimatePremium(baseAmount, formAge, policyForm.insuredSex, policyForm.healthClass, years),
-      totalPremiums: estimatePremium(baseAmount, formAge, policyForm.insuredSex, policyForm.healthClass, years) * years,
-    }))
+    return periods.map(years => {
+      const estimate = estimatePremiumWithMec(baseAmount, formAge, policyForm.insuredSex, policyForm.healthClass, years)
+      return {
+        years,
+        annualPremium: estimate.mecSafePremium,
+        totalPremiums: estimate.mecSafePremium * years,
+        isMecAdjusted: estimate.isMecAdjusted,
+        actuarialPremium: estimate.actuarialPremium,
+      }
+    })
   }, [policyForm.faceAmount, policyForm.insuredDob, policyForm.insuredSex, policyForm.healthClass, formAge, estimatedFaceAmount, planningMode])
 
   // Delete confirmation
@@ -316,6 +482,59 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       setSelectedPolicy(null)
     }
   }, [selectedPolicyId])
+
+  // MEC analysis calculations (must be before any early returns to maintain hook order)
+  const mecAnalysis = useMemo(() => {
+    if (!selectedPolicy) return null
+    
+    const projections = selectedPolicy.projections || []
+    const firstMecProjection = projections.find((p: Projection) => p.isMec)
+    if (!firstMecProjection) return null
+
+    const faceAmount = Number(selectedPolicy.faceAmount)
+    const annualPremium = Number(selectedPolicy.annualPremium)
+    const premiumYears = selectedPolicy.premiumPaymentYears
+
+    // Get the 7-pay limit at the year it becomes MEC
+    const sevenPayLimit = firstMecProjection.sevenPayLimit
+    const cumulativePremium = firstMecProjection.cumulativePremium
+    const overage = cumulativePremium - sevenPayLimit
+
+    // Calculate the max annual premium that would avoid MEC
+    // The 7-pay limit after 7 years is the full limit
+    const year7Projection = projections.find((p: Projection) => p.policyYear === 7)
+    const fullSevenPayLimit = year7Projection?.sevenPayLimit || sevenPayLimit
+
+    // Max premium to avoid MEC: if paying for X years, total must be <= 7-pay limit
+    // For payments within 7 years: max_annual = sevenPayLimit / min(premiumYears, 7)
+    const effectivePaymentYears = Math.min(premiumYears, 7)
+    const maxAnnualPremium = fullSevenPayLimit / effectivePaymentYears
+
+    // Required face amount increase to make current premium safe
+    // annual_premium <= (faceAmount / 1000) * sevenPayRate / effectivePaymentYears
+    // faceAmount >= (annual_premium * effectivePaymentYears * 1000) / sevenPayRate
+    // We can estimate sevenPayRate from the limit: sevenPayRate = (fullSevenPayLimit * 1000) / faceAmount / 7
+    const sevenPayRate = (fullSevenPayLimit / 7) * 1000 / faceAmount
+    const requiredFaceAmount = (annualPremium * effectivePaymentYears * 1000) / sevenPayRate
+
+    // Alternative: spread payments over more years
+    const yearsNeededForCurrentPremium = Math.ceil((annualPremium * premiumYears) / (fullSevenPayLimit / 7))
+
+    return {
+      yearBecameMec: firstMecProjection.policyYear,
+      ageBecameMec: firstMecProjection.age,
+      cumulativePremiumAtMec: cumulativePremium,
+      sevenPayLimitAtMec: sevenPayLimit,
+      overage,
+      currentAnnualPremium: annualPremium,
+      maxAnnualPremium,
+      currentFaceAmount: faceAmount,
+      requiredFaceAmount,
+      currentPremiumYears: premiumYears,
+      yearsNeededForCurrentPremium: Math.max(yearsNeededForCurrentPremium, premiumYears),
+      fullSevenPayLimit
+    }
+  }, [selectedPolicy])
 
   // Handlers
   const handleCreatePolicy = async (e: FormEvent) => {
@@ -373,17 +592,33 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
     if (!selectedPolicyId) return
     setFormStatus('saving')
     setFormError('')
+
+    // Calculate derived values based on planning mode
+    let faceAmount: number
+    let annualPremium: number
+
+    if (planningMode === 'coverage_first') {
+      faceAmount = parseFloat(policyForm.faceAmount) || 0
+      annualPremium = estimatedPremium || 0
+    } else if (planningMode === 'budget_first') {
+      annualPremium = parseFloat(policyForm.annualPremium) || 0
+      faceAmount = estimatedFaceAmount || 0
+    } else {
+      faceAmount = parseFloat(policyForm.faceAmount) || 0
+      annualPremium = parseFloat(policyForm.annualPremium) || 0
+    }
+
     try {
       await updateLifeInsurancePolicy(selectedPolicyId, {
         policyNumber: policyForm.policyNumber || null,
         carrier: policyForm.carrier || null,
-        faceAmount: parseFloat(policyForm.faceAmount),
+        faceAmount,
         issueDate: policyForm.issueDate,
         insuredName: policyForm.insuredName || null,
         insuredDob: policyForm.insuredDob,
         insuredSex: policyForm.insuredSex,
         healthClass: policyForm.healthClass,
-        annualPremium: parseFloat(policyForm.annualPremium),
+        annualPremium,
         premiumPaymentYears: parseInt(policyForm.premiumPaymentYears),
         guaranteedRate: parseFloat(policyForm.guaranteedRate),
         isParticipating: policyForm.isParticipating,
@@ -451,6 +686,39 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
     }
   }
 
+  // Handle adding a loan directly from the projections table
+  const handleInlineLoanAdd = async (age: number) => {
+    const amount = parseFloat(inlineLoanInputs[age] || '0')
+    if (!amount || amount <= 0 || !selectedPolicyId) {
+      setInlineLoanInputs(prev => ({ ...prev, [age]: '' }))
+      setAddingLoanForAge(null)
+      return
+    }
+
+    setAddingLoanForAge(age)
+    try {
+      await addPolicyWithdrawal(selectedPolicyId, {
+        startAge: age,
+        annualAmount: amount,
+        years: 1, // Single year loan
+        withdrawalType: 'loan',
+      })
+      await loadPolicyDetail(selectedPolicyId)
+      setInlineLoanInputs(prev => ({ ...prev, [age]: '' }))
+    } catch (err) {
+      console.error('Failed to add loan', err)
+    }
+    setAddingLoanForAge(null)
+  }
+
+  // Get existing withdrawal amount for an age (if any)
+  const getWithdrawalForAge = (age: number): number => {
+    if (!selectedPolicy) return 0
+    return selectedPolicy.withdrawals
+      .filter(w => age >= w.startAge && age < w.startAge + w.years)
+      .reduce((sum, w) => sum + Number(w.annualAmount), 0)
+  }
+
   const openEditModal = () => {
     if (!selectedPolicy) return
     setPolicyForm({
@@ -471,6 +739,8 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       loanInterestRate: String(selectedPolicy.loanInterestRate),
       notes: selectedPolicy.notes || '',
     })
+    // Default to manual mode since both values exist, but user can switch
+    setPlanningMode('manual')
     setIsEditModalOpen(true)
   }
 
@@ -748,55 +1018,137 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
                     </label>
                   </div>
 
-                  {/* Estimation Display */}
-                  {planningMode === 'coverage_first' && estimatedPremium && policyForm.faceAmount && (
-                    <div className="estimation-box">
+                  {/* Estimation Display - Coverage First */}
+                  {planningMode === 'coverage_first' && premiumEstimate && policyForm.faceAmount && (
+                    <div className={`estimation-box ${premiumEstimate.isMecAdjusted ? 'mec-adjusted' : ''}`}>
                       <div className="estimation-result">
-                        <span className="estimation-label">Estimated Annual Premium:</span>
-                        <span className="estimation-value">{formatCurrency(estimatedPremium)}</span>
+                        <span className="estimation-label">Annual Premium (MEC-Safe):</span>
+                        <span className="estimation-value">{formatCurrency(premiumEstimate.mecSafePremium)}</span>
                       </div>
-                      <p className="estimation-note">
-                        For {formatCurrency(parseFloat(policyForm.faceAmount))} coverage over {policyForm.premiumPaymentYears} years
-                      </p>
+                      
+                      {premiumEstimate.isMecAdjusted && (
+                        <div className="mec-adjustment-info">
+                          <div className="adjustment-header">
+                            <span className="adjustment-icon">💡</span>
+                            <strong>Tax-Advantaged Adjustment Applied</strong>
+                          </div>
+                          <div className="adjustment-comparison">
+                            <div className="comparison-item">
+                              <span className="label">Typical Insurance Premium:</span>
+                              <span className="value strikethrough">{formatCurrency(premiumEstimate.actuarialPremium)}/yr</span>
+                            </div>
+                            <div className="comparison-item">
+                              <span className="label">MEC-Safe Premium (what you pay):</span>
+                              <span className="value highlight">{formatCurrency(premiumEstimate.mecSafePremium)}/yr</span>
+                            </div>
+                            <div className="comparison-item savings">
+                              <span className="label">Your Savings:</span>
+                              <span className="value">{formatCurrency(premiumEstimate.savingsFromMecLimit)}/yr ({formatCurrency(premiumEstimate.totalSavingsOverPayPeriod)} over {policyForm.premiumPaymentYears} yrs)</span>
+                            </div>
+                          </div>
+                          <p className="adjustment-explanation">
+                            {premiumEstimate.tradeOff}
+                          </p>
+                          {sevenPayInfo && (
+                            <p className="mec-limit-note">
+                              <strong>7-Pay Limit for age {formAge}:</strong> {formatCurrency(sevenPayInfo.perMillion)} per $1M of coverage
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      {!premiumEstimate.isMecAdjusted && (
+                        <p className="estimation-note success">
+                          ✓ This premium is within the 7-pay limit — full tax advantages preserved!
+                        </p>
+                      )}
                     </div>
                   )}
-                  {planningMode === 'budget_first' && estimatedFaceAmount && policyForm.annualPremium && (
-                    <div className="estimation-box">
+
+                  {/* Estimation Display - Budget First */}
+                  {planningMode === 'budget_first' && faceAmountEstimate && policyForm.annualPremium && (
+                    <div className={`estimation-box ${faceAmountEstimate.isMecAdjusted ? 'mec-adjusted' : ''}`}>
                       <div className="estimation-result">
-                        <span className="estimation-label">Estimated Death Benefit:</span>
-                        <span className="estimation-value">{formatCurrency(estimatedFaceAmount)}</span>
+                        <span className="estimation-label">Death Benefit (MEC-Safe):</span>
+                        <span className="estimation-value">{formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}</span>
                       </div>
-                      <p className="estimation-note">
-                        With {formatCurrency(parseFloat(policyForm.annualPremium))}/yr premium over {policyForm.premiumPaymentYears} years
-                      </p>
+                      
+                      {faceAmountEstimate.isMecAdjusted && (
+                        <div className="mec-adjustment-info">
+                          <div className="adjustment-header">
+                            <span className="adjustment-icon">💡</span>
+                            <strong>Tax-Advantaged Adjustment Applied</strong>
+                          </div>
+                          <div className="adjustment-comparison">
+                            <div className="comparison-item">
+                              <span className="label">Typical Coverage for this Premium:</span>
+                              <span className="value strikethrough">{formatCurrency(faceAmountEstimate.actuarialFaceAmount)}</span>
+                            </div>
+                            <div className="comparison-item">
+                              <span className="label">MEC-Safe Coverage (what you get):</span>
+                              <span className="value highlight">{formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}</span>
+                            </div>
+                            <div className="comparison-item bonus">
+                              <span className="label">Extra Coverage Bonus:</span>
+                              <span className="value">+{formatCurrency(faceAmountEstimate.extraCoverage)} ({Math.round((faceAmountEstimate.extraCoverage / faceAmountEstimate.actuarialFaceAmount) * 100)}% more)</span>
+                            </div>
+                          </div>
+                          <p className="adjustment-explanation">
+                            {faceAmountEstimate.tradeOff}
+                          </p>
+                          {sevenPayInfo && (
+                            <p className="mec-limit-note">
+                              <strong>7-Pay Limit for age {formAge}:</strong> {formatCurrency(sevenPayInfo.perMillion)} per $1M of coverage
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      {!faceAmountEstimate.isMecAdjusted && (
+                        <p className="estimation-note success">
+                          ✓ This configuration is within the 7-pay limit — full tax advantages preserved!
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {/* Payment Period Comparison */}
                   {policyForm.insuredDob && (planningMode === 'coverage_first' ? policyForm.faceAmount : policyForm.annualPremium) && (
                     <div className="payment-comparison">
-                      <h5>Payment Period Comparison</h5>
+                      <h5>Payment Period Comparison (MEC-Safe)</h5>
                       <table className="comparison-table">
                         <thead>
                           <tr>
                             <th>Pay Period</th>
                             <th>Annual Premium</th>
                             <th>Total Paid</th>
+                            <th>MEC Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {paymentComparison.map((opt) => (
                             <tr 
                               key={opt.years} 
-                              className={String(opt.years) === policyForm.premiumPaymentYears ? 'selected' : ''}
+                              className={`${String(opt.years) === policyForm.premiumPaymentYears ? 'selected' : ''} ${opt.isMecAdjusted ? 'mec-adjusted-row' : ''}`}
                             >
                               <td>{opt.years} years</td>
-                              <td>{formatCurrency(opt.annualPremium)}</td>
+                              <td>
+                                {formatCurrency(opt.annualPremium)}
+                                {opt.isMecAdjusted && (
+                                  <small className="original-premium"> (was {formatCurrency(opt.actuarialPremium)})</small>
+                                )}
+                              </td>
                               <td>{formatCurrency(opt.totalPremiums)}</td>
+                              <td className={opt.isMecAdjusted ? 'adjusted' : 'ok'}>
+                                {opt.isMecAdjusted ? '⚡ Capped' : '✓ OK'}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
+                      <p className="comparison-note">
+                        <small>⚡ Capped = Premium reduced to stay under 7-pay MEC limit. You pay less but cash value grows slower.</small>
+                      </p>
                     </div>
                   )}
                 </div>
@@ -913,8 +1265,7 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
   }
 
   const projections = selectedPolicy.projections || []
-  const hasMec = projections.some((p) => p.isMec)
-  const firstMecYear = projections.find((p) => p.isMec)?.policyYear
+  const hasMec = mecAnalysis !== null
   const lapsedProjection = projections.find((p) => p.lapsed)
 
   return (
@@ -970,10 +1321,94 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       </div>
 
       {/* MEC Warning */}
-      {hasMec && (
-        <div className="mec-warning">
-          <strong>⚠️ MEC Alert:</strong> This policy becomes a Modified Endowment Contract in Year {firstMecYear}.
-          Loans and withdrawals will be taxed as income (gains first) with a 10% penalty if under age 59½.
+      {hasMec && mecAnalysis && (
+        <div className="mec-warning detailed">
+          <div className="mec-header">
+            <strong>⚠️ MEC Alert:</strong> This policy becomes a Modified Endowment Contract in Year {mecAnalysis.yearBecameMec} (Age {mecAnalysis.ageBecameMec})
+          </div>
+          
+          <div className="mec-explanation">
+            <h4>Why is this a MEC?</h4>
+            <p>
+              The IRS 7-Pay Test limits how quickly you can fund a life insurance policy. 
+              If cumulative premiums exceed the maximum allowed (as if you paid evenly over 7 years), 
+              the policy loses its tax-advantaged status.
+            </p>
+            <div className="mec-numbers">
+              <div className="mec-stat">
+                <span className="label">Your Cumulative Premium (Year {mecAnalysis.yearBecameMec})</span>
+                <span className="value over">{formatCurrency(mecAnalysis.cumulativePremiumAtMec)}</span>
+              </div>
+              <div className="mec-stat">
+                <span className="label">7-Pay Limit (Year {mecAnalysis.yearBecameMec})</span>
+                <span className="value limit">{formatCurrency(mecAnalysis.sevenPayLimitAtMec)}</span>
+              </div>
+              <div className="mec-stat">
+                <span className="label">Overfunded By</span>
+                <span className="value over">{formatCurrency(mecAnalysis.overage)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mec-consequences">
+            <h4>Tax Consequences</h4>
+            <ul>
+              <li>Withdrawals and loans are taxed as <strong>income</strong> (gains come out first, LIFO)</li>
+              <li><strong>10% penalty</strong> on gains if taken before age 59½</li>
+              <li>Death benefit remains income tax-free to beneficiaries</li>
+            </ul>
+          </div>
+
+          <div className="mec-solutions">
+            <h4>How to Avoid MEC Status</h4>
+            <p>Choose <strong>one</strong> of these options when setting up your policy:</p>
+            <table className="mec-options-table">
+              <thead>
+                <tr>
+                  <th>Option</th>
+                  <th>Current Value</th>
+                  <th>Recommended Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>Reduce Annual Premium</strong>
+                    <small>Pay less each year to stay under the 7-pay limit</small>
+                  </td>
+                  <td>{formatCurrency(mecAnalysis.currentAnnualPremium)}</td>
+                  <td className="recommended">{formatCurrency(Math.floor(mecAnalysis.maxAnnualPremium))} or less</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Increase Face Amount</strong>
+                    <small>Higher death benefit = higher 7-pay limit</small>
+                  </td>
+                  <td>{formatCurrency(mecAnalysis.currentFaceAmount)}</td>
+                  <td className="recommended">{formatCurrency(Math.ceil(mecAnalysis.requiredFaceAmount / 10000) * 10000)} or more</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Extend Payment Period</strong>
+                    <small>Spread payments over more years</small>
+                  </td>
+                  <td>{mecAnalysis.currentPremiumYears} years</td>
+                  <td className="recommended">
+                    {mecAnalysis.yearsNeededForCurrentPremium > mecAnalysis.currentPremiumYears 
+                      ? `${mecAnalysis.yearsNeededForCurrentPremium}+ years`
+                      : 'Already optimal'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mec-note">
+            <small>
+              <strong>Note:</strong> Some investors intentionally create MECs for maximum cash value accumulation 
+              if they don't plan to take loans/withdrawals before 59½ or don't mind the tax treatment.
+            </small>
+          </div>
         </div>
       )}
 
@@ -1025,21 +1460,31 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
 
       {/* Projections Table */}
       <div className="projections-section">
-        <h3>Year-Over-Year Projections</h3>
+        <div className="projections-header">
+          <h3>Year-Over-Year Projections</h3>
+          <label className="filter-toggle">
+            <input
+              type="checkbox"
+              checked={showOnlyActivityYears}
+              onChange={(e) => setShowOnlyActivityYears(e.target.checked)}
+            />
+            Show only years with activity
+          </label>
+        </div>
+        <p className="section-hint">Enter a loan amount in any age to see how it affects the policy. Press Enter to add.</p>
         {projections.length === 0 ? (
           <p className="muted">No projections available.</p>
         ) : (
           <>
             <div className="projections-table-wrapper">
-              <table className="projections-table">
+              <table className="projections-table full-projections">
                 <thead>
                   <tr>
-                    <th>Year</th>
                     <th>Age</th>
                     <th>Premium</th>
-                    <th>Cumulative Premium</th>
                     <th>Cash Value</th>
                     <th>Death Benefit</th>
+                    <th className="loan-column">Add Loan</th>
                     <th>Loan Balance</th>
                     <th>Net Cash Value</th>
                     <th>Net Death Benefit</th>
@@ -1047,24 +1492,59 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
                   </tr>
                 </thead>
                 <tbody>
-                  {projections.filter((_, i) => i % 5 === 0 || i < 10).map((p) => (
-                    <tr key={p.policyYear} className={`${p.isMec ? 'mec-row' : ''} ${p.lapsed ? 'lapsed-row' : ''}`}>
-                      <td>{p.policyYear}</td>
-                      <td>{p.age}</td>
-                      <td>{formatCurrency(p.premium)}</td>
-                      <td>{formatCurrency(p.cumulativePremium)}</td>
-                      <td>{formatCurrency(p.cashValue)}</td>
-                      <td>{formatCurrency(p.deathBenefit)}</td>
-                      <td>{p.loanBalance > 0 ? formatCurrency(p.loanBalance) : '—'}</td>
-                      <td className={p.netCashValue < 0 ? 'negative' : ''}>{formatCurrency(p.netCashValue)}</td>
-                      <td>{formatCurrency(p.netDeathBenefit)}</td>
-                      <td>{p.isMec ? '⚠️' : '✓'}</td>
-                    </tr>
-                  ))}
+                  {projections
+                    .filter((p) => {
+                      if (!showOnlyActivityYears) return true
+                      const hasWithdrawal = getWithdrawalForAge(p.age) > 0
+                      const hasPremium = p.premium > 0
+                      const hasLoanBalanceChange = p.loanBalance > 0
+                      return hasWithdrawal || hasPremium || hasLoanBalanceChange
+                    })
+                    .map((p) => {
+                      const existingWithdrawal = getWithdrawalForAge(p.age)
+                      return (
+                        <tr key={p.policyYear} className={`${p.isMec ? 'mec-row' : ''} ${p.lapsed ? 'lapsed-row' : ''} ${existingWithdrawal > 0 ? 'has-withdrawal' : ''}`}>
+                          <td>{p.age}</td>
+                          <td>{p.premium > 0 ? formatCurrency(p.premium) : '—'}</td>
+                          <td>{formatCurrency(p.cashValue)}</td>
+                          <td>{formatCurrency(p.deathBenefit)}</td>
+                          <td className="loan-input-cell">
+                            {existingWithdrawal > 0 ? (
+                              <span className="existing-withdrawal" title="Withdrawal already scheduled">
+                                {formatCurrency(existingWithdrawal)}
+                              </span>
+                            ) : (
+                              <input
+                                type="number"
+                                className="inline-loan-input"
+                                placeholder="—"
+                                value={inlineLoanInputs[p.age] || ''}
+                                onChange={(e) => setInlineLoanInputs(prev => ({ ...prev, [p.age]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    handleInlineLoanAdd(p.age)
+                                  }
+                                }}
+                                onBlur={() => {
+                                  if (inlineLoanInputs[p.age]) {
+                                    handleInlineLoanAdd(p.age)
+                                  }
+                                }}
+                                disabled={addingLoanForAge === p.age || p.lapsed}
+                              />
+                            )}
+                          </td>
+                          <td className={p.loanBalance > 0 ? 'has-loan' : ''}>{p.loanBalance > 0 ? formatCurrency(p.loanBalance) : '—'}</td>
+                          <td className={p.netCashValue < 0 ? 'negative' : ''}>{formatCurrency(p.netCashValue)}</td>
+                          <td>{formatCurrency(p.netDeathBenefit)}</td>
+                          <td>{p.isMec ? '⚠️' : '✓'}</td>
+                        </tr>
+                      )
+                    })}
                 </tbody>
               </table>
             </div>
-            <p className="muted tiny">Showing every 5th year. Full projection available in detailed view.</p>
           </>
         )}
       </div>
@@ -1072,100 +1552,339 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       {/* Edit Policy Modal */}
       {isEditModalOpen && (
         <div className="modal-overlay" onClick={() => setIsEditModalOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
             <h3>Edit Policy</h3>
             <form onSubmit={handleUpdatePolicy}>
-              <div className="form-grid">
-                <label>
-                  Carrier
-                  <input
-                    type="text"
-                    value={policyForm.carrier}
-                    onChange={(e) => setPolicyForm({ ...policyForm, carrier: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Policy Number
-                  <input
-                    type="text"
-                    value={policyForm.policyNumber}
-                    onChange={(e) => setPolicyForm({ ...policyForm, policyNumber: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Insured Name
-                  <input
-                    type="text"
-                    value={policyForm.insuredName}
-                    onChange={(e) => setPolicyForm({ ...policyForm, insuredName: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Insured DOB *
-                  <input
-                    type="date"
-                    value={policyForm.insuredDob}
-                    onChange={(e) => setPolicyForm({ ...policyForm, insuredDob: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Face Amount *
-                  <input
-                    type="number"
-                    value={policyForm.faceAmount}
-                    onChange={(e) => setPolicyForm({ ...policyForm, faceAmount: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Annual Premium *
-                  <input
-                    type="number"
-                    value={policyForm.annualPremium}
-                    onChange={(e) => setPolicyForm({ ...policyForm, annualPremium: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Premium Payment Years *
-                  <input
-                    type="number"
-                    value={policyForm.premiumPaymentYears}
-                    onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Guaranteed Interest Rate
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={policyForm.guaranteedRate}
-                    onChange={(e) => setPolicyForm({ ...policyForm, guaranteedRate: e.target.value })}
-                  />
-                </label>
-                {policyForm.isParticipating && (
+              {/* Planning Mode Selector */}
+              <div className="planning-mode-selector">
+                <span className="planning-label">Planning Mode:</span>
+                <div className="planning-options">
+                  <label className={`planning-option ${planningMode === 'coverage_first' ? 'active' : ''}`}>
+                    <input
+                      type="radio"
+                      name="editPlanningMode"
+                      checked={planningMode === 'coverage_first'}
+                      onChange={() => setPlanningMode('coverage_first')}
+                    />
+                    Coverage First
+                  </label>
+                  <label className={`planning-option ${planningMode === 'budget_first' ? 'active' : ''}`}>
+                    <input
+                      type="radio"
+                      name="editPlanningMode"
+                      checked={planningMode === 'budget_first'}
+                      onChange={() => setPlanningMode('budget_first')}
+                    />
+                    Budget First
+                  </label>
+                  <label className={`planning-option ${planningMode === 'manual' ? 'active' : ''}`}>
+                    <input
+                      type="radio"
+                      name="editPlanningMode"
+                      checked={planningMode === 'manual'}
+                      onChange={() => setPlanningMode('manual')}
+                    />
+                    Manual Entry
+                  </label>
+                </div>
+              </div>
+
+              <div className="form-section">
+                <h4>Insured Information</h4>
+                <div className="form-grid">
                   <label>
-                    Expected Dividend Rate
+                    Insured Name
+                    <input
+                      type="text"
+                      value={policyForm.insuredName}
+                      onChange={(e) => setPolicyForm({ ...policyForm, insuredName: e.target.value })}
+                      placeholder="Optional"
+                    />
+                  </label>
+                  <label>
+                    Date of Birth *
+                    <input
+                      type="date"
+                      value={policyForm.insuredDob}
+                      onChange={(e) => setPolicyForm({ ...policyForm, insuredDob: e.target.value })}
+                      required
+                    />
+                  </label>
+                  <label>
+                    Sex *
+                    <select
+                      value={policyForm.insuredSex}
+                      onChange={(e) => setPolicyForm({ ...policyForm, insuredSex: e.target.value })}
+                      required
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  </label>
+                  <label>
+                    Health Class *
+                    <select
+                      value={policyForm.healthClass}
+                      onChange={(e) => setPolicyForm({ ...policyForm, healthClass: e.target.value })}
+                      required
+                    >
+                      <option value="preferred_plus">Preferred Plus</option>
+                      <option value="preferred">Preferred</option>
+                      <option value="standard">Standard</option>
+                      <option value="substandard">Substandard</option>
+                    </select>
+                  </label>
+                </div>
+                {policyForm.insuredDob && (
+                  <p className="age-display">Age: {formAge} years old</p>
+                )}
+              </div>
+
+              <div className="form-section">
+                <h4>Policy Configuration</h4>
+                <div className="form-grid">
+                  {planningMode === 'coverage_first' && (
+                    <>
+                      <label>
+                        Death Benefit (Face Amount) *
+                        <input
+                          type="number"
+                          value={policyForm.faceAmount}
+                          onChange={(e) => setPolicyForm({ ...policyForm, faceAmount: e.target.value })}
+                          placeholder="e.g., 500000"
+                          required
+                        />
+                      </label>
+                      <label>
+                        Premium Payment Years *
+                        <select
+                          value={policyForm.premiumPaymentYears}
+                          onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
+                          required
+                        >
+                          <option value="10">10 years</option>
+                          <option value="15">15 years</option>
+                          <option value="20">20 years</option>
+                          <option value="30">30 years</option>
+                          <option value="65">Pay to age 65</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
+                  {planningMode === 'budget_first' && (
+                    <>
+                      <label>
+                        Annual Premium Budget *
+                        <input
+                          type="number"
+                          value={policyForm.annualPremium}
+                          onChange={(e) => setPolicyForm({ ...policyForm, annualPremium: e.target.value })}
+                          placeholder="e.g., 10000"
+                          required
+                        />
+                      </label>
+                      <label>
+                        Premium Payment Years *
+                        <select
+                          value={policyForm.premiumPaymentYears}
+                          onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
+                          required
+                        >
+                          <option value="10">10 years</option>
+                          <option value="15">15 years</option>
+                          <option value="20">20 years</option>
+                          <option value="30">30 years</option>
+                          <option value="65">Pay to age 65</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
+                  {planningMode === 'manual' && (
+                    <>
+                      <label>
+                        Death Benefit (Face Amount) *
+                        <input
+                          type="number"
+                          value={policyForm.faceAmount}
+                          onChange={(e) => setPolicyForm({ ...policyForm, faceAmount: e.target.value })}
+                          placeholder="e.g., 500000"
+                          required
+                        />
+                      </label>
+                      <label>
+                        Annual Premium *
+                        <input
+                          type="number"
+                          value={policyForm.annualPremium}
+                          onChange={(e) => setPolicyForm({ ...policyForm, annualPremium: e.target.value })}
+                          placeholder="e.g., 8500"
+                          required
+                        />
+                      </label>
+                      <label>
+                        Premium Payment Years *
+                        <input
+                          type="number"
+                          value={policyForm.premiumPaymentYears}
+                          onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
+                          required
+                        />
+                      </label>
+                    </>
+                  )}
+                  <label>
+                    Issue/Start Date *
+                    <input
+                      type="date"
+                      value={policyForm.issueDate}
+                      onChange={(e) => setPolicyForm({ ...policyForm, issueDate: e.target.value })}
+                      required
+                    />
+                  </label>
+                </div>
+
+                {/* Estimation Display - Coverage First */}
+                {planningMode === 'coverage_first' && premiumEstimate && policyForm.faceAmount && (
+                  <div className={`estimation-box ${premiumEstimate.isMecAdjusted ? 'mec-adjusted' : ''}`}>
+                    <div className="estimation-result">
+                      <span className="estimation-label">Annual Premium (MEC-Safe):</span>
+                      <span className="estimation-value">{formatCurrency(premiumEstimate.mecSafePremium)}</span>
+                    </div>
+                    
+                    {premiumEstimate.isMecAdjusted && (
+                      <div className="mec-adjustment-info">
+                        <div className="adjustment-header">
+                          <span className="adjustment-icon">💡</span>
+                          <strong>Tax-Advantaged Adjustment</strong>
+                        </div>
+                        <p className="adjustment-explanation">
+                          Typical: {formatCurrency(premiumEstimate.actuarialPremium)}/yr → MEC-Safe: {formatCurrency(premiumEstimate.mecSafePremium)}/yr
+                          (saves {formatCurrency(premiumEstimate.savingsFromMecLimit)}/yr)
+                        </p>
+                      </div>
+                    )}
+                    
+                    {!premiumEstimate.isMecAdjusted && (
+                      <p className="estimation-note success">✓ Within 7-pay limit</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Estimation Display - Budget First */}
+                {planningMode === 'budget_first' && faceAmountEstimate && policyForm.annualPremium && (
+                  <div className={`estimation-box ${faceAmountEstimate.isMecAdjusted ? 'mec-adjusted' : ''}`}>
+                    <div className="estimation-result">
+                      <span className="estimation-label">Death Benefit (MEC-Safe):</span>
+                      <span className="estimation-value">{formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}</span>
+                    </div>
+                    
+                    {faceAmountEstimate.isMecAdjusted && (
+                      <div className="mec-adjustment-info">
+                        <div className="adjustment-header">
+                          <span className="adjustment-icon">💡</span>
+                          <strong>Tax-Advantaged Adjustment</strong>
+                        </div>
+                        <p className="adjustment-explanation">
+                          Typical: {formatCurrency(faceAmountEstimate.actuarialFaceAmount)} → MEC-Safe: {formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}
+                          (+{formatCurrency(faceAmountEstimate.extraCoverage)} extra coverage)
+                        </p>
+                      </div>
+                    )}
+                    
+                    {!faceAmountEstimate.isMecAdjusted && (
+                      <p className="estimation-note success">✓ Within 7-pay limit</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="form-section">
+                <h4>Policy Details</h4>
+                <div className="form-grid">
+                  <label>
+                    Carrier
+                    <input
+                      type="text"
+                      value={policyForm.carrier}
+                      onChange={(e) => setPolicyForm({ ...policyForm, carrier: e.target.value })}
+                      placeholder="Optional"
+                    />
+                  </label>
+                  <label>
+                    Policy Number
+                    <input
+                      type="text"
+                      value={policyForm.policyNumber}
+                      onChange={(e) => setPolicyForm({ ...policyForm, policyNumber: e.target.value })}
+                      placeholder="Optional"
+                    />
+                  </label>
+                  <label>
+                    Guaranteed Interest Rate
                     <input
                       type="number"
                       step="0.001"
-                      value={policyForm.dividendRate}
-                      onChange={(e) => setPolicyForm({ ...policyForm, dividendRate: e.target.value })}
+                      value={policyForm.guaranteedRate}
+                      onChange={(e) => setPolicyForm({ ...policyForm, guaranteedRate: e.target.value })}
                     />
                   </label>
-                )}
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={policyForm.isParticipating}
+                      onChange={(e) => setPolicyForm({ ...policyForm, isParticipating: e.target.checked })}
+                    />
+                    Participating (Pays Dividends)
+                  </label>
+                  {policyForm.isParticipating && (
+                    <>
+                      <label>
+                        Expected Dividend Rate
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={policyForm.dividendRate}
+                          onChange={(e) => setPolicyForm({ ...policyForm, dividendRate: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        Dividend Option
+                        <select
+                          value={policyForm.dividendOption}
+                          onChange={(e) => setPolicyForm({ ...policyForm, dividendOption: e.target.value })}
+                        >
+                          <option value="paid_up_additions">Paid-Up Additions (PUAs)</option>
+                          <option value="cash">Cash Payment</option>
+                          <option value="premium_reduction">Reduce Premium</option>
+                          <option value="accumulate">Accumulate at Interest</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
+                  <label>
+                    Loan Interest Rate
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={policyForm.loanInterestRate}
+                      onChange={(e) => setPolicyForm({ ...policyForm, loanInterestRate: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="form-section">
                 <label>
-                  Loan Interest Rate
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={policyForm.loanInterestRate}
-                    onChange={(e) => setPolicyForm({ ...policyForm, loanInterestRate: e.target.value })}
+                  Notes
+                  <textarea
+                    value={policyForm.notes}
+                    onChange={(e) => setPolicyForm({ ...policyForm, notes: e.target.value })}
+                    rows={3}
+                    placeholder="Optional notes about this policy..."
                   />
                 </label>
               </div>
+
               {formError && <p className="error">{formError}</p>}
               <div className="modal-actions">
                 <button type="button" onClick={() => setIsEditModalOpen(false)} disabled={formStatus === 'saving'}>

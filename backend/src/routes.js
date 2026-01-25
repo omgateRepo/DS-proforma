@@ -4924,8 +4924,10 @@ const stubLifeInsurancePolicy = {
   updatedAt: new Date().toISOString(),
 }
 
-// Mortality rates per 1000 (2017 CSO Male Non-Smoker approximation)
+// Mortality rates per 1000 (2017 CSO approximation, extended for all ages)
+// Children and young adults have very low mortality rates
 const MORTALITY_RATES = {
+  0: 0.58, 1: 0.39, 5: 0.14, 10: 0.10, 15: 0.28, 18: 0.38, 20: 0.42,
   25: 0.49, 30: 0.61, 35: 0.78, 40: 1.09, 45: 1.71, 50: 2.88,
   55: 4.96, 60: 7.96, 65: 12.51, 70: 19.89, 75: 32.36, 80: 53.88,
   85: 89.54, 90: 148.93, 95: 234.62, 100: 1000
@@ -4957,10 +4959,17 @@ function getCvFactor(year) {
   return 0.80
 }
 
-// 7-Pay limit per $1000 face amount by issue age
+// 7-Pay limit per $1000 face amount by issue age (IRS guideline premium limits)
+// Young ages have HIGHER limits (more permissive) due to low mortality
+// Based on Section 7702A and actuarial guideline standards
 const SEVEN_PAY_RATES = {
+  // Children: Very high limits - can fund aggressively
+  0: 74.00, 5: 58.00, 10: 45.00, 15: 32.00, 
+  // Young adults: Gradually decreasing
+  18: 22.00, 20: 17.50, 
+  // Adults: Standard progression
   25: 12.50, 30: 13.80, 35: 15.40, 40: 17.50, 45: 20.20, 50: 23.80,
-  55: 28.50, 60: 35.00, 65: 44.00, 70: 56.00, 75: 72.00, 80: 95.00
+  55: 28.50, 60: 35.00, 65: 44.00, 70: 56.00, 75: 72.00, 80: 95.00, 85: 125.00
 }
 
 function getSevenPayRate(issueAge) {
@@ -5009,8 +5018,8 @@ function generateProjections(policy, withdrawals = []) {
   let puaCashValue = 0
   let puaDeathBenefit = 0
   
-  // Project for 65 years or until age 100
-  const projectionYears = Math.min(65, 100 - issueAge)
+  // Project until age 100
+  const projectionYears = 100 - issueAge
   
   for (let year = 1; year <= projectionYears; year++) {
     const age = issueAge + year - 1
