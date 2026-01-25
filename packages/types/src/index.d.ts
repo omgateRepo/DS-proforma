@@ -483,6 +483,7 @@ export interface BusinessMetricsInput {
 export interface ProjectCounts {
   realEstate: number
   business: number
+  lifeInsurance: number
 }
 
 export declare const projectCreateSchema: z.ZodType<{ name: string }>

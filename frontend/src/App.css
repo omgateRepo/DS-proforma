@@ -5630,3 +5630,644 @@ td {
     gap: 0.25rem;
   }
 }
+
+/* ============================================
+   LIFE INSURANCE BOARD
+   ============================================ */
+
+.life-insurance-board-wrapper {
+  padding: 1rem 1.5rem;
+  max-width: 1800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.life-insurance-board {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.life-insurance-board .board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.life-insurance-board .board-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.life-insurance-board .empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.life-insurance-board .empty-state p {
+  margin: 0.5rem 0;
+}
+
+.life-insurance-board .muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.life-insurance-board .tiny {
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Summary cards */
+.life-insurance-board .policies-summary {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.life-insurance-board .summary-card {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  min-width: 160px;
+  flex: 1;
+  max-width: 250px;
+}
+
+.life-insurance-board .summary-card .label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  opacity: 0.8;
+  margin-bottom: 0.25rem;
+  letter-spacing: 0.5px;
+}
+
+.life-insurance-board .summary-card .value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* Policy cards list */
+.life-insurance-board .policies-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.life-insurance-board .policy-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.life-insurance-board .policy-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.life-insurance-board .policy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
+}
+
+.life-insurance-board .policy-number {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.life-insurance-board .policy-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.life-insurance-board .policy-details .label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
+/* Detail view */
+.life-insurance-board.policy-detail {
+  max-width: 1400px;
+}
+
+.life-insurance-board .detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.life-insurance-board .detail-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.life-insurance-board .back-btn {
+  background: none;
+  border: none;
+  padding: 0.5rem 0;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.life-insurance-board .back-btn:hover {
+  text-decoration: underline;
+}
+
+.life-insurance-board .policy-overview {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.life-insurance-board .policy-overview h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.life-insurance-board .overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.life-insurance-board .overview-grid .label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+  letter-spacing: 0.3px;
+}
+
+/* MEC and Lapse warnings */
+.life-insurance-board .mec-warning,
+.life-insurance-board .lapse-warning {
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.life-insurance-board .mec-warning {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+
+.life-insurance-board .lapse-warning {
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #991b1b;
+}
+
+/* Withdrawals section */
+.life-insurance-board .withdrawals-section,
+.life-insurance-board .projections-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.life-insurance-board .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.life-insurance-board .section-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.life-insurance-board .withdrawals-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.life-insurance-board .withdrawals-table th,
+.life-insurance-board .withdrawals-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.life-insurance-board .withdrawals-table th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* Projections table */
+.life-insurance-board .projections-table-wrapper {
+  overflow-x: auto;
+  margin: 0 -0.5rem;
+  padding: 0 0.5rem;
+}
+
+.life-insurance-board .projections-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 900px;
+}
+
+.life-insurance-board .projections-table th,
+.life-insurance-board .projections-table td {
+  padding: 0.5rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.life-insurance-board .projections-table th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+}
+
+.life-insurance-board .projections-table th:first-child,
+.life-insurance-board .projections-table td:first-child {
+  text-align: left;
+}
+
+.life-insurance-board .projections-table .mec-row {
+  background: #fffbeb;
+}
+
+.life-insurance-board .projections-table .lapsed-row {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.life-insurance-board .projections-table .negative {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* Modal styling */
+.life-insurance-board .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.life-insurance-board .modal {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.life-insurance-board .modal.modal-large {
+  max-width: 750px;
+}
+
+.life-insurance-board .modal h3 {
+  margin: 0 0 1.25rem 0;
+  font-size: 1.25rem;
+}
+
+/* Planning Mode Selector */
+.life-insurance-board .planning-mode-selector {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.life-insurance-board .planning-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.life-insurance-board .planning-options {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.life-insurance-board .planning-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.15s;
+  background: white;
+}
+
+.life-insurance-board .planning-option:hover {
+  border-color: var(--primary);
+}
+
+.life-insurance-board .planning-option.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.life-insurance-board .planning-option input[type="radio"] {
+  display: none;
+}
+
+/* Form Sections */
+.life-insurance-board .form-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.life-insurance-board .form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.life-insurance-board .form-section h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.life-insurance-board .age-display {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.5rem 0 0 0;
+}
+
+/* Estimation Box */
+.life-insurance-board .estimation-box {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+  border-radius: 8px;
+  color: white;
+}
+
+.life-insurance-board .estimation-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.life-insurance-board .estimation-label {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.life-insurance-board .estimation-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.life-insurance-board .estimation-note {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+/* Payment Comparison Table */
+.life-insurance-board .payment-comparison {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.life-insurance-board .payment-comparison h5 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.life-insurance-board .comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.life-insurance-board .comparison-table th,
+.life-insurance-board .comparison-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.life-insurance-board .comparison-table th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: transparent;
+}
+
+.life-insurance-board .comparison-table tr.selected {
+  background: #dbeafe;
+  font-weight: 600;
+}
+
+.life-insurance-board .comparison-table tr.selected td {
+  color: var(--primary);
+}
+
+.life-insurance-board .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.life-insurance-board .modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.life-insurance-board .modal label.checkbox-label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.life-insurance-board .modal input[type="text"],
+.life-insurance-board .modal input[type="number"],
+.life-insurance-board .modal input[type="date"],
+.life-insurance-board .modal select,
+.life-insurance-board .modal textarea {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.life-insurance-board .modal input:focus,
+.life-insurance-board .modal select:focus,
+.life-insurance-board .modal textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.life-insurance-board .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.life-insurance-board .btn-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.life-insurance-board .btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.life-insurance-board .btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.life-insurance-board .btn-danger {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.life-insurance-board .btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.life-insurance-board .btn-small {
+  background: none;
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.life-insurance-board .btn-small:hover {
+  background: #f8fafc;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.life-insurance-board .error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.life-insurance-board .loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--muted);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .life-insurance-board-wrapper {
+    padding: 0.75rem;
+  }
+
+  .life-insurance-board .policies-summary {
+    flex-direction: column;
+  }
+
+  .life-insurance-board .summary-card {
+    max-width: none;
+  }
+
+  .life-insurance-board .policies-list {
+    grid-template-columns: 1fr;
+  }
+
+  .life-insurance-board .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .life-insurance-board .modal {
+    padding: 1rem;
+  }
+
+  .life-insurance-board .overview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

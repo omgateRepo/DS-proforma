@@ -78,6 +78,7 @@ import { TeamDirectoryTab } from './features/admin/TeamDirectoryTab'
 import { DocumentLibraryTab } from './features/admin/DocumentLibraryTab'
 import { OwnershipChart } from './features/admin/OwnershipChart'
 import { TripsBoard } from './features/trips/TripsBoard'
+import { LifeInsuranceBoard } from './features/life-insurance/LifeInsuranceBoard'
 import type {
   AddressSuggestion,
   ApartmentRevenueRow,
@@ -122,13 +123,13 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.57'
+const APP_VERSION = '1.0.61'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
 type CashflowMonthMeta = { index: number; label: string; calendarLabel: string; year: number }
 type AuthFormState = { username: string; password: string }
-type BoardType = 'realEstate' | 'business' | 'admin' | 'trips'
+type BoardType = 'realEstate' | 'business' | 'admin' | 'trips' | 'lifeInsurance'
 type AdminHubTab = 'entities' | 'tax' | 'team' | 'documents' | 'ownership'
 type AutoManagementRow = { id: string; label: string; monthlyAmount: number; startMonth: number | null }
 
@@ -541,7 +542,7 @@ function App() {
   const initialProjectsStatus: LoadStatus = initialAuth ? 'loading' : 'idle'
   // Board type state
   const [activeBoard, setActiveBoard] = useState<BoardType>('realEstate')
-  const [projectCounts, setProjectCounts] = useState<ProjectCounts>({ realEstate: 0, business: 0 })
+  const [projectCounts, setProjectCounts] = useState<ProjectCounts>({ realEstate: 0, business: 0, lifeInsurance: 0 })
   // Admin Hub state
   const [activeAdminTab, setActiveAdminTab] = useState<AdminHubTab>('entities')
   // Real estate projects
@@ -1003,7 +1004,7 @@ function App() {
       return acc
     }, {} as Record<ProjectStage, ProjectSummary[]>)
   }, [projects, stageOptionsForDisplay])
-  const isKanbanView = activeBoard === 'admin' || activeBoard === 'trips' ? true : (activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId)
+  const isKanbanView = activeBoard === 'admin' || activeBoard === 'trips' || activeBoard === 'lifeInsurance' ? true : (activeBoard === 'realEstate' ? !selectedProjectId : !selectedBusinessProjectId)
   const showAccountMenu = isAuthReady && !isAuthModalOpen && Boolean(currentUser)
   const isSuperAdmin = currentUser?.isSuperAdmin ?? false
   // Super admins always see both tabs; regular users see tabs they have projects in OR both if they have none (to create first)
@@ -2077,6 +2078,13 @@ useEffect(() => {
                   💼 Business ({projectCounts.business})
                 </button>
               )}
+              <button
+                type="button"
+                className={activeBoard === 'lifeInsurance' ? 'active' : ''}
+                onClick={() => setActiveBoard('lifeInsurance')}
+              >
+                🛡️ Life Insurance ({projectCounts.lifeInsurance})
+              </button>
               {/* Trips tab hidden for now - uncomment to restore
               <button
                 type="button"
@@ -2278,6 +2286,10 @@ useEffect(() => {
             onRemoveTripCollaborator={handleRemoveTripCollaborator}
             users={users}
           />
+        </div>
+      ) : activeBoard === 'lifeInsurance' ? (
+        <div className="life-insurance-board-wrapper">
+          <LifeInsuranceBoard onPolicyCountChange={loadProjectCounts} />
         </div>
       ) : activeBoard === 'realEstate' && selectedProjectId ? (
         <section className="detail-section detail-full">

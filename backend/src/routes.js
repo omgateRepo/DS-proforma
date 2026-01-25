@@ -3520,7 +3520,7 @@ router.delete('/business-projects/:id/packages/:packageId/items/:itemId', async 
 // Get project counts for board visibility
 router.get('/project-counts', async (req, res) => {
   if (SKIP_DB) {
-    return res.json({ realEstate: 1, business: 1 })
+    return res.json({ realEstate: 1, business: 1, lifeInsurance: 1 })
   }
   try {
     const userId = req.user?.id
@@ -3528,7 +3528,7 @@ router.get('/project-counts', async (req, res) => {
       return res.status(401).json({ error: 'Not authenticated' })
     }
 
-    const [realEstateCount, businessCount] = await Promise.all([
+    const [realEstateCount, businessCount, lifeInsuranceCount] = await Promise.all([
       prisma.projects.count({
         where: {
           deleted_at: null,
@@ -3547,9 +3547,15 @@ router.get('/project-counts', async (req, res) => {
           ],
         },
       }),
+      prisma.life_insurance_policies.count({
+        where: {
+          deleted_at: null,
+          owner_id: userId,
+        },
+      }),
     ])
 
-    res.json({ realEstate: realEstateCount, business: businessCount })
+    res.json({ realEstate: realEstateCount, business: businessCount, lifeInsurance: lifeInsuranceCount })
   } catch (err) {
     res.status(500).json({ error: 'Failed to get project counts', details: err.message })
   }
@@ -4888,6 +4894,569 @@ router.put('/trips/:tripId/items/reorder', async (req, res) => {
     res.json({ success: true })
   } catch (err) {
     res.status(500).json({ error: 'Failed to reorder items', details: err.message })
+  }
+})
+
+// ============================================
+// LIFE INSURANCE POLICIES
+// ============================================
+
+const stubLifeInsurancePolicy = {
+  id: 'stub-li-1',
+  policyNumber: 'POL-12345',
+  carrier: 'Northwestern Mutual',
+  faceAmount: 500000,
+  issueDate: '2020-01-01',
+  insuredName: 'John Doe',
+  insuredDob: '1985-06-15',
+  insuredSex: 'male',
+  healthClass: 'standard',
+  annualPremium: 8500,
+  premiumPaymentYears: 20,
+  guaranteedRate: 0.04,
+  isParticipating: true,
+  dividendRate: 0.05,
+  dividendOption: 'paid_up_additions',
+  loanInterestRate: 0.06,
+  notes: null,
+  ownerId: 'stub-user',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}
+
+// Mortality rates per 1000 (2017 CSO Male Non-Smoker approximation)
+const MORTALITY_RATES = {
+  25: 0.49, 30: 0.61, 35: 0.78, 40: 1.09, 45: 1.71, 50: 2.88,
+  55: 4.96, 60: 7.96, 65: 12.51, 70: 19.89, 75: 32.36, 80: 53.88,
+  85: 89.54, 90: 148.93, 95: 234.62, 100: 1000
+}
+
+function getMortalityRate(age) {
+  const ages = Object.keys(MORTALITY_RATES).map(Number).sort((a, b) => a - b)
+  if (age <= ages[0]) return MORTALITY_RATES[ages[0]]
+  if (age >= ages[ages.length - 1]) return MORTALITY_RATES[ages[ages.length - 1]]
+  // Linear interpolation
+  for (let i = 0; i < ages.length - 1; i++) {
+    if (age >= ages[i] && age < ages[i + 1]) {
+      const ratio = (age - ages[i]) / (ages[i + 1] - ages[i])
+      return MORTALITY_RATES[ages[i]] + ratio * (MORTALITY_RATES[ages[i + 1]] - MORTALITY_RATES[ages[i]])
+    }
+  }
+  return MORTALITY_RATES[50]
+}
+
+// Cash value factor by policy year
+function getCvFactor(year) {
+  if (year === 1) return 0.10
+  if (year === 2) return 0.55
+  if (year === 3) return 0.65
+  if (year === 4) return 0.70
+  if (year === 5) return 0.72
+  if (year <= 10) return 0.75
+  if (year <= 20) return 0.78
+  return 0.80
+}
+
+// 7-Pay limit per $1000 face amount by issue age
+const SEVEN_PAY_RATES = {
+  25: 12.50, 30: 13.80, 35: 15.40, 40: 17.50, 45: 20.20, 50: 23.80,
+  55: 28.50, 60: 35.00, 65: 44.00, 70: 56.00, 75: 72.00, 80: 95.00
+}
+
+function getSevenPayRate(issueAge) {
+  const ages = Object.keys(SEVEN_PAY_RATES).map(Number).sort((a, b) => a - b)
+  if (issueAge <= ages[0]) return SEVEN_PAY_RATES[ages[0]]
+  if (issueAge >= ages[ages.length - 1]) return SEVEN_PAY_RATES[ages[ages.length - 1]]
+  for (let i = 0; i < ages.length - 1; i++) {
+    if (issueAge >= ages[i] && issueAge < ages[i + 1]) {
+      const ratio = (issueAge - ages[i]) / (ages[i + 1] - ages[i])
+      return SEVEN_PAY_RATES[ages[i]] + ratio * (SEVEN_PAY_RATES[ages[i + 1]] - SEVEN_PAY_RATES[ages[i]])
+    }
+  }
+  return SEVEN_PAY_RATES[40]
+}
+
+// Generate year-over-year projections
+function generateProjections(policy, withdrawals = []) {
+  const issueAge = policy.insuredDob 
+    ? Math.floor((new Date(policy.issueDate) - new Date(policy.insuredDob)) / (365.25 * 24 * 60 * 60 * 1000))
+    : 35
+  
+  const faceAmount = Number(policy.faceAmount)
+  const annualPremium = Number(policy.annualPremium)
+  const premiumYears = policy.premiumPaymentYears
+  const guaranteedRate = Number(policy.guaranteedRate) || 0.04
+  const dividendRate = policy.isParticipating ? (Number(policy.dividendRate) || 0.05) : 0
+  const loanRate = Number(policy.loanInterestRate) || 0.06
+  
+  // 7-pay limit calculation
+  const sevenPayRate = getSevenPayRate(issueAge)
+  const annualSevenPayLimit = (faceAmount / 1000) * sevenPayRate
+  
+  // Build withdrawal schedule by age
+  const withdrawalsByAge = {}
+  withdrawals.forEach(w => {
+    for (let y = 0; y < w.years; y++) {
+      const age = w.startAge + y
+      withdrawalsByAge[age] = (withdrawalsByAge[age] || 0) + Number(w.annualAmount)
+    }
+  })
+  
+  const projections = []
+  let cashValue = 0
+  let cumulativePremium = 0
+  let loanBalance = 0
+  let puaCashValue = 0
+  let puaDeathBenefit = 0
+  
+  // Project for 65 years or until age 100
+  const projectionYears = Math.min(65, 100 - issueAge)
+  
+  for (let year = 1; year <= projectionYears; year++) {
+    const age = issueAge + year - 1
+    const isPremiumYear = year <= premiumYears
+    const premium = isPremiumYear ? annualPremium : 0
+    cumulativePremium += premium
+    
+    // Calculate COI
+    const mortalityRate = getMortalityRate(age)
+    const netAmountAtRisk = Math.max(0, faceAmount + puaDeathBenefit - cashValue - puaCashValue)
+    const coi = (netAmountAtRisk * mortalityRate) / 1000
+    
+    // Cash value contribution from premium
+    const cvFactor = getCvFactor(year)
+    const premiumContribution = premium * cvFactor
+    
+    // Interest on existing cash value
+    const interest = cashValue * guaranteedRate
+    
+    // Dividends (if participating)
+    const dividend = (cashValue + puaCashValue) * dividendRate
+    
+    // New cash value
+    cashValue = Math.max(0, cashValue + premiumContribution + interest - coi)
+    
+    // PUAs from dividends
+    if (dividend > 0 && policy.dividendOption === 'paid_up_additions') {
+      puaCashValue += dividend * 0.85 // Approximate PUA cash value
+      puaDeathBenefit += dividend * 2.5 // Approximate PUA death benefit multiplier
+    }
+    
+    // Handle withdrawals/loans for this age
+    const withdrawalAmount = withdrawalsByAge[age] || 0
+    if (withdrawalAmount > 0) {
+      loanBalance += withdrawalAmount
+    }
+    
+    // Loan interest compounds
+    if (loanBalance > 0) {
+      loanBalance *= (1 + loanRate)
+    }
+    
+    // MEC test
+    const sevenPayLimit = annualSevenPayLimit * Math.min(year, 7)
+    const isMec = cumulativePremium > sevenPayLimit
+    
+    // Net values
+    const totalCashValue = cashValue + puaCashValue
+    const totalDeathBenefit = faceAmount + puaDeathBenefit
+    const netCashValue = totalCashValue - loanBalance
+    const netDeathBenefit = totalDeathBenefit - loanBalance
+    
+    // Check for lapse
+    if (loanBalance > totalCashValue * 0.95) {
+      projections.push({
+        policyYear: year,
+        age,
+        premium,
+        cumulativePremium,
+        cashValue: totalCashValue,
+        surrenderValue: Math.max(0, netCashValue),
+        deathBenefit: totalDeathBenefit,
+        puaCashValue,
+        puaDeathBenefit,
+        dividendAmount: dividend,
+        sevenPayLimit,
+        isMec,
+        loanBalance,
+        netCashValue,
+        netDeathBenefit,
+        lapsed: true,
+        lapseReason: 'Loan balance exceeds cash value'
+      })
+      break
+    }
+    
+    projections.push({
+      policyYear: year,
+      age,
+      premium,
+      cumulativePremium,
+      cashValue: totalCashValue,
+      surrenderValue: Math.max(0, netCashValue),
+      deathBenefit: totalDeathBenefit,
+      puaCashValue,
+      puaDeathBenefit,
+      dividendAmount: dividend,
+      sevenPayLimit,
+      isMec,
+      loanBalance,
+      netCashValue,
+      netDeathBenefit,
+      lapsed: false
+    })
+  }
+  
+  return projections
+}
+
+function transformPolicy(row) {
+  return {
+    id: row.id,
+    policyNumber: row.policy_number,
+    carrier: row.carrier,
+    faceAmount: row.face_amount,
+    issueDate: row.issue_date,
+    insuredName: row.insured_name,
+    insuredDob: row.insured_dob,
+    insuredSex: row.insured_sex,
+    healthClass: row.health_class,
+    annualPremium: row.annual_premium,
+    premiumPaymentYears: row.premium_payment_years,
+    guaranteedRate: row.guaranteed_rate,
+    isParticipating: row.is_participating,
+    dividendRate: row.dividend_rate,
+    dividendOption: row.dividend_option,
+    loanInterestRate: row.loan_interest_rate,
+    notes: row.notes,
+    ownerId: row.owner_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    withdrawals: row.withdrawals?.map(w => ({
+      id: w.id,
+      startAge: w.start_age,
+      annualAmount: w.annual_amount,
+      years: w.years,
+      withdrawalType: w.withdrawal_type,
+    })) || [],
+  }
+}
+
+// List all life insurance policies
+router.get('/life-insurance', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json([stubLifeInsurancePolicy])
+  }
+  try {
+    const userId = req.user?.id
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+    
+    const policies = await prisma.life_insurance_policies.findMany({
+      where: {
+        owner_id: userId,
+        deleted_at: null,
+      },
+      include: {
+        withdrawals: true,
+      },
+      orderBy: { created_at: 'desc' },
+    })
+    
+    res.json(policies.map(transformPolicy))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch policies', details: err.message })
+  }
+})
+
+// Get life insurance policy detail with projections
+router.get('/life-insurance/:id', async (req, res) => {
+  if (SKIP_DB) {
+    const projections = generateProjections(stubLifeInsurancePolicy, [])
+    return res.json({ ...stubLifeInsurancePolicy, projections })
+  }
+  try {
+    const userId = req.user?.id
+    const policy = await prisma.life_insurance_policies.findFirst({
+      where: {
+        id: req.params.id,
+        owner_id: userId,
+        deleted_at: null,
+      },
+      include: {
+        withdrawals: true,
+      },
+    })
+    
+    if (!policy) {
+      return res.status(404).json({ error: 'Policy not found' })
+    }
+    
+    const transformed = transformPolicy(policy)
+    const projections = generateProjections(transformed, transformed.withdrawals)
+    
+    res.json({ ...transformed, projections })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch policy', details: err.message })
+  }
+})
+
+// Create life insurance policy
+router.post('/life-insurance', async (req, res) => {
+  const {
+    policyNumber, carrier, faceAmount, issueDate, insuredName, insuredDob,
+    insuredSex, healthClass, annualPremium, premiumPaymentYears,
+    guaranteedRate, isParticipating, dividendRate, dividendOption,
+    loanInterestRate, notes
+  } = req.body || {}
+  
+  if (!faceAmount || !issueDate || !insuredDob || !insuredSex || !healthClass || !annualPremium || !premiumPaymentYears) {
+    return res.status(400).json({ error: 'Missing required fields: faceAmount, issueDate, insuredDob, insuredSex, healthClass, annualPremium, premiumPaymentYears' })
+  }
+  
+  if (SKIP_DB) {
+    return res.status(201).json({
+      ...stubLifeInsurancePolicy,
+      id: `stub-li-${Date.now()}`,
+      policyNumber,
+      carrier,
+      faceAmount,
+    })
+  }
+  
+  try {
+    const userId = req.user?.id
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' })
+    }
+    
+    const policy = await prisma.life_insurance_policies.create({
+      data: {
+        policy_number: policyNumber || null,
+        carrier: carrier || null,
+        face_amount: faceAmount,
+        issue_date: new Date(issueDate),
+        insured_name: insuredName || null,
+        insured_dob: new Date(insuredDob),
+        insured_sex: insuredSex,
+        health_class: healthClass,
+        annual_premium: annualPremium,
+        premium_payment_years: premiumPaymentYears,
+        guaranteed_rate: guaranteedRate || 0.04,
+        is_participating: isParticipating !== false,
+        dividend_rate: dividendRate || null,
+        dividend_option: dividendOption || 'paid_up_additions',
+        loan_interest_rate: loanInterestRate || 0.06,
+        notes: notes || null,
+        owner_id: userId,
+      },
+      include: {
+        withdrawals: true,
+      },
+    })
+    
+    res.status(201).json(transformPolicy(policy))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create policy', details: err.message })
+  }
+})
+
+// Update life insurance policy
+router.patch('/life-insurance/:id', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ ...stubLifeInsurancePolicy, ...req.body })
+  }
+  
+  try {
+    const userId = req.user?.id
+    const existing = await prisma.life_insurance_policies.findFirst({
+      where: {
+        id: req.params.id,
+        owner_id: userId,
+        deleted_at: null,
+      },
+    })
+    
+    if (!existing) {
+      return res.status(404).json({ error: 'Policy not found' })
+    }
+    
+    const updateData = {}
+    const {
+      policyNumber, carrier, faceAmount, issueDate, insuredName, insuredDob,
+      insuredSex, healthClass, annualPremium, premiumPaymentYears,
+      guaranteedRate, isParticipating, dividendRate, dividendOption,
+      loanInterestRate, notes
+    } = req.body
+    
+    if (policyNumber !== undefined) updateData.policy_number = policyNumber
+    if (carrier !== undefined) updateData.carrier = carrier
+    if (faceAmount !== undefined) updateData.face_amount = faceAmount
+    if (issueDate !== undefined) updateData.issue_date = new Date(issueDate)
+    if (insuredName !== undefined) updateData.insured_name = insuredName
+    if (insuredDob !== undefined) updateData.insured_dob = insuredDob ? new Date(insuredDob) : null
+    if (insuredSex !== undefined) updateData.insured_sex = insuredSex
+    if (healthClass !== undefined) updateData.health_class = healthClass
+    if (annualPremium !== undefined) updateData.annual_premium = annualPremium
+    if (premiumPaymentYears !== undefined) updateData.premium_payment_years = premiumPaymentYears
+    if (guaranteedRate !== undefined) updateData.guaranteed_rate = guaranteedRate
+    if (isParticipating !== undefined) updateData.is_participating = isParticipating
+    if (dividendRate !== undefined) updateData.dividend_rate = dividendRate
+    if (dividendOption !== undefined) updateData.dividend_option = dividendOption
+    if (loanInterestRate !== undefined) updateData.loan_interest_rate = loanInterestRate
+    if (notes !== undefined) updateData.notes = notes
+    
+    const updated = await prisma.life_insurance_policies.update({
+      where: { id: req.params.id },
+      data: updateData,
+      include: {
+        withdrawals: true,
+      },
+    })
+    
+    res.json(transformPolicy(updated))
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update policy', details: err.message })
+  }
+})
+
+// Delete life insurance policy (soft delete)
+router.delete('/life-insurance/:id', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  
+  try {
+    const userId = req.user?.id
+    const existing = await prisma.life_insurance_policies.findFirst({
+      where: {
+        id: req.params.id,
+        owner_id: userId,
+        deleted_at: null,
+      },
+    })
+    
+    if (!existing) {
+      return res.status(404).json({ error: 'Policy not found' })
+    }
+    
+    await prisma.life_insurance_policies.update({
+      where: { id: req.params.id },
+      data: { deleted_at: new Date() },
+    })
+    
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete policy', details: err.message })
+  }
+})
+
+// Add withdrawal schedule to policy
+router.post('/life-insurance/:id/withdrawals', async (req, res) => {
+  const { startAge, annualAmount, years, withdrawalType } = req.body || {}
+  
+  if (!startAge || !annualAmount || !years) {
+    return res.status(400).json({ error: 'startAge, annualAmount, and years are required' })
+  }
+  
+  if (SKIP_DB) {
+    return res.status(201).json({
+      id: `stub-w-${Date.now()}`,
+      startAge,
+      annualAmount,
+      years,
+      withdrawalType: withdrawalType || 'loan',
+    })
+  }
+  
+  try {
+    const userId = req.user?.id
+    const policy = await prisma.life_insurance_policies.findFirst({
+      where: {
+        id: req.params.id,
+        owner_id: userId,
+        deleted_at: null,
+      },
+    })
+    
+    if (!policy) {
+      return res.status(404).json({ error: 'Policy not found' })
+    }
+    
+    const withdrawal = await prisma.life_insurance_withdrawals.create({
+      data: {
+        policy_id: req.params.id,
+        start_age: startAge,
+        annual_amount: annualAmount,
+        years,
+        withdrawal_type: withdrawalType || 'loan',
+      },
+    })
+    
+    res.status(201).json({
+      id: withdrawal.id,
+      startAge: withdrawal.start_age,
+      annualAmount: withdrawal.annual_amount,
+      years: withdrawal.years,
+      withdrawalType: withdrawal.withdrawal_type,
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add withdrawal', details: err.message })
+  }
+})
+
+// Delete withdrawal from policy
+router.delete('/life-insurance/:id/withdrawals/:withdrawalId', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ success: true })
+  }
+  
+  try {
+    const userId = req.user?.id
+    const policy = await prisma.life_insurance_policies.findFirst({
+      where: {
+        id: req.params.id,
+        owner_id: userId,
+        deleted_at: null,
+      },
+    })
+    
+    if (!policy) {
+      return res.status(404).json({ error: 'Policy not found' })
+    }
+    
+    await prisma.life_insurance_withdrawals.delete({
+      where: { id: req.params.withdrawalId },
+    })
+    
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete withdrawal', details: err.message })
+  }
+})
+
+// Get policy count for dashboard
+router.get('/life-insurance-count', async (req, res) => {
+  if (SKIP_DB) {
+    return res.json({ count: 1 })
+  }
+  try {
+    const userId = req.user?.id
+    if (!userId) {
+      return res.json({ count: 0 })
+    }
+    
+    const count = await prisma.life_insurance_policies.count({
+      where: {
+        owner_id: userId,
+        deleted_at: null,
+      },
+    })
+    
+    res.json({ count })
+  } catch (err) {
+    res.json({ count: 0 })
   }
 })
 

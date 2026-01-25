@@ -177,6 +177,8 @@ model users {
   admin_engagements             admin_engagements[]              @relation("admin_engagements_owner")
   admin_entity_documents        admin_entity_documents[]         @relation("admin_entity_documents_uploader")
   admin_team_member_payments    admin_team_member_payments[]     @relation("admin_team_member_payments_owner")
+  // Life Insurance
+  life_insurance_policies       life_insurance_policies[]        @relation("life_insurance_owner")
 }
 
 model project_collaborators {
@@ -576,4 +578,111 @@ model admin_entity_documents {
   
   entity        admin_entities @relation(fields: [entity_id], references: [id], onDelete: Cascade)
   uploader      users          @relation("admin_entity_documents_uploader", fields: [uploaded_by], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// LIFE INSURANCE POLICIES
+// ============================================
+
+model life_insurance_policies {
+  id                    String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  policy_number         String?   // Carrier-assigned policy number (optional)
+  carrier               String?   // Insurance company name (optional)
+  face_amount           Decimal   @db.Decimal  // Death benefit amount
+  issue_date            DateTime  @db.Date     // Policy issue date
+  insured_name          String?   // Name of insured person (optional)
+  insured_dob           DateTime  @db.Date     // Insured's date of birth (required for projections)
+  insured_sex           String    // male, female (required for mortality calculations)
+  health_class          String    // preferred_plus, preferred, standard, substandard (required)
+  
+  // Premium info
+  annual_premium        Decimal   @db.Decimal  // Annual premium amount
+  premium_payment_years Int       // Number of years premiums will be paid
+  
+  // Policy details
+  guaranteed_rate       Decimal   @default(0.04) @db.Decimal  // Guaranteed interest rate (e.g., 0.04 = 4%)
+  is_participating      Boolean   @default(true)  // Whether policy pays dividends
+  dividend_rate         Decimal?  @db.Decimal     // Expected dividend rate
+  dividend_option       String    @default("paid_up_additions") // paid_up_additions, cash, premium_reduction, accumulate
+  loan_interest_rate    Decimal   @default(0.06) @db.Decimal  // Loan interest rate
+  
+  notes                 String?
+  
+  // Ownership
+  owner_id              String    @db.Uuid
+  
+  // Timestamps
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at            DateTime? @db.Timestamptz(6)
+  
+  // Relations
+  owner                 users     @relation("life_insurance_owner", fields: [owner_id], references: [id], onDelete: Cascade)
+  cash_value_history    life_insurance_cash_values[]
+  loans                 life_insurance_loans[]
+  withdrawals           life_insurance_withdrawals[]
+}
+
+model life_insurance_cash_values {
+  id                    String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  policy_id             String                    @db.Uuid
+  as_of_date            DateTime                  @db.Date  // Statement date
+  policy_year           Int                       // Year number (1, 2, 3...)
+  age                   Int                       // Insured age at this year
+  
+  // Values
+  cash_value            Decimal                   @db.Decimal  // Total cash value
+  surrender_value       Decimal?                  @db.Decimal  // Net surrender value
+  death_benefit         Decimal                   @db.Decimal  // Current death benefit
+  
+  // Components (optional detail)
+  pua_cash_value        Decimal?                  @db.Decimal  // Cash value from PUAs
+  pua_death_benefit     Decimal?                  @db.Decimal  // Death benefit from PUAs
+  dividend_amount       Decimal?                  @db.Decimal  // Dividend credited this year
+  
+  // MEC tracking
+  cumulative_premium    Decimal                   @db.Decimal  // Total premiums paid to date
+  seven_pay_limit       Decimal?                  @db.Decimal  // 7-pay limit for MEC test
+  is_mec                Boolean                   @default(false)
+  
+  // Loan impact
+  loan_balance          Decimal                   @default(0) @db.Decimal
+  net_cash_value        Decimal?                  @db.Decimal  // Cash value - loan balance
+  net_death_benefit     Decimal?                  @db.Decimal  // Death benefit - loan balance
+  
+  created_at            DateTime                  @default(now()) @db.Timestamptz(6)
+  
+  policy                life_insurance_policies   @relation(fields: [policy_id], references: [id], onDelete: Cascade)
+  
+  @@unique([policy_id, policy_year])
+}
+
+model life_insurance_loans {
+  id                    String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  policy_id             String                    @db.Uuid
+  loan_date             DateTime                  @db.Date
+  loan_amount           Decimal                   @db.Decimal
+  interest_rate         Decimal                   @db.Decimal
+  purpose               String?
+  
+  // Repayment (optional)
+  repayment_date        DateTime?                 @db.Date
+  repayment_amount      Decimal?                  @db.Decimal
+  
+  created_at            DateTime                  @default(now()) @db.Timestamptz(6)
+  
+  policy                life_insurance_policies   @relation(fields: [policy_id], references: [id], onDelete: Cascade)
+}
+
+model life_insurance_withdrawals {
+  id                    String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  policy_id             String                    @db.Uuid
+  start_age             Int                       // Age to start withdrawals
+  annual_amount         Decimal                   @db.Decimal  // Amount per year
+  years                 Int                       // Number of years to withdraw
+  withdrawal_type       String                    @default("loan") // loan or partial_surrender
+  
+  created_at            DateTime                  @default(now()) @db.Timestamptz(6)
+  
+  policy                life_insurance_policies   @relation(fields: [policy_id], references: [id], onDelete: Cascade)
 }

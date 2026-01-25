@@ -1025,3 +1025,63 @@ export async function reorderTripItems(tripId, items) {
   })
   return handleJsonResponse(res, 'Failed to reorder items')
 }
+
+// ============================================
+// LIFE INSURANCE
+// ============================================
+
+export async function fetchLifeInsurancePolicies() {
+  const res = await request('/api/life-insurance')
+  return handleJsonResponse(res, 'Failed to load life insurance policies')
+}
+
+export async function fetchLifeInsurancePolicy(policyId) {
+  const res = await request(`/api/life-insurance/${policyId}`)
+  return handleJsonResponse(res, 'Failed to load life insurance policy')
+}
+
+export async function createLifeInsurancePolicy(payload) {
+  const res = await request('/api/life-insurance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to create policy')
+}
+
+export async function updateLifeInsurancePolicy(policyId, payload) {
+  const res = await request(`/api/life-insurance/${policyId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to update policy')
+}
+
+export async function deleteLifeInsurancePolicy(policyId) {
+  const res = await request(`/api/life-insurance/${policyId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete policy')
+}
+
+export async function addPolicyWithdrawal(policyId, payload) {
+  const res = await request(`/api/life-insurance/${policyId}/withdrawals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return handleJsonResponse(res, 'Failed to add withdrawal')
+}
+
+export async function deletePolicyWithdrawal(policyId, withdrawalId) {
+  const res = await request(`/api/life-insurance/${policyId}/withdrawals/${withdrawalId}`, {
+    method: 'DELETE',
+  })
+  return handleJsonResponse(res, 'Failed to delete withdrawal')
+}
+
+export async function fetchLifeInsuranceCount() {
+  const res = await request('/api/life-insurance-count')
+  return handleJsonResponse(res, 'Failed to get policy count')
+}
