@@ -5036,6 +5036,10 @@ function generateProjections(policy, withdrawals = []) {
     const cvFactor = getCvFactor(year)
     const premiumContribution = premium * cvFactor
     
+    // Expenses (what's left after CV contribution and before COI is applied)
+    const expenseRatio = 1 - cvFactor
+    const expenses = premium * expenseRatio
+    
     // Interest on existing cash value
     const interest = cashValue * guaranteedRate
     
@@ -5079,12 +5083,21 @@ function generateProjections(policy, withdrawals = []) {
         age,
         premium,
         cumulativePremium,
+        // Premium allocation breakdown
+        premiumToCv: premiumContribution,
+        premiumToCoi: coi,
+        premiumToExpenses: expenses,
+        interestEarned: interest,
+        // Values
         cashValue: totalCashValue,
         surrenderValue: Math.max(0, netCashValue),
         deathBenefit: totalDeathBenefit,
         puaCashValue,
         puaDeathBenefit,
         dividendAmount: dividend,
+        // PUA breakdown (from dividends)
+        puaDividendToCv: dividend > 0 && policy.dividendOption === 'paid_up_additions' ? dividend * 0.85 : 0,
+        puaDividendToDb: dividend > 0 && policy.dividendOption === 'paid_up_additions' ? dividend * 2.5 : 0,
         sevenPayLimit,
         isMec,
         loanBalance,
@@ -5101,12 +5114,21 @@ function generateProjections(policy, withdrawals = []) {
       age,
       premium,
       cumulativePremium,
+      // Premium allocation breakdown
+      premiumToCv: premiumContribution,
+      premiumToCoi: coi,
+      premiumToExpenses: expenses,
+      interestEarned: interest,
+      // Values
       cashValue: totalCashValue,
       surrenderValue: Math.max(0, netCashValue),
       deathBenefit: totalDeathBenefit,
       puaCashValue,
       puaDeathBenefit,
       dividendAmount: dividend,
+      // PUA breakdown (from dividends)
+      puaDividendToCv: dividend > 0 && policy.dividendOption === 'paid_up_additions' ? dividend * 0.85 : 0,
+      puaDividendToDb: dividend > 0 && policy.dividendOption === 'paid_up_additions' ? dividend * 2.5 : 0,
       sevenPayLimit,
       isMec,
       loanBalance,

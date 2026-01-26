@@ -6010,6 +6010,235 @@ td {
   cursor: pointer;
 }
 
+.life-insurance-board .projections-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.life-insurance-board .btn-export {
+  padding: 0.4rem 0.75rem;
+  background: #0f766e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.life-insurance-board .btn-export:hover {
+  background: #0d9488;
+}
+
+/* Budget First Range Selector */
+.life-insurance-board .estimation-box.budget-first-range {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+  padding: 1.5rem;
+}
+
+.life-insurance-board .range-header h5 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: white;
+}
+
+.life-insurance-board .range-hint {
+  margin: 0 0 1rem 0;
+  font-size: 0.8rem;
+  opacity: 0.8;
+  color: white;
+}
+
+.life-insurance-board .range-options-table {
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.life-insurance-board .range-options-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.life-insurance-board .range-options-table th {
+  padding: 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.life-insurance-board .range-options-table td {
+  padding: 0.5rem;
+  color: white;
+}
+
+.life-insurance-board .range-option {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.life-insurance-board .range-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.life-insurance-board .range-option.selected {
+  background: rgba(16, 185, 129, 0.3);
+}
+
+.life-insurance-board .range-option input[type="radio"] {
+  cursor: pointer;
+}
+
+.life-insurance-board .option-label {
+  font-weight: 600;
+}
+
+.life-insurance-board .option-db {
+  font-weight: 600;
+  color: #86efac;
+}
+
+.life-insurance-board .option-cv {
+  color: #fbbf24;
+}
+
+.life-insurance-board .selected-option-summary {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.life-insurance-board .summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.life-insurance-board .summary-item .label {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  color: white;
+}
+
+.life-insurance-board .summary-item .value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+}
+
+/* Premium Allocation Breakdown */
+.life-insurance-board .premium-allocation {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.life-insurance-board .premium-allocation h5 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: white;
+}
+
+.life-insurance-board .allocation-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.life-insurance-board .allocation-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.life-insurance-board .allocation-bar {
+  height: 8px;
+  border-radius: 4px;
+  min-width: 4px;
+}
+
+.life-insurance-board .allocation-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: white;
+}
+
+.life-insurance-board .allocation-label {
+  opacity: 0.9;
+}
+
+.life-insurance-board .allocation-value {
+  font-weight: 600;
+}
+
+.life-insurance-board .allocation-note {
+  margin: 0.75rem 0 0 0;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.life-insurance-board .allocation-note small {
+  font-size: 0.75rem;
+}
+
+/* Projections Table - Breakdown Columns */
+.life-insurance-board .projections-table .breakdown-header {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.5rem 0.25rem;
+}
+
+.life-insurance-board .projections-table .subheader th {
+  background: #2a2a3e;
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 0.25rem 0.35rem;
+  color: rgba(255, 255, 255, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.life-insurance-board .projections-table .breakdown-sub {
+  text-align: center;
+}
+
+.life-insurance-board .projections-table .breakdown-value {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+
+.life-insurance-board .projections-table .breakdown-value.cv {
+  color: #10b981;
+}
+
+.life-insurance-board .projections-table .breakdown-value.coi {
+  color: #f59e0b;
+}
+
+.life-insurance-board .projections-table .breakdown-value.exp {
+  color: #9ca3af;
+}
+
+.life-insurance-board .projections-table .breakdown-value.pua-cv {
+  color: #8b5cf6;
+}
+
+.life-insurance-board .projections-table .breakdown-value.pua-db {
+  color: #ec4899;
+}
+
 .life-insurance-board .section-header {
   display: flex;
   justify-content: space-between;

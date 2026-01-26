@@ -155,11 +155,23 @@ interface PremiumEstimate {
 }
 
 interface FaceAmountEstimate {
-  actuarialFaceAmount: number   // What the premium would normally buy
+  actuarialFaceAmount: number   // What the premium would normally buy (max cash value focus)
   mecSafeFaceAmount: number     // Minimum face amount to avoid MEC
   isMecAdjusted: boolean        // True if we had to increase face amount
   extraCoverage: number         // Additional death benefit you get
   tradeOff: string              // Explanation of the trade-off
+  // Range options for user to choose
+  minFaceAmount: number         // Minimum (MEC-safe, max DB focus)
+  maxFaceAmount: number         // Maximum (actuarial, max CV focus) - capped for reasonableness
+  rangeOptions: FaceAmountOption[]  // Pre-calculated options across the range
+}
+
+interface FaceAmountOption {
+  faceAmount: number
+  label: string
+  cvFocusPercent: number        // 0% = all DB focus, 100% = max CV focus
+  estimatedCvYear10: number     // Rough estimate of CV at year 10
+  estimatedCvYear20: number     // Rough estimate of CV at year 20
 }
 
 // Coverage First: User enters face amount, we calculate premium (capped at MEC limit)
@@ -195,7 +207,41 @@ function estimatePremiumWithMec(
   }
 }
 
-// Budget First: User enters premium, we calculate face amount (increased if needed for MEC)
+// Rough estimate of cash value at a given year (simplified model for UI display)
+function estimateCashValueAtYear(
+  premium: number,
+  payYears: number,
+  faceAmount: number,
+  age: number,
+  targetYear: number,
+  guaranteedRate: number = 0.04,
+  dividendRate: number = 0.05
+): number {
+  let cv = 0
+  const totalRate = guaranteedRate + dividendRate
+  
+  for (let year = 1; year <= targetYear; year++) {
+    const isPremiumYear = year <= payYears
+    const yearPremium = isPremiumYear ? premium : 0
+    
+    // Simplified CV factor (increases over time)
+    const cvFactor = year <= 2 ? 0.3 : year <= 5 ? 0.6 : 0.75
+    
+    // Simplified COI (increases with age, decreases as CV builds)
+    const currentAge = age + year
+    const mortalityRate = currentAge < 30 ? 0.001 : currentAge < 50 ? 0.003 : currentAge < 70 ? 0.01 : 0.03
+    const nar = Math.max(0, faceAmount - cv)
+    const coi = nar * mortalityRate
+    
+    // CV grows
+    cv = cv + (yearPremium * cvFactor) + (cv * totalRate) - coi
+    cv = Math.max(0, cv)
+  }
+  
+  return Math.round(cv)
+}
+
+// Budget First: User enters premium, we calculate face amount range
 function estimateFaceAmountWithMec(
   premium: number,
   age: number,
@@ -208,6 +254,38 @@ function estimateFaceAmountWithMec(
   const isMecAdjusted = actuarialFaceAmount < minFaceAmountForMec
   const mecSafeFaceAmount = Math.max(actuarialFaceAmount, minFaceAmountForMec)
   const extraCoverage = mecSafeFaceAmount - actuarialFaceAmount
+
+  // Calculate the range - min is MEC-safe minimum, max is actuarial (capped at 3x MEC minimum for reasonableness)
+  const minFaceAmount = minFaceAmountForMec
+  const maxFaceAmount = Math.max(actuarialFaceAmount, minFaceAmountForMec) // Can't go below MEC minimum
+
+  // Generate range options (5 options from max CV focus to max DB focus)
+  // Lower DB = more premium to CV = "Max Cash Value"
+  // Higher DB = more premium to COI = "Max Death Benefit"
+  const rangeOptions: FaceAmountOption[] = []
+  const steps = 5
+  
+  for (let i = 0; i < steps; i++) {
+    // At i=0 (lowest DB), CV focus is highest (100%)
+    // At i=4 (highest DB), CV focus is lowest (0%)
+    const cvFocusPercent = ((steps - 1 - i) / (steps - 1)) * 100
+    // Interpolate: i=0 = minFaceAmount (min DB, max CV), i=4 = maxFaceAmount (max DB, min CV)
+    const faceAmount = Math.round(minFaceAmount + (maxFaceAmount - minFaceAmount) * (i / (steps - 1)))
+    
+    let label: string
+    if (i === 0) label = 'Max Cash Value'  // Lowest DB = most to CV
+    else if (i === steps - 1) label = 'Max Death Benefit'  // Highest DB = most protection
+    else if (i === Math.floor(steps / 2)) label = 'Balanced'
+    else label = `${Math.round(cvFocusPercent)}% CV Focus`
+    
+    rangeOptions.push({
+      faceAmount,
+      label,
+      cvFocusPercent,
+      estimatedCvYear10: estimateCashValueAtYear(premium, payYears, faceAmount, age, 10),
+      estimatedCvYear20: estimateCashValueAtYear(premium, payYears, faceAmount, age, 20),
+    })
+  }
 
   let tradeOff = ''
   if (isMecAdjusted) {
@@ -222,7 +300,10 @@ function estimateFaceAmountWithMec(
     mecSafeFaceAmount,
     isMecAdjusted,
     extraCoverage,
-    tradeOff
+    tradeOff,
+    minFaceAmount,
+    maxFaceAmount,
+    rangeOptions
   }
 }
 
@@ -253,12 +334,21 @@ interface Projection {
   age: number
   premium: number
   cumulativePremium: number
+  // Premium allocation breakdown
+  premiumToCv: number
+  premiumToCoi: number
+  premiumToExpenses: number
+  interestEarned: number
+  // Values
   cashValue: number
   surrenderValue: number
   deathBenefit: number
   puaCashValue: number
   puaDeathBenefit: number
   dividendAmount: number
+  // PUA breakdown (from dividends)
+  puaDividendToCv: number
+  puaDividendToDb: number
   sevenPayLimit: number
   isMec: boolean
   loanBalance: number
@@ -353,7 +443,12 @@ function formatDate(dateStr: string | undefined): string {
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChange?: () => void }) {
+interface LifeInsuranceBoardProps {
+  onPolicyCountChange?: () => void
+  openCreateModalTrigger?: number  // Increment to trigger opening the create modal
+}
+
+export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger }: LifeInsuranceBoardProps) {
   const [policies, setPolicies] = useState<Policy[]>([])
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null)
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
@@ -377,6 +472,9 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
 
   // Projections filter: show only years with activity (premium or loan)
   const [showOnlyActivityYears, setShowOnlyActivityYears] = useState(false)
+
+  // Budget First mode: selected face amount option index (0 = max DB, 4 = max CV)
+  const [selectedFaceAmountOptionIndex, setSelectedFaceAmountOptionIndex] = useState(2) // Default to "Balanced"
 
   // Computed values for planning
   const formAge = useMemo(() => getAgeFromDob(policyForm.insuredDob), [policyForm.insuredDob])
@@ -482,6 +580,14 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       setSelectedPolicy(null)
     }
   }, [selectedPolicyId])
+
+  // Open create modal when triggered from parent (header button)
+  useEffect(() => {
+    if (openCreateModalTrigger && openCreateModalTrigger > 0) {
+      setPolicyForm(defaultPolicyForm)
+      setIsCreateModalOpen(true)
+    }
+  }, [openCreateModalTrigger])
 
   // MEC analysis calculations (must be before any early returns to maintain hook order)
   const mecAnalysis = useMemo(() => {
@@ -739,8 +845,7 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       loanInterestRate: String(selectedPolicy.loanInterestRate),
       notes: selectedPolicy.notes || '',
     })
-    // Default to manual mode since both values exist, but user can switch
-    setPlanningMode('manual')
+    // Keep the current planning mode (don't reset) so user can continue with same mode
     setIsEditModalOpen(true)
   }
 
@@ -750,16 +855,6 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       <div className="life-insurance-board">
         <div className="board-header">
           <h2>Life Insurance Policies</h2>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => {
-              setPolicyForm(defaultPolicyForm)
-              setIsCreateModalOpen(true)
-            }}
-          >
-            + Add Policy
-          </button>
         </div>
 
         {status === 'loading' && <p className="loading">Loading policies...</p>}
@@ -937,6 +1032,11 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
                             onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
                             required
                           >
+                            <option value="1">1 year (Single Pay)</option>
+                            <option value="2">2 years</option>
+                            <option value="3">3 years</option>
+                            <option value="5">5 years</option>
+                            <option value="7">7 years (Max MEC)</option>
                             <option value="10">10 years</option>
                             <option value="15">15 years</option>
                             <option value="20">20 years</option>
@@ -965,6 +1065,11 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
                             onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
                             required
                           >
+                            <option value="1">1 year (Single Pay)</option>
+                            <option value="2">2 years</option>
+                            <option value="3">3 years</option>
+                            <option value="5">5 years</option>
+                            <option value="7">7 years (Max MEC)</option>
                             <option value="10">10 years</option>
                             <option value="15">15 years</option>
                             <option value="20">20 years</option>
@@ -1065,48 +1170,121 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
                     </div>
                   )}
 
-                  {/* Estimation Display - Budget First */}
+                  {/* Estimation Display - Budget First with Range Selector */}
                   {planningMode === 'budget_first' && faceAmountEstimate && policyForm.annualPremium && (
-                    <div className={`estimation-box ${faceAmountEstimate.isMecAdjusted ? 'mec-adjusted' : ''}`}>
-                      <div className="estimation-result">
-                        <span className="estimation-label">Death Benefit (MEC-Safe):</span>
-                        <span className="estimation-value">{formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}</span>
+                    <div className="estimation-box budget-first-range">
+                      <div className="range-header">
+                        <h5>Choose Your Death Benefit / Cash Value Balance</h5>
+                        <p className="range-hint">Higher death benefit = more protection. Lower death benefit = faster cash value growth.</p>
                       </div>
                       
-                      {faceAmountEstimate.isMecAdjusted && (
-                        <div className="mec-adjustment-info">
-                          <div className="adjustment-header">
-                            <span className="adjustment-icon">💡</span>
-                            <strong>Tax-Advantaged Adjustment Applied</strong>
-                          </div>
-                          <div className="adjustment-comparison">
-                            <div className="comparison-item">
-                              <span className="label">Typical Coverage for this Premium:</span>
-                              <span className="value strikethrough">{formatCurrency(faceAmountEstimate.actuarialFaceAmount)}</span>
-                            </div>
-                            <div className="comparison-item">
-                              <span className="label">MEC-Safe Coverage (what you get):</span>
-                              <span className="value highlight">{formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}</span>
-                            </div>
-                            <div className="comparison-item bonus">
-                              <span className="label">Extra Coverage Bonus:</span>
-                              <span className="value">+{formatCurrency(faceAmountEstimate.extraCoverage)} ({Math.round((faceAmountEstimate.extraCoverage / faceAmountEstimate.actuarialFaceAmount) * 100)}% more)</span>
-                            </div>
-                          </div>
-                          <p className="adjustment-explanation">
-                            {faceAmountEstimate.tradeOff}
-                          </p>
-                          {sevenPayInfo && (
-                            <p className="mec-limit-note">
-                              <strong>7-Pay Limit for age {formAge}:</strong> {formatCurrency(sevenPayInfo.perMillion)} per $1M of coverage
-                            </p>
-                          )}
+                      {/* Range Options Table */}
+                      <div className="range-options-table">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th></th>
+                              <th>Focus</th>
+                              <th>Death Benefit</th>
+                              <th>Est. CV Year 10</th>
+                              <th>Est. CV Year 20</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {faceAmountEstimate.rangeOptions.map((opt, idx) => (
+                              <tr 
+                                key={idx}
+                                className={`range-option ${selectedFaceAmountOptionIndex === idx ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setSelectedFaceAmountOptionIndex(idx)
+                                  setPolicyForm({ ...policyForm, faceAmount: String(opt.faceAmount) })
+                                }}
+                              >
+                                <td>
+                                  <input 
+                                    type="radio" 
+                                    name="faceAmountOption" 
+                                    checked={selectedFaceAmountOptionIndex === idx}
+                                    onChange={() => {
+                                      setSelectedFaceAmountOptionIndex(idx)
+                                      setPolicyForm({ ...policyForm, faceAmount: String(opt.faceAmount) })
+                                    }}
+                                  />
+                                </td>
+                                <td className="option-label">{opt.label}</td>
+                                <td className="option-db">{formatCurrency(opt.faceAmount)}</td>
+                                <td className="option-cv">{formatCurrency(opt.estimatedCvYear10)}</td>
+                                <td className="option-cv">{formatCurrency(opt.estimatedCvYear20)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="selected-option-summary">
+                        <div className="summary-item">
+                          <span className="label">Selected Death Benefit:</span>
+                          <span className="value">{formatCurrency(faceAmountEstimate.rangeOptions[selectedFaceAmountOptionIndex]?.faceAmount || 0)}</span>
                         </div>
-                      )}
-                      
-                      {!faceAmountEstimate.isMecAdjusted && (
-                        <p className="estimation-note success">
-                          ✓ This configuration is within the 7-pay limit — full tax advantages preserved!
+                        <div className="summary-item">
+                          <span className="label">Annual Premium:</span>
+                          <span className="value">{formatCurrency(parseFloat(policyForm.annualPremium))}</span>
+                        </div>
+                      </div>
+
+                      {/* Premium Allocation Breakdown */}
+                      {(() => {
+                        const premium = parseFloat(policyForm.annualPremium) || 0
+                        const faceAmount = faceAmountEstimate.rangeOptions[selectedFaceAmountOptionIndex]?.faceAmount || 0
+                        
+                        // Simplified allocation calculation for display
+                        // In early years: more goes to expenses and COI
+                        // COI based on mortality rate and net amount at risk
+                        const mortalityRate = formAge < 10 ? 0.001 : formAge < 30 ? 0.002 : formAge < 50 ? 0.005 : 0.015
+                        const expenseLoad = premium * 0.15 // ~15% expenses/commissions
+                        const coi = faceAmount * mortalityRate // Cost of Insurance (simplified)
+                        const toCashValue = Math.max(0, premium - expenseLoad - coi)
+                        
+                        const expensePercent = (expenseLoad / premium * 100).toFixed(1)
+                        const coiPercent = (coi / premium * 100).toFixed(1)
+                        const cvPercent = (toCashValue / premium * 100).toFixed(1)
+                        
+                        return (
+                          <div className="premium-allocation">
+                            <h5>Year 1 Premium Allocation (Estimated)</h5>
+                            <div className="allocation-bars">
+                              <div className="allocation-item">
+                                <div className="allocation-bar" style={{ width: `${Math.min(100, parseFloat(cvPercent))}%`, background: '#10b981' }}></div>
+                                <div className="allocation-details">
+                                  <span className="allocation-label">💰 Cash Value</span>
+                                  <span className="allocation-value">{formatCurrency(toCashValue)} ({cvPercent}%)</span>
+                                </div>
+                              </div>
+                              <div className="allocation-item">
+                                <div className="allocation-bar" style={{ width: `${Math.min(100, parseFloat(coiPercent))}%`, background: '#f59e0b' }}></div>
+                                <div className="allocation-details">
+                                  <span className="allocation-label">🛡️ Cost of Insurance (COI)</span>
+                                  <span className="allocation-value">{formatCurrency(coi)} ({coiPercent}%)</span>
+                                </div>
+                              </div>
+                              <div className="allocation-item">
+                                <div className="allocation-bar" style={{ width: `${Math.min(100, parseFloat(expensePercent))}%`, background: '#6b7280' }}></div>
+                                <div className="allocation-details">
+                                  <span className="allocation-label">📋 Expenses & Fees</span>
+                                  <span className="allocation-value">{formatCurrency(expenseLoad)} ({expensePercent}%)</span>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="allocation-note">
+                              <small>Year 1 has highest expenses. By year 5+, ~75% goes to cash value. COI increases with age.</small>
+                            </p>
+                          </div>
+                        )
+                      })()}
+
+                      {sevenPayInfo && (
+                        <p className="mec-limit-note">
+                          <strong>MEC Limit for age {formAge}:</strong> Max {formatCurrency(sevenPayInfo.perMillion)} premium per $1M of death benefit. All options above are MEC-safe.
                         </p>
                       )}
                     </div>
@@ -1462,14 +1640,72 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
       <div className="projections-section">
         <div className="projections-header">
           <h3>Year-Over-Year Projections</h3>
-          <label className="filter-toggle">
-            <input
-              type="checkbox"
-              checked={showOnlyActivityYears}
-              onChange={(e) => setShowOnlyActivityYears(e.target.checked)}
-            />
-            Show only years with activity
-          </label>
+          <div className="projections-controls">
+            <label className="filter-toggle">
+              <input
+                type="checkbox"
+                checked={showOnlyActivityYears}
+                onChange={(e) => setShowOnlyActivityYears(e.target.checked)}
+              />
+              Show only years with activity
+            </label>
+            <button 
+              type="button" 
+              className="btn-export"
+              onClick={() => {
+                // Build CSV content
+                const headers = ['Age', 'Premium', 'Premium→CV', 'Premium→COI', 'Premium→Expenses', 'Cash Value', 'Death Benefit', 'PUA→CV', 'PUA→DB', 'Withdrawal', 'Loan Balance', 'Net Cash Value', 'Net Death Benefit', 'MEC', 'Lapsed']
+                const rows = projections.map(p => [
+                  p.age,
+                  p.premium,
+                  (p.premiumToCv || 0).toFixed(2),
+                  (p.premiumToCoi || 0).toFixed(2),
+                  (p.premiumToExpenses || 0).toFixed(2),
+                  p.cashValue.toFixed(2),
+                  p.deathBenefit.toFixed(2),
+                  (p.puaDividendToCv || 0).toFixed(2),
+                  (p.puaDividendToDb || 0).toFixed(2),
+                  getWithdrawalForAge(p.age) || '',
+                  p.loanBalance.toFixed(2),
+                  p.netCashValue.toFixed(2),
+                  p.netDeathBenefit.toFixed(2),
+                  p.isMec ? 'Yes' : 'No',
+                  p.lapsed ? 'Yes' : 'No'
+                ])
+                
+                // Add policy info at top
+                const policyInfo = [
+                  ['Policy Information'],
+                  ['Face Amount', selectedPolicy?.faceAmount],
+                  ['Annual Premium', selectedPolicy?.annualPremium],
+                  ['Premium Years', selectedPolicy?.premiumPaymentYears],
+                  ['Issue Age', projections[0]?.age - 1],
+                  ['Guaranteed Rate', selectedPolicy?.guaranteedRate],
+                  ['Dividend Rate', selectedPolicy?.dividendRate || 'N/A'],
+                  ['Loan Interest Rate', selectedPolicy?.loanInterestRate],
+                  [''],
+                  ['Withdrawals'],
+                  ...(selectedPolicy?.withdrawals.map(w => [`Age ${w.startAge} for ${w.years} years`, w.annualAmount]) || []),
+                  [''],
+                ]
+                
+                const csvContent = [
+                  ...policyInfo.map(row => row.join(',')),
+                  headers.join(','),
+                  ...rows.map(row => row.join(','))
+                ].join('\n')
+                
+                // Download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+                const link = document.createElement('a')
+                link.href = URL.createObjectURL(blob)
+                link.download = `life-insurance-projection-${selectedPolicy?.carrier || 'policy'}-${new Date().toISOString().split('T')[0]}.csv`
+                link.click()
+              }}
+            >
+              📊 Export to CSV
+            </button>
+          </div>
         </div>
         <p className="section-hint">Enter a loan amount in any age to see how it affects the policy. Press Enter to add.</p>
         {projections.length === 0 ? (
@@ -1482,13 +1718,31 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
                   <tr>
                     <th>Age</th>
                     <th>Premium</th>
+                    <th colSpan={3} className="breakdown-header">Premium Allocation</th>
                     <th>Cash Value</th>
                     <th>Death Benefit</th>
+                    <th colSpan={2} className="breakdown-header">PUA (from Dividends)</th>
                     <th className="loan-column">Add Loan</th>
                     <th>Loan Balance</th>
                     <th>Net Cash Value</th>
                     <th>Net Death Benefit</th>
                     <th>MEC</th>
+                  </tr>
+                  <tr className="subheader">
+                    <th></th>
+                    <th></th>
+                    <th className="breakdown-sub">→ CV</th>
+                    <th className="breakdown-sub">→ COI</th>
+                    <th className="breakdown-sub">→ Exp.</th>
+                    <th></th>
+                    <th></th>
+                    <th className="breakdown-sub">→ CV</th>
+                    <th className="breakdown-sub">→ DB</th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1506,8 +1760,13 @@ export function LifeInsuranceBoard({ onPolicyCountChange }: { onPolicyCountChang
                         <tr key={p.policyYear} className={`${p.isMec ? 'mec-row' : ''} ${p.lapsed ? 'lapsed-row' : ''} ${existingWithdrawal > 0 ? 'has-withdrawal' : ''}`}>
                           <td>{p.age}</td>
                           <td>{p.premium > 0 ? formatCurrency(p.premium) : '—'}</td>
+                          <td className="breakdown-value cv">{p.premiumToCv > 0 ? formatCurrency(p.premiumToCv) : '—'}</td>
+                          <td className="breakdown-value coi">{p.premiumToCoi > 0 ? formatCurrency(p.premiumToCoi) : '—'}</td>
+                          <td className="breakdown-value exp">{p.premiumToExpenses > 0 ? formatCurrency(p.premiumToExpenses) : '—'}</td>
                           <td>{formatCurrency(p.cashValue)}</td>
                           <td>{formatCurrency(p.deathBenefit)}</td>
+                          <td className="breakdown-value pua-cv">{p.puaDividendToCv > 0 ? formatCurrency(p.puaDividendToCv) : '—'}</td>
+                          <td className="breakdown-value pua-db">{p.puaDividendToDb > 0 ? formatCurrency(p.puaDividendToDb) : '—'}</td>
                           <td className="loan-input-cell">
                             {existingWithdrawal > 0 ? (
                               <span className="existing-withdrawal" title="Withdrawal already scheduled">

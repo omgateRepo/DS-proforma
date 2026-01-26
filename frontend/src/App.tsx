@@ -123,7 +123,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 type LoadStatus = 'idle' | 'loading' | 'loaded' | 'error'
 
-const APP_VERSION = '1.0.69'
+const APP_VERSION = '1.0.74'
 type RequestStatus = 'idle' | 'saving' | 'error'
 type AddressSearchStatus = 'idle' | 'loading' | 'loaded' | 'error'
 type SelectedCoords = { lat: number; lon: number } | null
@@ -620,6 +620,9 @@ function App() {
   const [businessCreateError, setBusinessCreateError] = useState('')
   const [isBusinessCreateModalOpen, setIsBusinessCreateModalOpen] = useState(false)
   const [businessStageUpdatingFor, setBusinessStageUpdatingFor] = useState<EntityId | null>(null)
+
+  // Life Insurance trigger
+  const [lifeInsuranceCreateTrigger, setLifeInsuranceCreateTrigger] = useState(0)
 
   // Trips state
   const [trips, setTrips] = useState<Trip[]>([])
@@ -2040,12 +2043,17 @@ useEffect(() => {
               <button
                 type="button"
                 className="add-board-project"
-                onClick={() => 
-                  activeBoard === 'realEstate' ? openCreateModal() : 
-                  setIsBusinessCreateModalOpen(true)
-                }
+                onClick={() => {
+                  if (activeBoard === 'realEstate') {
+                    openCreateModal()
+                  } else if (activeBoard === 'lifeInsurance') {
+                    setLifeInsuranceCreateTrigger(prev => prev + 1)
+                  } else {
+                    setIsBusinessCreateModalOpen(true)
+                  }
+                }}
               >
-                + New {activeBoard === 'realEstate' ? 'Property' : 'Business'}
+                + New {activeBoard === 'realEstate' ? 'Property' : activeBoard === 'lifeInsurance' ? 'Policy' : 'Business'}
               </button>
             )}
           </div>
@@ -2289,7 +2297,10 @@ useEffect(() => {
         </div>
       ) : activeBoard === 'lifeInsurance' ? (
         <div className="life-insurance-board-wrapper">
-          <LifeInsuranceBoard onPolicyCountChange={loadProjectCounts} />
+          <LifeInsuranceBoard 
+            onPolicyCountChange={loadProjectCounts} 
+            openCreateModalTrigger={lifeInsuranceCreateTrigger}
+          />
         </div>
       ) : activeBoard === 'realEstate' && selectedProjectId ? (
         <section className="detail-section detail-full">
