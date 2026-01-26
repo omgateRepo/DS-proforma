@@ -4947,16 +4947,37 @@ function getMortalityRate(age) {
   return MORTALITY_RATES[50]
 }
 
-// Cash value factor by policy year
+// Cash value factor by policy year (realistic industry rates)
+// Year 1: Heavy commission load (agents get 50-100% of first year premium)
+// Years 2-3: Trailing commissions decrease
+// Years 4+: Mostly admin costs and profit margin
 function getCvFactor(year) {
-  if (year === 1) return 0.10
-  if (year === 2) return 0.55
-  if (year === 3) return 0.65
-  if (year === 4) return 0.70
-  if (year === 5) return 0.72
-  if (year <= 10) return 0.75
-  if (year <= 20) return 0.78
-  return 0.80
+  if (year === 1) return 0.05   // 95% to expenses (high commission year)
+  if (year === 2) return 0.70   // 30% to expenses (trailing commission)
+  if (year === 3) return 0.82   // 18% to expenses
+  if (year === 4) return 0.88   // 12% to expenses
+  if (year === 5) return 0.90   // 10% to expenses
+  if (year <= 10) return 0.93   // 7% to expenses
+  if (year <= 20) return 0.95   // 5% to expenses
+  return 0.97                    // 3% to expenses (mature policy)
+}
+
+// PUA (Paid-Up Additions) factors by age
+// When dividends buy paid-up additions, the DB:CV ratio depends on age
+// Younger = cheaper mortality = more DB per dollar of dividend
+// These are approximations based on typical single-premium whole life pricing
+function getPuaFactors(age) {
+  // PUA CV factor: portion of dividend that becomes immediate cash value
+  // PUA DB factor: death benefit multiplier per dollar of dividend
+  if (age <= 10) return { cvFactor: 0.92, dbFactor: 6.0 }   // Children: very cheap mortality
+  if (age <= 20) return { cvFactor: 0.90, dbFactor: 5.0 }   // Young adults
+  if (age <= 30) return { cvFactor: 0.88, dbFactor: 4.2 }   // 
+  if (age <= 40) return { cvFactor: 0.85, dbFactor: 3.2 }   // 
+  if (age <= 50) return { cvFactor: 0.82, dbFactor: 2.5 }   // Middle age
+  if (age <= 60) return { cvFactor: 0.78, dbFactor: 1.8 }   // 
+  if (age <= 70) return { cvFactor: 0.72, dbFactor: 1.4 }   // 
+  if (age <= 80) return { cvFactor: 0.65, dbFactor: 1.15 }  // Seniors
+  return { cvFactor: 0.55, dbFactor: 1.05 }                  // Very old: almost 1:1
 }
 
 // 7-Pay limit per $1000 face amount by issue age (IRS guideline premium limits)
@@ -5049,10 +5070,15 @@ function generateProjections(policy, withdrawals = []) {
     // New cash value
     cashValue = Math.max(0, cashValue + premiumContribution + interest - coi)
     
-    // PUAs from dividends
+    // PUAs from dividends (age-dependent factors)
+    const puaFactors = getPuaFactors(age)
+    let puaDividendToCv = 0
+    let puaDividendToDb = 0
     if (dividend > 0 && policy.dividendOption === 'paid_up_additions') {
-      puaCashValue += dividend * 0.85 // Approximate PUA cash value
-      puaDeathBenefit += dividend * 2.5 // Approximate PUA death benefit multiplier
+      puaDividendToCv = dividend * puaFactors.cvFactor
+      puaDividendToDb = dividend * puaFactors.dbFactor
+      puaCashValue += puaDividendToCv
+      puaDeathBenefit += puaDividendToDb
     }
     
     // Handle withdrawals/loans for this age
@@ -5096,8 +5122,8 @@ function generateProjections(policy, withdrawals = []) {
         puaDeathBenefit,
         dividendAmount: dividend,
         // PUA breakdown (from dividends)
-        puaDividendToCv: dividend > 0 && policy.dividendOption === 'paid_up_additions' ? dividend * 0.85 : 0,
-        puaDividendToDb: dividend > 0 && policy.dividendOption === 'paid_up_additions' ? dividend * 2.5 : 0,
+        puaDividendToCv,
+        puaDividendToDb,
         sevenPayLimit,
         isMec,
         loanBalance,
@@ -5160,6 +5186,7 @@ function transformPolicy(row) {
     dividendOption: row.dividend_option,
     loanInterestRate: row.loan_interest_rate,
     notes: row.notes,
+    planningMode: row.planning_mode || 'manual',
     ownerId: row.owner_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -5239,7 +5266,7 @@ router.post('/life-insurance', async (req, res) => {
     policyNumber, carrier, faceAmount, issueDate, insuredName, insuredDob,
     insuredSex, healthClass, annualPremium, premiumPaymentYears,
     guaranteedRate, isParticipating, dividendRate, dividendOption,
-    loanInterestRate, notes
+    loanInterestRate, notes, planningMode
   } = req.body || {}
   
   if (!faceAmount || !issueDate || !insuredDob || !insuredSex || !healthClass || !annualPremium || !premiumPaymentYears) {
@@ -5274,12 +5301,13 @@ router.post('/life-insurance', async (req, res) => {
         health_class: healthClass,
         annual_premium: annualPremium,
         premium_payment_years: premiumPaymentYears,
-        guaranteed_rate: guaranteedRate || 0.04,
+        guaranteed_rate: guaranteedRate || 0.025,  // 2026 realistic: 2.5%
         is_participating: isParticipating !== false,
-        dividend_rate: dividendRate || null,
+        dividend_rate: dividendRate || 0.045,  // 2026 realistic: 4.5%
         dividend_option: dividendOption || 'paid_up_additions',
         loan_interest_rate: loanInterestRate || 0.06,
         notes: notes || null,
+        planning_mode: planningMode || 'manual',
         owner_id: userId,
       },
       include: {
@@ -5318,7 +5346,7 @@ router.patch('/life-insurance/:id', async (req, res) => {
       policyNumber, carrier, faceAmount, issueDate, insuredName, insuredDob,
       insuredSex, healthClass, annualPremium, premiumPaymentYears,
       guaranteedRate, isParticipating, dividendRate, dividendOption,
-      loanInterestRate, notes
+      loanInterestRate, notes, planningMode
     } = req.body
     
     if (policyNumber !== undefined) updateData.policy_number = policyNumber
@@ -5337,6 +5365,7 @@ router.patch('/life-insurance/:id', async (req, res) => {
     if (dividendOption !== undefined) updateData.dividend_option = dividendOption
     if (loanInterestRate !== undefined) updateData.loan_interest_rate = loanInterestRate
     if (notes !== undefined) updateData.notes = notes
+    if (planningMode !== undefined) updateData.planning_mode = planningMode
     
     const updated = await prisma.life_insurance_policies.update({
       where: { id: req.params.id },

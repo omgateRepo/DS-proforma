@@ -208,14 +208,15 @@ function estimatePremiumWithMec(
 }
 
 // Rough estimate of cash value at a given year (simplified model for UI display)
+// 2026 realistic defaults: ~2.5% guaranteed, ~4.5% dividend for top-tier mutual companies
 function estimateCashValueAtYear(
   premium: number,
   payYears: number,
   faceAmount: number,
   age: number,
   targetYear: number,
-  guaranteedRate: number = 0.04,
-  dividendRate: number = 0.05
+  guaranteedRate: number = 0.025,
+  dividendRate: number = 0.045
 ): number {
   let cv = 0
   const totalRate = guaranteedRate + dividendRate
@@ -247,7 +248,9 @@ function estimateFaceAmountWithMec(
   age: number,
   sex: string,
   healthClass: string,
-  payYears: number
+  payYears: number,
+  guaranteedRate: number = 0.025,
+  dividendRate: number = 0.045
 ): FaceAmountEstimate {
   const actuarialFaceAmount = estimateActuarialFaceAmount(premium, age, sex, healthClass, payYears)
   const minFaceAmountForMec = getMinFaceAmountForMec(premium, age)
@@ -282,8 +285,8 @@ function estimateFaceAmountWithMec(
       faceAmount,
       label,
       cvFocusPercent,
-      estimatedCvYear10: estimateCashValueAtYear(premium, payYears, faceAmount, age, 10),
-      estimatedCvYear20: estimateCashValueAtYear(premium, payYears, faceAmount, age, 20),
+      estimatedCvYear10: estimateCashValueAtYear(premium, payYears, faceAmount, age, 10, guaranteedRate, dividendRate),
+      estimatedCvYear20: estimateCashValueAtYear(premium, payYears, faceAmount, age, 20, guaranteedRate, dividendRate),
     })
   }
 
@@ -376,6 +379,7 @@ interface Policy {
   dividendOption: string
   loanInterestRate: number
   notes?: string
+  planningMode?: PlanningMode
   withdrawals: Withdrawal[]
   projections?: Projection[]
 }
@@ -417,11 +421,11 @@ const defaultPolicyForm: PolicyFormState = {
   healthClass: 'standard',
   annualPremium: '',
   premiumPaymentYears: '20',
-  guaranteedRate: '0.04',
+  guaranteedRate: '0.025',  // 2026 realistic: ~2.5% guaranteed
   isParticipating: true,
-  dividendRate: '0.05',
-  dividendOption: 'paid_up_additions',
+  dividendRate: '0.045',    // 2026 realistic: ~4.5% dividend (top-tier mutual companies)
   loanInterestRate: '0.06',
+  dividendOption: 'paid_up_additions',
   notes: '',
 }
 
@@ -502,9 +506,11 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
       formAge,
       policyForm.insuredSex,
       policyForm.healthClass,
-      parseInt(policyForm.premiumPaymentYears) || 20
+      parseInt(policyForm.premiumPaymentYears) || 20,
+      parseFloat(policyForm.guaranteedRate) || 0.025,
+      parseFloat(policyForm.dividendRate) || 0.045
     )
-  }, [policyForm.annualPremium, formAge, policyForm.insuredSex, policyForm.healthClass, policyForm.premiumPaymentYears])
+  }, [policyForm.annualPremium, formAge, policyForm.insuredSex, policyForm.healthClass, policyForm.premiumPaymentYears, policyForm.guaranteedRate, policyForm.dividendRate])
 
   // For backward compatibility
   const estimatedFaceAmount = faceAmountEstimate?.mecSafeFaceAmount ?? null
@@ -657,7 +663,9 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
       annualPremium = estimatedPremium || 0
     } else if (planningMode === 'budget_first') {
       annualPremium = parseFloat(policyForm.annualPremium) || 0
-      faceAmount = estimatedFaceAmount || 0
+      // Use the user's selected face amount from the range options (stored in policyForm.faceAmount)
+      // Fall back to estimatedFaceAmount only if no selection was made
+      faceAmount = parseFloat(policyForm.faceAmount) || estimatedFaceAmount || 0
     } else {
       faceAmount = parseFloat(policyForm.faceAmount) || 0
       annualPremium = parseFloat(policyForm.annualPremium) || 0
@@ -681,6 +689,7 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
         dividendOption: policyForm.dividendOption,
         loanInterestRate: parseFloat(policyForm.loanInterestRate),
         notes: policyForm.notes || null,
+        planningMode,
       })
       await loadPolicies()
       setIsCreateModalOpen(false)
@@ -708,7 +717,9 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
       annualPremium = estimatedPremium || 0
     } else if (planningMode === 'budget_first') {
       annualPremium = parseFloat(policyForm.annualPremium) || 0
-      faceAmount = estimatedFaceAmount || 0
+      // Use the user's selected face amount from the range options (stored in policyForm.faceAmount)
+      // Fall back to estimatedFaceAmount only if no selection was made
+      faceAmount = parseFloat(policyForm.faceAmount) || estimatedFaceAmount || 0
     } else {
       faceAmount = parseFloat(policyForm.faceAmount) || 0
       annualPremium = parseFloat(policyForm.annualPremium) || 0
@@ -732,6 +743,7 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
         dividendOption: policyForm.dividendOption,
         loanInterestRate: parseFloat(policyForm.loanInterestRate),
         notes: policyForm.notes || null,
+        planningMode,
       })
       await loadPolicies()
       await loadPolicyDetail(selectedPolicyId)
@@ -827,6 +839,8 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
 
   const openEditModal = () => {
     if (!selectedPolicy) return
+    // Load the saved planning mode from the policy, or default to 'manual'
+    setPlanningMode(selectedPolicy.planningMode || 'manual')
     setPolicyForm({
       policyNumber: selectedPolicy.policyNumber || '',
       carrier: selectedPolicy.carrier || '',
@@ -1721,7 +1735,10 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
                     <th colSpan={3} className="breakdown-header">Premium Allocation</th>
                     <th>Cash Value</th>
                     <th>Death Benefit</th>
-                    <th colSpan={2} className="breakdown-header">PUA (from Dividends)</th>
+                    <th colSpan={2} className="breakdown-header pua-header">
+                      PUA (from Dividends)
+                      <span className="info-icon" title="PUA factors are age-dependent. Younger = more DB per dollar.&#10;&#10;Age 0-10: CV 92%, DB 6.0x&#10;Age 11-20: CV 90%, DB 5.0x&#10;Age 21-30: CV 88%, DB 4.2x&#10;Age 31-40: CV 85%, DB 3.2x&#10;Age 41-50: CV 82%, DB 2.5x&#10;Age 51-60: CV 78%, DB 1.8x&#10;Age 61-70: CV 72%, DB 1.4x&#10;Age 71-80: CV 65%, DB 1.15x&#10;Age 81+: CV 55%, DB 1.05x">ⓘ</span>
+                    </th>
                     <th className="loan-column">Add Loan</th>
                     <th>Loan Balance</th>
                     <th>Net Cash Value</th>
@@ -1802,6 +1819,38 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
                       )
                     })}
                 </tbody>
+                <tfoot>
+                  {(() => {
+                    const totals = projections.reduce((acc, p) => ({
+                      premium: acc.premium + (p.premium || 0),
+                      premiumToCv: acc.premiumToCv + (p.premiumToCv || 0),
+                      premiumToCoi: acc.premiumToCoi + (p.premiumToCoi || 0),
+                      premiumToExpenses: acc.premiumToExpenses + (p.premiumToExpenses || 0),
+                      puaDividendToCv: acc.puaDividendToCv + (p.puaDividendToCv || 0),
+                      puaDividendToDb: acc.puaDividendToDb + (p.puaDividendToDb || 0),
+                      withdrawals: acc.withdrawals + (getWithdrawalForAge(p.age) || 0),
+                    }), { premium: 0, premiumToCv: 0, premiumToCoi: 0, premiumToExpenses: 0, puaDividendToCv: 0, puaDividendToDb: 0, withdrawals: 0 })
+                    const lastProjection = projections[projections.length - 1]
+                    return (
+                      <tr className="totals-row">
+                        <td><strong>TOTAL</strong></td>
+                        <td><strong>{formatCurrency(totals.premium)}</strong></td>
+                        <td className="breakdown-value cv">{formatCurrency(totals.premiumToCv)}</td>
+                        <td className="breakdown-value coi">{formatCurrency(totals.premiumToCoi)}</td>
+                        <td className="breakdown-value exp">{formatCurrency(totals.premiumToExpenses)}</td>
+                        <td><strong>{formatCurrency(lastProjection?.cashValue || 0)}</strong></td>
+                        <td><strong>{formatCurrency(lastProjection?.deathBenefit || 0)}</strong></td>
+                        <td className="breakdown-value pua-cv">{formatCurrency(totals.puaDividendToCv)}</td>
+                        <td className="breakdown-value pua-db">{formatCurrency(totals.puaDividendToDb)}</td>
+                        <td>{formatCurrency(totals.withdrawals)}</td>
+                        <td>{formatCurrency(lastProjection?.loanBalance || 0)}</td>
+                        <td><strong>{formatCurrency(lastProjection?.netCashValue || 0)}</strong></td>
+                        <td><strong>{formatCurrency(lastProjection?.netDeathBenefit || 0)}</strong></td>
+                        <td></td>
+                      </tr>
+                    )
+                  })()}
+                </tfoot>
               </table>
             </div>
           </>
@@ -1921,6 +1970,11 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
                           onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
                           required
                         >
+                          <option value="1">1 year (Single Pay)</option>
+                          <option value="2">2 years</option>
+                          <option value="3">3 years</option>
+                          <option value="5">5 years</option>
+                          <option value="7">7 years (Max MEC)</option>
                           <option value="10">10 years</option>
                           <option value="15">15 years</option>
                           <option value="20">20 years</option>
@@ -1949,6 +2003,11 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
                           onChange={(e) => setPolicyForm({ ...policyForm, premiumPaymentYears: e.target.value })}
                           required
                         >
+                          <option value="1">1 year (Single Pay)</option>
+                          <option value="2">2 years</option>
+                          <option value="3">3 years</option>
+                          <option value="5">5 years</option>
+                          <option value="7">7 years (Max MEC)</option>
                           <option value="10">10 years</option>
                           <option value="15">15 years</option>
                           <option value="20">20 years</option>
@@ -2029,29 +2088,72 @@ export function LifeInsuranceBoard({ onPolicyCountChange, openCreateModalTrigger
                   </div>
                 )}
 
-                {/* Estimation Display - Budget First */}
+                {/* Estimation Display - Budget First with Range Selector */}
                 {planningMode === 'budget_first' && faceAmountEstimate && policyForm.annualPremium && (
-                  <div className={`estimation-box ${faceAmountEstimate.isMecAdjusted ? 'mec-adjusted' : ''}`}>
-                    <div className="estimation-result">
-                      <span className="estimation-label">Death Benefit (MEC-Safe):</span>
-                      <span className="estimation-value">{formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}</span>
+                  <div className="estimation-box budget-first-range">
+                    <div className="range-header">
+                      <h5>Choose Your Death Benefit / Cash Value Balance</h5>
+                      <p className="range-hint">Higher death benefit = more protection. Lower death benefit = faster cash value growth.</p>
                     </div>
                     
-                    {faceAmountEstimate.isMecAdjusted && (
-                      <div className="mec-adjustment-info">
-                        <div className="adjustment-header">
-                          <span className="adjustment-icon">💡</span>
-                          <strong>Tax-Advantaged Adjustment</strong>
-                        </div>
-                        <p className="adjustment-explanation">
-                          Typical: {formatCurrency(faceAmountEstimate.actuarialFaceAmount)} → MEC-Safe: {formatCurrency(faceAmountEstimate.mecSafeFaceAmount)}
-                          (+{formatCurrency(faceAmountEstimate.extraCoverage)} extra coverage)
-                        </p>
+                    {/* Range Options Table */}
+                    <div className="range-options-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th></th>
+                            <th>Focus</th>
+                            <th>Death Benefit</th>
+                            <th>Est. CV Year 10</th>
+                            <th>Est. CV Year 20</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {faceAmountEstimate.rangeOptions.map((opt, idx) => (
+                            <tr 
+                              key={idx}
+                              className={`range-option ${selectedFaceAmountOptionIndex === idx ? 'selected' : ''}`}
+                              onClick={() => {
+                                setSelectedFaceAmountOptionIndex(idx)
+                                setPolicyForm({ ...policyForm, faceAmount: String(opt.faceAmount) })
+                              }}
+                            >
+                              <td>
+                                <input 
+                                  type="radio" 
+                                  name="faceAmountOptionEdit" 
+                                  checked={selectedFaceAmountOptionIndex === idx}
+                                  onChange={() => {
+                                    setSelectedFaceAmountOptionIndex(idx)
+                                    setPolicyForm({ ...policyForm, faceAmount: String(opt.faceAmount) })
+                                  }}
+                                />
+                              </td>
+                              <td className="option-label">{opt.label}</td>
+                              <td className="option-db">{formatCurrency(opt.faceAmount)}</td>
+                              <td className="option-cv">{formatCurrency(opt.estimatedCvYear10)}</td>
+                              <td className="option-cv">{formatCurrency(opt.estimatedCvYear20)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="selected-option-summary">
+                      <div className="summary-item">
+                        <span className="label">Selected Death Benefit:</span>
+                        <span className="value">{formatCurrency(faceAmountEstimate.rangeOptions[selectedFaceAmountOptionIndex]?.faceAmount || 0)}</span>
                       </div>
-                    )}
-                    
-                    {!faceAmountEstimate.isMecAdjusted && (
-                      <p className="estimation-note success">✓ Within 7-pay limit</p>
+                      <div className="summary-item">
+                        <span className="label">Annual Premium:</span>
+                        <span className="value">{formatCurrency(parseFloat(policyForm.annualPremium))}</span>
+                      </div>
+                    </div>
+
+                    {sevenPayInfo && (
+                      <p className="mec-limit-note">
+                        <strong>MEC Limit for age {formAge}:</strong> Max {formatCurrency(sevenPayInfo.perMillion)} premium per $1M of death benefit. All options above are MEC-safe.
+                      </p>
                     )}
                   </div>
                 )}

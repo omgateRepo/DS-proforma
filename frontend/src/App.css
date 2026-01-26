@@ -6201,7 +6201,7 @@ td {
 }
 
 .life-insurance-board .projections-table .subheader th {
-  background: #2a2a3e;
+  background: #2a2a3e !important;
   font-size: 0.65rem;
   font-weight: 500;
   padding: 0.25rem 0.35rem;
@@ -6237,6 +6237,78 @@ td {
 
 .life-insurance-board .projections-table .breakdown-value.pua-db {
   color: #ec4899;
+}
+
+/* Totals Row */
+.life-insurance-board .projections-table tfoot .totals-row {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+  border-top: 2px solid #3b82f6;
+  position: sticky;
+  bottom: 0;
+}
+
+.life-insurance-board .projections-table tfoot .totals-row td {
+  padding: 12px 8px;
+  font-weight: 500;
+  color: white;
+}
+
+.life-insurance-board .projections-table tfoot .totals-row td strong {
+  color: #86efac;
+}
+
+/* PUA Info Icon with Tooltip */
+.life-insurance-board .projections-table .pua-header {
+  position: relative;
+}
+
+.life-insurance-board .projections-table .info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: help;
+  vertical-align: middle;
+  transition: color 0.15s;
+  position: relative;
+}
+
+.life-insurance-board .projections-table .info-icon:hover {
+  color: #60a5fa;
+}
+
+/* Better styled tooltip */
+.life-insurance-board .projections-table .info-icon::after {
+  content: attr(title);
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-line;
+  width: 220px;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  pointer-events: none;
+  margin-top: 8px;
+}
+
+.life-insurance-board .projections-table .info-icon:hover::after {
+  opacity: 1;
+  visibility: visible;
 }
 
 .life-insurance-board .section-header {
@@ -6298,9 +6370,22 @@ td {
   text-transform: uppercase;
   font-size: 0.7rem;
   color: var(--muted);
-  background: #f8fafc;
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+/* Make both header rows sticky */
+.life-insurance-board .projections-table thead tr:first-child th {
   position: sticky;
   top: 0;
+  z-index: 20;
+  background: #1e293b;
+}
+
+.life-insurance-board .projections-table thead tr.subheader th {
+  position: sticky;
+  top: 32px; /* Height of first header row */
+  z-index: 19;
 }
 
 .life-insurance-board .projections-table th:first-child,

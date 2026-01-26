@@ -607,6 +607,7 @@ model life_insurance_policies {
   loan_interest_rate    Decimal   @default(0.06) @db.Decimal  // Loan interest rate
   
   notes                 String?
+  planning_mode         String    @default("manual") // coverage_first, budget_first, manual
   
   // Ownership
   owner_id              String    @db.Uuid
