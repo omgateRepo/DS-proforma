@@ -33,7 +33,6 @@ services:
     name: ds-proforma-frontend
     runtime: static
     plan: free
-    region: oregon
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -58,7 +57,6 @@ services:
     name: example-landing
     runtime: static
     plan: free
-    region: oregon
     rootDir: sites/example-landing
     staticPublishPath: .
     headers:
@@ -82,7 +80,6 @@ services:
   #   name: your-site-name
   #   runtime: static
   #   plan: free
-  #   region: oregon
   #   rootDir: sites/your-site-folder
   #   staticPublishPath: .
   #   headers:
