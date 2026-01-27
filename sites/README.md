@@ -46,7 +46,6 @@ Add this block to the root `render.yaml` file:
   - type: web
     name: your-new-site
     runtime: static
-    plan: free
     rootDir: sites/your-new-site
     staticPublishPath: .
     headers:

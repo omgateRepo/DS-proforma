@@ -8,7 +8,7 @@ services:
   - type: web
     name: ds-proforma-api
     runtime: node
-    plan: free  # Change to 'starter' or higher for production
+    plan: free  # Change to 'starter' for production
     region: oregon
     rootDir: backend
     buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
@@ -28,11 +28,11 @@ services:
 
   # ============================================
   # Frontend App (React)
+  # Static sites don't need a plan - they're free
   # ============================================
   - type: web
     name: ds-proforma-frontend
     runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -56,7 +56,6 @@ services:
   - type: web
     name: example-landing
     runtime: static
-    plan: free
     rootDir: sites/example-landing
     staticPublishPath: .
     headers:
@@ -79,7 +78,6 @@ services:
   # - type: web
   #   name: your-site-name
   #   runtime: static
-  #   plan: free
   #   rootDir: sites/your-site-folder
   #   staticPublishPath: .
   #   headers:
@@ -98,10 +96,12 @@ services:
 
 # ============================================
 # Database
+# NOTE: Your existing database is on basic-256mb plan
+# This matches your current Render setup
 # ============================================
 databases:
   - name: ds-proforma-db
-    plan: free  # Change to 'starter' or higher for production
+    plan: basic_256mb
     region: oregon
     databaseName: ds_proforma
     user: ds_proforma_user
