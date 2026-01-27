@@ -69,6 +69,26 @@ services:
         name: Cache-Control
         value: public, max-age=31536000, immutable
 
+  # Loan911 - Real Estate Lending
+  - type: web
+    name: loan911
+    runtime: static
+    rootDir: sites/loan911
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=3600
+      - path: /css/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /js/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /images/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+
   # ============================================
   # TEMPLATE: Copy this block for new sites
   # ============================================
