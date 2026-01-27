@@ -18,9 +18,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: ds-proforma-db
-          property: connectionString
+        sync: false  # Set manually - your existing database connection string
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
@@ -96,12 +94,7 @@ services:
 
 # ============================================
 # Database
-# NOTE: Your existing database is on basic-256mb plan
-# This matches your current Render setup
+# NOTE: Your database already exists on Render.
+# Manage it separately in the Render dashboard.
+# The DATABASE_URL env var is set manually above.
 # ============================================
-databases:
-  - name: ds-proforma-db
-    plan: basic_256mb
-    region: oregon
-    databaseName: ds_proforma
-    user: ds_proforma_user
