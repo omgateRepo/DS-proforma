@@ -48,6 +48,8 @@ export default function createAuthMiddleware({ enabled = true, bypass = [] } = {
     if (
       requestPath.startsWith('/api/geocode/') ||
       requestPath.startsWith('/geocode/') ||
+      requestPath.startsWith('/api/loan-application') ||
+      requestPath === '/loan-application' ||
       normalizedBypass.some((prefix) => requestPath.startsWith(prefix))
     ) {
       return next()
