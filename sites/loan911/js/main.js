@@ -268,8 +268,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const filePreview = document.getElementById('file-preview');
 
     if (fileInput && fileDropArea) {
-        // Click to upload
-        fileDropArea.addEventListener('click', () => {
+        // Click to upload (but not if clicking the label/input directly)
+        fileDropArea.addEventListener('click', (e) => {
+            // Don't trigger if clicking the label or input (they handle it natively)
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL' || e.target.closest('label')) {
+                return;
+            }
             fileInput.click();
         });
 
