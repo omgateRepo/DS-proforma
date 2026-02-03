@@ -2,7 +2,7 @@ import { Router } from 'express'
 import fetch from 'node-fetch'
 import bcrypt from 'bcryptjs'
 import multer from 'multer'
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import prisma from './prisma.js'
 
 console.log('ROUTES FILE LOADED - multer and nodemailer imported successfully')
@@ -5557,32 +5557,18 @@ router.post('/loan-application', (req, res, next) => {
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
-    // Check for email credentials
-    const emailUser = process.env.LOAN911_EMAIL_USER
-    const emailPass = process.env.LOAN911_EMAIL_PASS
+    // Check for Resend API key
+    const resendApiKey = process.env.RESEND_API_KEY
     
-    console.log('EMAIL CONFIG:', { 
-      userSet: !!emailUser, 
-      passSet: !!emailPass,
-      passLength: emailPass?.length 
-    })
+    console.log('RESEND CONFIG:', { apiKeySet: !!resendApiKey })
     
-    if (!emailUser || !emailPass) {
-      console.error('Missing email credentials - LOAN911_EMAIL_USER or LOAN911_EMAIL_PASS not set')
-      // Still return success but log the issue
+    if (!resendApiKey) {
+      console.error('Missing RESEND_API_KEY')
       return res.json({ success: true, message: 'Application received (email not configured)' })
     }
 
-    // Configure email transporter
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: emailUser,
-        pass: emailPass.replace(/\s/g, '') // Remove any spaces from app password
-      },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,
-    })
+    // Initialize Resend
+    const resend = new Resend(resendApiKey)
 
     // Build email content
     const emailHtml = `
@@ -5601,26 +5587,30 @@ router.post('/loan-application', (req, res, next) => {
         <li><strong>Email:</strong> ${email}</li>
         <li><strong>Phone:</strong> ${phone}</li>
       </ul>
+      ${file ? `<p><strong>Attached:</strong> ${file.originalname}</p>` : ''}
       <hr>
       <p><em>Submitted at: ${new Date().toLocaleString()}</em></p>
     `
 
-    const mailOptions = {
-      from: emailUser,
-      to: 'amit.sherman.usa@gmail.com',
+    // Send email via Resend
+    console.log('Sending email via Resend...')
+    const { data, error } = await resend.emails.send({
+      from: 'Loan911 <onboarding@resend.dev>',
+      to: ['amit.sherman.usa@gmail.com'],
       subject: `🏠 New Loan Application: ${dealType} - ${closingPrice} in ${city}`,
       html: emailHtml,
       attachments: file ? [{
         filename: file.originalname,
-        content: file.buffer,
-        contentType: file.mimetype
+        content: file.buffer.toString('base64'),
       }] : []
-    }
+    })
 
-    // Send email
-    console.log('Sending email...')
-    await transporter.sendMail(mailOptions)
-    console.log('Email sent successfully!')
+    if (error) {
+      console.error('Resend error:', error)
+      throw new Error(error.message)
+    }
+    
+    console.log('Email sent successfully! ID:', data?.id)
 
     res.json({ success: true, message: 'Application submitted successfully' })
   } catch (err) {
