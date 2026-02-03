@@ -5557,13 +5557,31 @@ router.post('/loan-application', (req, res, next) => {
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
+    // Check for email credentials
+    const emailUser = process.env.LOAN911_EMAIL_USER
+    const emailPass = process.env.LOAN911_EMAIL_PASS
+    
+    console.log('EMAIL CONFIG:', { 
+      userSet: !!emailUser, 
+      passSet: !!emailPass,
+      passLength: emailPass?.length 
+    })
+    
+    if (!emailUser || !emailPass) {
+      console.error('Missing email credentials - LOAN911_EMAIL_USER or LOAN911_EMAIL_PASS not set')
+      // Still return success but log the issue
+      return res.json({ success: true, message: 'Application received (email not configured)' })
+    }
+
     // Configure email transporter
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.LOAN911_EMAIL_USER || 'amit.sherman.usa@gmail.com',
-        pass: process.env.LOAN911_EMAIL_PASS // Gmail App Password required
-      }
+        user: emailUser,
+        pass: emailPass.replace(/\s/g, '') // Remove any spaces from app password
+      },
+      connectionTimeout: 10000, // 10 seconds
+      greetingTimeout: 10000,
     })
 
     // Build email content
@@ -5588,7 +5606,7 @@ router.post('/loan-application', (req, res, next) => {
     `
 
     const mailOptions = {
-      from: process.env.LOAN911_EMAIL_USER || 'amit.sherman.usa@gmail.com',
+      from: emailUser,
       to: 'amit.sherman.usa@gmail.com',
       subject: `🏠 New Loan Application: ${dealType} - ${closingPrice} in ${city}`,
       html: emailHtml,
@@ -5600,11 +5618,13 @@ router.post('/loan-application', (req, res, next) => {
     }
 
     // Send email
+    console.log('Sending email...')
     await transporter.sendMail(mailOptions)
+    console.log('Email sent successfully!')
 
     res.json({ success: true, message: 'Application submitted successfully' })
   } catch (err) {
-    console.error('Loan application error:', err)
+    console.error('LOAN APPLICATION ERROR:', err.message, err.code, err.responseCode)
     res.status(500).json({ error: 'Failed to submit application', details: err.message })
   }
 })
