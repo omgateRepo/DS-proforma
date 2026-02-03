@@ -18,6 +18,17 @@ const rateLimitMax = Number(process.env.RATE_LIMIT_MAX || 300)
 const skipRateLimit = process.env.SKIP_RATE_LIMIT === 'true'
 const skipAuth = process.env.SKIP_AUTH === 'true'
 
+// Allowed origins for CORS (main app + loan911 sites)
+const allowedOrigins = [
+  allowedOrigin,
+  'https://loan911.onrender.com',
+  'https://fastdeveloperloan.com',
+  'https://www.fastdeveloperloan.com',
+  'https://911-loan.com',
+  'https://www.911-loan.com',
+  'http://localhost:5500', // local dev
+]
+
 app.disable('x-powered-by')
 app.set('trust proxy', 1)
 
@@ -28,7 +39,18 @@ app.use(
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }),
 )
-app.use(cors({ origin: allowedOrigin, credentials: true }))
+app.use(cors({ 
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace('https://', 'https://').replace('http://', 'http://')))) {
+      return callback(null, true)
+    }
+    // Also allow any origin for the loan-application endpoint
+    return callback(null, true)
+  }, 
+  credentials: true 
+}))
 app.use(morgan(isProduction ? 'combined' : 'dev'))
 app.use(express.json({ limit: jsonBodyLimit }))
 
@@ -52,6 +74,8 @@ const authMiddleware = createAuthMiddleware({
     '/geocode/front',
     '/api/geocode/search',
     '/geocode/search',
+    '/api/loan-application',
+    '/loan-application',
   ],
 })
 

@@ -319,27 +319,58 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Form submission
     if (applyForm) {
-        applyForm.addEventListener('submit', (e) => {
+        applyForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             if (validateCurrentStep()) {
-                // Collect all form data
-                const formData = new FormData(applyForm);
-                const data = Object.fromEntries(formData);
+                // Show loading state
+                const submitBtn = applyForm.querySelector('button[type="submit"]');
+                const originalText = submitBtn.textContent;
+                submitBtn.textContent = 'Submitting...';
+                submitBtn.disabled = true;
                 
-                console.log('Application submitted:', data);
-                
-                // Show success state
-                document.querySelectorAll('.form-step').forEach(step => {
-                    step.classList.remove('active');
-                });
-                document.querySelector('.form-step[data-step="success"]').classList.add('active');
-                
-                // Hide progress bar
-                document.querySelector('.modal-progress').style.display = 'none';
-                
-                // Here you would send the data to your server
-                // Example: fetch('/api/applications', { method: 'POST', body: formData })
+                try {
+                    // Collect form data
+                    const formData = new FormData();
+                    formData.append('dealType', applyForm.querySelector('input[name="deal-type"]:checked')?.value || '');
+                    formData.append('closingPrice', document.getElementById('closing-price')?.value || '');
+                    formData.append('loanRequested', document.getElementById('loan-requested')?.value || '');
+                    formData.append('city', document.getElementById('city')?.value || '');
+                    formData.append('name', document.getElementById('apply-name')?.value || '');
+                    formData.append('email', document.getElementById('apply-email')?.value || '');
+                    formData.append('phone', document.getElementById('apply-phone')?.value || '');
+                    
+                    // Add file if present
+                    const fileInput = document.getElementById('agreement-file');
+                    if (fileInput && fileInput.files.length > 0) {
+                        formData.append('agreement', fileInput.files[0]);
+                    }
+                    
+                    // Submit to backend
+                    const response = await fetch('https://ds-proforma-api.onrender.com/api/loan-application', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        // Show success state
+                        document.querySelectorAll('.form-step').forEach(step => {
+                            step.classList.remove('active');
+                        });
+                        document.querySelector('.form-step[data-step="success"]').classList.add('active');
+                        document.querySelector('.modal-progress').style.display = 'none';
+                    } else {
+                        alert('Error submitting application: ' + (result.error || 'Unknown error'));
+                    }
+                } catch (err) {
+                    console.error('Submission error:', err);
+                    alert('Error submitting application. Please try again.');
+                } finally {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                }
             }
         });
     }

@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import fetch from 'node-fetch'
 import bcrypt from 'bcryptjs'
+import multer from 'multer'
+import nodemailer from 'nodemailer'
 import prisma from './prisma.js'
 import {
   projectCreateSchema,
@@ -5517,6 +5519,87 @@ router.get('/life-insurance-count', async (req, res) => {
     res.json({ count })
   } catch (err) {
     res.json({ count: 0 })
+  }
+})
+
+// ============================================
+// Loan911 Application Submissions
+// ============================================
+
+// Configure multer for file uploads (memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true)
+    } else {
+      cb(new Error('Invalid file type. Only PDF, DOC, DOCX, and images are allowed.'))
+    }
+  }
+})
+
+// Public endpoint - no auth required
+router.post('/loan-application', upload.single('agreement'), async (req, res) => {
+  try {
+    const { dealType, closingPrice, loanRequested, city, name, email, phone } = req.body
+    const file = req.file
+
+    // Validate required fields
+    if (!dealType || !closingPrice || !city || !name || !email || !phone) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    // Configure email transporter
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.LOAN911_EMAIL_USER || 'amit.sherman.usa@gmail.com',
+        pass: process.env.LOAN911_EMAIL_PASS // Gmail App Password required
+      }
+    })
+
+    // Build email content
+    const emailHtml = `
+      <h2>New Loan Application from Loan911</h2>
+      <hr>
+      <h3>Deal Information</h3>
+      <ul>
+        <li><strong>Deal Type:</strong> ${dealType}</li>
+        <li><strong>Closing Price:</strong> ${closingPrice}</li>
+        <li><strong>Loan Requested:</strong> ${loanRequested || 'Not specified'}</li>
+        <li><strong>City:</strong> ${city}</li>
+      </ul>
+      <h3>Contact Information</h3>
+      <ul>
+        <li><strong>Name:</strong> ${name}</li>
+        <li><strong>Email:</strong> ${email}</li>
+        <li><strong>Phone:</strong> ${phone}</li>
+      </ul>
+      <hr>
+      <p><em>Submitted at: ${new Date().toLocaleString()}</em></p>
+    `
+
+    const mailOptions = {
+      from: process.env.LOAN911_EMAIL_USER || 'amit.sherman.usa@gmail.com',
+      to: 'amit.sherman.usa@gmail.com',
+      subject: `🏠 New Loan Application: ${dealType} - ${closingPrice} in ${city}`,
+      html: emailHtml,
+      attachments: file ? [{
+        filename: file.originalname,
+        content: file.buffer,
+        contentType: file.mimetype
+      }] : []
+    }
+
+    // Send email
+    await transporter.sendMail(mailOptions)
+
+    res.json({ success: true, message: 'Application submitted successfully' })
+  } catch (err) {
+    console.error('Loan application error:', err)
+    res.status(500).json({ error: 'Failed to submit application', details: err.message })
   }
 })
 
