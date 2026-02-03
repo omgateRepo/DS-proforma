@@ -520,7 +520,7 @@ const getContextValue = (feature, prefix) =>
 
 const isPublicRoute = (req) => {
   const path = (req.path || req.originalUrl || '').toLowerCase()
-  return path.startsWith('/geocode/')
+  return path.startsWith('/geocode/') || path.includes('/loan-application')
 }
 
 router.use((req, res, next) => {
