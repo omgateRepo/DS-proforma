@@ -1172,8 +1172,8 @@ ul {
 /* ========================================
    Application Modal
 ======================================== */
-.modal {
-    display: none;
+#apply-modal {
+    display: none !important;
     position: fixed;
     top: 0;
     left: 0;
@@ -1187,8 +1187,8 @@ ul {
     backdrop-filter: blur(4px);
 }
 
-.modal.active {
-    display: flex;
+#apply-modal.active {
+    display: flex !important;
 }
 
 .modal-content {
