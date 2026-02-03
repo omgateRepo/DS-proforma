@@ -306,11 +306,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
     function showFilePreview(file) {
+        // Check file size
+        if (file.size > MAX_FILE_SIZE) {
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+            alert(`File is too large (${sizeMB}MB). Maximum size is 100MB.`);
+            fileInput.value = '';
+            return;
+        }
+        
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         filePreview.classList.add('has-file');
         filePreview.innerHTML = `
             <span class="file-preview-icon">📄</span>
-            <span class="file-preview-name">${file.name}</span>
+            <span class="file-preview-name">${file.name} (${sizeMB}MB)</span>
             <button type="button" class="file-preview-remove" onclick="removeFile()">✕</button>
         `;
     }
