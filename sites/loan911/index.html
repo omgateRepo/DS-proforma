@@ -29,7 +29,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Styles -->
-    <link rel="stylesheet" href="css/style.css?v=1.1.2">
+    <link rel="stylesheet" href="css/style.css?v=1.1.3">
 </head>
 <body>
     <!-- Navigation -->
@@ -333,99 +333,12 @@
     <section id="contact" class="contact">
         <div class="container">
             <div class="section-header">
-                <h2>Get Funded</h2>
-                <p>Tell us about your deal. We'll get back to you within 24 hours.</p>
+                <h2>Schedule a Call</h2>
+                <p>Book a 30-minute call to discuss your deal. No commitment, just a conversation.</p>
             </div>
-            <div class="contact-grid">
-                <div class="contact-info">
-                    <div class="contact-item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                            <polyline points="22,6 12,13 2,6"></polyline>
-                        </svg>
-                        <div>
-                            <strong>Email</strong>
-                            <a href="mailto:deals@loan911.com">deals@loan911.com</a>
-                        </div>
-                    </div>
-                    <div class="contact-item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                        </svg>
-                        <div>
-                            <strong>Phone</strong>
-                            <a href="tel:+18889110911">1-888-911-0911</a>
-                        </div>
-                    </div>
-                    <div class="contact-item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                        <div>
-                            <strong>Response Time</strong>
-                            <span>Within 24 hours</span>
-                        </div>
-                    </div>
-                    <div class="loan-checklist">
-                        <h4>What We'll Need</h4>
-                        <ul>
-                            <li>✓ Property address</li>
-                            <li>✓ Purchase price / ARV</li>
-                            <li>✓ Loan amount requested</li>
-                            <li>✓ Exit strategy</li>
-                            <li>✓ Brief experience summary</li>
-                        </ul>
-                    </div>
-                </div>
-                <form class="contact-form" action="#" method="POST">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="name">Full Name</label>
-                            <input type="text" id="name" name="name" required placeholder="Your name">
-                        </div>
-                        <div class="form-group">
-                            <label for="phone">Phone</label>
-                            <input type="tel" id="phone" name="phone" required placeholder="(555) 555-5555">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required placeholder="your@email.com">
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="loan-amount">Loan Amount</label>
-                            <select id="loan-amount" name="loan-amount" required>
-                                <option value="">Select amount</option>
-                                <option value="100-250k">$100K - $250K</option>
-                                <option value="250-500k">$250K - $500K</option>
-                                <option value="500-750k">$500K - $750K</option>
-                                <option value="750k-1m">$750K - $1M</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="loan-type">Loan Type</label>
-                            <select id="loan-type" name="loan-type" required>
-                                <option value="">Select type</option>
-                                <option value="fix-flip">Fix & Flip</option>
-                                <option value="bridge">Bridge Loan</option>
-                                <option value="cash-out">Cash-Out Refi</option>
-                                <option value="portfolio">Portfolio Loan</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="property">Property Address</label>
-                        <input type="text" id="property" name="property" placeholder="123 Main St, City, State">
-                    </div>
-                    <div class="form-group">
-                        <label for="message">Tell Us About Your Deal</label>
-                        <textarea id="message" name="message" rows="4" placeholder="Purchase price, ARV, rehab budget, exit strategy..."></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Submit Application</button>
-                </form>
-            </div>
+            <!-- Calendly inline widget -->
+            <div class="calendly-inline-widget" data-url="https://calendly.com/amit-gatewise/30min?hide_gdpr_banner=1" style="min-width:320px;height:700px;"></div>
+            <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
         </div>
     </section>
 
@@ -466,7 +379,7 @@
             <div class="footer-bottom">
                 <p>&copy; 2026 Loan911. All rights reserved. NMLS #XXXXXX</p>
                 <p class="disclaimer">Loan911 is a private lender. All loans subject to underwriting approval. Terms and conditions apply.</p>
-                <p class="version">v1.1.2</p>
+                <p class="version">v1.1.3</p>
             </div>
         </div>
     </footer>
@@ -668,6 +581,6 @@
     </div>
 
     <!-- Mobile Menu Script -->
-    <script src="js/main.js?v=1.1.2"></script>
+    <script src="js/main.js?v=1.1.3"></script>
 </body>
 </html>
