@@ -267,21 +267,20 @@ ul {
 }
 
 .hero-content h1 {
-    font-size: 3.5rem;
+    font-size: 3.2rem;
     font-weight: 800;
     color: var(--color-gray-900);
-    line-height: 1.1;
+    line-height: 1.15;
     margin-bottom: var(--spacing-lg);
     letter-spacing: -0.02em;
-    white-space: nowrap;
 }
 
 .hero-subtitle {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     color: var(--color-gray-600);
     margin-bottom: var(--spacing-xl);
-    max-width: 600px;
-    line-height: 1.5;
+    max-width: 550px;
+    line-height: 1.6;
 }
 
 .hero-cta {
