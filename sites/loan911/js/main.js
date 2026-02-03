@@ -126,25 +126,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const openModalBtns = document.querySelectorAll('.open-apply-modal');
     const closeModalBtns = document.querySelectorAll('.modal-close, .modal-close-btn');
     
-    console.log('Modal init:', { modal, openModalBtns: openModalBtns.length });
-    
     let currentStep = 1;
     const totalSteps = 3;
 
     // Open modal
-    if (modal && openModalBtns.length > 0) {
-        openModalBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                console.log('Apply button clicked');
+    openModalBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (modal) {
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
                 resetForm();
-            });
+            }
         });
-    } else {
-        console.log('Modal or buttons not found');
-    }
+    });
 
     // Close modal
     closeModalBtns.forEach(btn => {
