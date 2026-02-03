@@ -61,7 +61,7 @@
                     Up to <strong>$1M in 72 hours</strong>, backed by the deal itself.
                 </p>
                 <div class="hero-cta">
-                    <a href="#contact" class="btn btn-primary btn-large">Apply Now</a>
+                    <button type="button" class="btn btn-primary btn-large open-apply-modal">Apply Now</button>
                     <a href="#how-it-works" class="btn btn-secondary btn-large">See How It Works</a>
                 </div>
                 <p class="hero-note">No upfront fees. Decision within 24 hours.</p>
@@ -324,7 +324,7 @@
         <div class="container">
             <h2>Don't Let Funding Kill Your Deal</h2>
             <p>Apply now and get a decision within 24 hours</p>
-            <a href="#contact" class="btn btn-primary btn-large">Start Your Application</a>
+            <button type="button" class="btn btn-primary btn-large open-apply-modal">Start Your Application</button>
         </div>
     </section>
 
@@ -468,6 +468,146 @@
             </div>
         </div>
     </footer>
+
+    <!-- Application Modal -->
+    <div id="apply-modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" aria-label="Close">&times;</button>
+            
+            <!-- Progress Steps -->
+            <div class="modal-progress">
+                <div class="progress-step active" data-step="1">
+                    <div class="step-circle">1</div>
+                    <span>Deal Info</span>
+                </div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="2">
+                    <div class="step-circle">2</div>
+                    <span>Your Details</span>
+                </div>
+                <div class="progress-line"></div>
+                <div class="progress-step" data-step="3">
+                    <div class="step-circle">3</div>
+                    <span>Documents</span>
+                </div>
+            </div>
+
+            <form id="apply-form" class="modal-form">
+                <!-- Step 1: Deal Info -->
+                <div class="form-step active" data-step="1">
+                    <h2>Tell Us About Your Deal</h2>
+                    <p class="step-subtitle">What type of property are you acquiring?</p>
+                    
+                    <div class="form-group">
+                        <label>Deal Type</label>
+                        <div class="deal-type-grid">
+                            <label class="deal-type-option">
+                                <input type="radio" name="deal-type" value="multifamily" required>
+                                <span class="deal-type-card">
+                                    <span class="deal-icon">🏢</span>
+                                    <span>Multifamily</span>
+                                </span>
+                            </label>
+                            <label class="deal-type-option">
+                                <input type="radio" name="deal-type" value="hotel">
+                                <span class="deal-type-card">
+                                    <span class="deal-icon">🏨</span>
+                                    <span>Hotel</span>
+                                </span>
+                            </label>
+                            <label class="deal-type-option">
+                                <input type="radio" name="deal-type" value="commercial">
+                                <span class="deal-type-card">
+                                    <span class="deal-icon">🏬</span>
+                                    <span>Commercial</span>
+                                </span>
+                            </label>
+                            <label class="deal-type-option">
+                                <input type="radio" name="deal-type" value="other">
+                                <span class="deal-type-card">
+                                    <span class="deal-icon">🏗️</span>
+                                    <span>Other</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="closing-price">Closing Price</label>
+                            <input type="text" id="closing-price" name="closing-price" required placeholder="$1,500,000">
+                        </div>
+                        <div class="form-group">
+                            <label for="city">City</label>
+                            <input type="text" id="city" name="city" required placeholder="Miami, FL">
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary btn-next">Continue</button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Personal Details -->
+                <div class="form-step" data-step="2">
+                    <h2>Your Contact Information</h2>
+                    <p class="step-subtitle">How can we reach you?</p>
+                    
+                    <div class="form-group">
+                        <label for="apply-name">Full Name</label>
+                        <input type="text" id="apply-name" name="name" required placeholder="John Smith">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apply-email">Email</label>
+                        <input type="email" id="apply-email" name="email" required placeholder="john@example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apply-phone">Phone</label>
+                        <input type="tel" id="apply-phone" name="phone" required placeholder="(555) 555-5555">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary btn-prev">Back</button>
+                        <button type="button" class="btn btn-primary btn-next">Continue</button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Upload Agreement -->
+                <div class="form-step" data-step="3">
+                    <h2>Upload Signed Agreement</h2>
+                    <p class="step-subtitle">Upload your signed purchase agreement or LOI</p>
+                    
+                    <div class="form-group">
+                        <div class="file-upload-area" id="file-drop-area">
+                            <div class="file-upload-icon">📄</div>
+                            <p class="file-upload-text">Drag and drop your file here, or</p>
+                            <label class="file-upload-btn">
+                                <span>Browse Files</span>
+                                <input type="file" id="agreement-file" name="agreement" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
+                            </label>
+                            <p class="file-upload-hint">PDF, DOC, or images up to 10MB</p>
+                        </div>
+                        <div id="file-preview" class="file-preview"></div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary btn-prev">Back</button>
+                        <button type="submit" class="btn btn-primary">Submit Application</button>
+                    </div>
+                </div>
+
+                <!-- Success Message -->
+                <div class="form-step form-success" data-step="success">
+                    <div class="success-icon">✓</div>
+                    <h2>Application Submitted!</h2>
+                    <p>Thank you for your application. Our team will review your deal and get back to you within 24 hours.</p>
+                    <button type="button" class="btn btn-primary modal-close-btn">Close</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Mobile Menu Script -->
     <script src="js/main.js"></script>
