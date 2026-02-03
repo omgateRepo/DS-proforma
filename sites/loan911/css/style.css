@@ -183,7 +183,7 @@ ul {
 ======================================== */
 .navbar {
     position: fixed;
-    top: 0;
+    top: 36px; /* Space for version banner */
     left: 0;
     right: 0;
     background-color: rgba(255, 255, 255, 0.95);
