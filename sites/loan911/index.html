@@ -29,7 +29,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Styles -->
-    <link rel="stylesheet" href="css/style.css?v=1.0.6">
+    <link rel="stylesheet" href="css/style.css?v=1.0.7">
 </head>
 <body>
     <!-- Navigation -->
@@ -466,7 +466,7 @@
             <div class="footer-bottom">
                 <p>&copy; 2026 Loan911. All rights reserved. NMLS #XXXXXX</p>
                 <p class="disclaimer">Loan911 is a private lender. All loans subject to underwriting approval. Terms and conditions apply.</p>
-                <p class="version">v1.0.6</p>
+                <p class="version">v1.0.7</p>
             </div>
         </div>
     </footer>
@@ -540,9 +540,65 @@
                             <input type="text" id="closing-price" name="closing-price" required placeholder="$1,500,000">
                         </div>
                         <div class="form-group">
-                            <label for="city">City</label>
-                            <input type="text" id="city" name="city" required placeholder="Miami, FL">
+                            <label for="loan-requested">Loan Requested</label>
+                            <input type="text" id="loan-requested" name="loan-requested" required placeholder="$1,000,000">
                         </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="city">City & State</label>
+                        <input type="text" id="city" name="city" required placeholder="Start typing a city..." list="city-list" autocomplete="off">
+                        <datalist id="city-list">
+                            <option value="New York, NY">
+                            <option value="Los Angeles, CA">
+                            <option value="Chicago, IL">
+                            <option value="Houston, TX">
+                            <option value="Phoenix, AZ">
+                            <option value="Philadelphia, PA">
+                            <option value="San Antonio, TX">
+                            <option value="San Diego, CA">
+                            <option value="Dallas, TX">
+                            <option value="San Jose, CA">
+                            <option value="Austin, TX">
+                            <option value="Jacksonville, FL">
+                            <option value="Fort Worth, TX">
+                            <option value="Columbus, OH">
+                            <option value="Charlotte, NC">
+                            <option value="San Francisco, CA">
+                            <option value="Indianapolis, IN">
+                            <option value="Seattle, WA">
+                            <option value="Denver, CO">
+                            <option value="Washington, DC">
+                            <option value="Boston, MA">
+                            <option value="Nashville, TN">
+                            <option value="Detroit, MI">
+                            <option value="Portland, OR">
+                            <option value="Las Vegas, NV">
+                            <option value="Memphis, TN">
+                            <option value="Louisville, KY">
+                            <option value="Baltimore, MD">
+                            <option value="Milwaukee, WI">
+                            <option value="Albuquerque, NM">
+                            <option value="Tucson, AZ">
+                            <option value="Fresno, CA">
+                            <option value="Sacramento, CA">
+                            <option value="Mesa, AZ">
+                            <option value="Atlanta, GA">
+                            <option value="Kansas City, MO">
+                            <option value="Colorado Springs, CO">
+                            <option value="Miami, FL">
+                            <option value="Raleigh, NC">
+                            <option value="Omaha, NE">
+                            <option value="Long Beach, CA">
+                            <option value="Virginia Beach, VA">
+                            <option value="Oakland, CA">
+                            <option value="Minneapolis, MN">
+                            <option value="Tampa, FL">
+                            <option value="Tulsa, OK">
+                            <option value="Arlington, TX">
+                            <option value="New Orleans, LA">
+                            <option value="Orlando, FL">
+                        </datalist>
                     </div>
                     
                     <div class="form-actions">
@@ -612,6 +668,6 @@
     </div>
 
     <!-- Mobile Menu Script -->
-    <script src="js/main.js?v=1.0.6"></script>
+    <script src="js/main.js?v=1.0.7"></script>
 </body>
 </html>
