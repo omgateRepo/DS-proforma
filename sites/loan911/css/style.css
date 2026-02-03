@@ -180,8 +180,9 @@ ul {
 }
 
 .btn-large {
-    padding: var(--spacing-lg) var(--spacing-2xl);
-    font-size: var(--font-size-lg);
+    padding: 1.25rem 2.5rem;
+    font-size: 1.35rem;
+    font-weight: 700;
 }
 
 /* ========================================
@@ -266,20 +267,21 @@ ul {
 }
 
 .hero-content h1 {
-    font-size: var(--font-size-5xl);
+    font-size: 3.5rem;
     font-weight: 800;
     color: var(--color-gray-900);
-    line-height: 1.05;
+    line-height: 1.1;
     margin-bottom: var(--spacing-lg);
     letter-spacing: -0.02em;
+    white-space: nowrap;
 }
 
 .hero-subtitle {
-    font-size: var(--font-size-xl);
+    font-size: 1.5rem;
     color: var(--color-gray-600);
     margin-bottom: var(--spacing-xl);
-    max-width: 520px;
-    line-height: 1.6;
+    max-width: 600px;
+    line-height: 1.5;
 }
 
 .hero-cta {
