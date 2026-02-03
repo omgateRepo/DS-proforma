@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs'
 import multer from 'multer'
 import nodemailer from 'nodemailer'
 import prisma from './prisma.js'
+
+console.log('ROUTES FILE LOADED - multer and nodemailer imported successfully')
 import {
   projectCreateSchema,
   projectUpdateSchema,

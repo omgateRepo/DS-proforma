@@ -77,7 +77,13 @@ const authMiddleware = createAuthMiddleware({
   ],
 })
 
-app.use('/api', authMiddleware, apiLimiter, routes)
+// Debug middleware to see what's passing through
+const debugMiddleware = (req, res, next) => {
+  console.log('DEBUG AFTER AUTH:', req.method, req.url, req.originalUrl)
+  next()
+}
+
+app.use('/api', authMiddleware, debugMiddleware, apiLimiter, routes)
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
