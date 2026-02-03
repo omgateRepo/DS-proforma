@@ -1121,10 +1121,9 @@ ul {
 }
 
 .footer-bottom .version {
-    font-size: 10px;
-    color: var(--color-gray-600);
-    margin-top: var(--spacing-md);
-    opacity: 0.5;
+    font-size: 12px;
+    color: var(--color-gray-400);
+    margin-top: var(--spacing-sm);
 }
 
 /* About Stats - 4 columns for Loan911 */
