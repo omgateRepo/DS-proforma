@@ -5541,8 +5541,11 @@ const upload = multer({
 })
 
 // Public endpoint - no auth required
-router.post('/loan-application', upload.single('agreement'), async (req, res) => {
-  console.log('LOAN-APPLICATION ROUTE HIT')
+router.post('/loan-application', (req, res, next) => {
+  console.log('LOAN-APPLICATION ROUTE HIT - before multer')
+  next()
+}, upload.single('agreement'), async (req, res) => {
+  console.log('LOAN-APPLICATION ROUTE HIT - after multer')
   try {
     const { dealType, closingPrice, loanRequested, city, name, email, phone } = req.body
     const file = req.file

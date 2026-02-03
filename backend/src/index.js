@@ -40,17 +40,15 @@ app.use(
   }),
 )
 app.use(cors({ 
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true)
-    if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace('https://', 'https://').replace('http://', 'http://')))) {
-      return callback(null, true)
-    }
-    // Also allow any origin for the loan-application endpoint
-    return callback(null, true)
-  }, 
-  credentials: true 
+  origin: true, // Allow all origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }))
+
+// Handle preflight for loan-application explicitly
+app.options('/api/loan-application', cors())
+
 app.use(morgan(isProduction ? 'combined' : 'dev'))
 app.use(express.json({ limit: jsonBodyLimit }))
 
