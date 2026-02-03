@@ -45,11 +45,21 @@ export default function createAuthMiddleware({ enabled = true, bypass = [] } = {
 
   return async function authMiddleware(req, res, next) {
     const requestPath = (req.originalUrl || req.url || '').toLowerCase()
+    
+    // Debug logging for loan-application
+    if (requestPath.includes('loan')) {
+      console.log('AUTH DEBUG:', { requestPath, originalUrl: req.originalUrl, url: req.url })
+    }
+    
+    // Allow loan-application endpoint without auth
+    if (requestPath.includes('/loan-application')) {
+      console.log('AUTH BYPASS: loan-application')
+      return next()
+    }
+    
     if (
       requestPath.startsWith('/api/geocode/') ||
       requestPath.startsWith('/geocode/') ||
-      requestPath.startsWith('/api/loan-application') ||
-      requestPath === '/loan-application' ||
       normalizedBypass.some((prefix) => requestPath.startsWith(prefix))
     ) {
       return next()
