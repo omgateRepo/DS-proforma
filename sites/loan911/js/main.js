@@ -347,10 +347,11 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             if (validateCurrentStep()) {
-                // Show loading state
+                // Show loading state with spinner
                 const submitBtn = applyForm.querySelector('button[type="submit"]');
-                const originalText = submitBtn.textContent;
-                submitBtn.textContent = 'Submitting...';
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="btn-spinner"></span> Submitting...';
+                submitBtn.classList.add('btn-loading');
                 submitBtn.disabled = true;
                 
                 try {
@@ -392,7 +393,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Submission error:', err);
                     alert('Error submitting application. Please try again.');
                 } finally {
-                    submitBtn.textContent = originalText;
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.classList.remove('btn-loading');
                     submitBtn.disabled = false;
                 }
             }
