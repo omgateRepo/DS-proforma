@@ -306,13 +306,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
     function showFilePreview(file) {
         // Check file size
         if (file.size > MAX_FILE_SIZE) {
             const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-            alert(`File is too large (${sizeMB}MB). Maximum size is 100MB.`);
+            alert(`File is too large (${sizeMB}MB). Maximum size is 25MB.`);
             fileInput.value = '';
             return;
         }
