@@ -323,7 +323,9 @@ ul {
 
 .hero-image {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    align-items: center;
 }
 
 .placeholder-image {
