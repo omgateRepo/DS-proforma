@@ -156,6 +156,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Auto-open modal if ?apply=true in URL
+    if (window.location.search.includes('apply=true') && modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        resetForm();
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     // Close on Escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && modal.classList.contains('active')) {
