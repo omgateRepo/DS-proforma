@@ -290,7 +290,7 @@ ul {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--spacing-3xl);
-    align-items: center;
+    align-items: start;
 }
 
 .hero-content h1 {
