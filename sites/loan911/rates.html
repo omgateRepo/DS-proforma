@@ -15,7 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Styles -->
-    <link rel="stylesheet" href="css/style.css?v=1.4.6">
+    <link rel="stylesheet" href="css/style.css?v=1.4.7">
     
     <style>
         .rates-page {
@@ -80,6 +80,13 @@
             margin-top: var(--spacing-sm);
         }
         
+        .rate-detail {
+            font-size: 1.1rem;
+            color: var(--color-gray-500);
+            margin-top: var(--spacing-xs);
+            font-weight: 500;
+        }
+        
         .rate-card h2 {
             font-size: 1.75rem;
             font-weight: 700;
@@ -133,10 +140,23 @@
             margin: var(--spacing-xl) 0;
         }
         
+        .legal-fee-header {
+            display: flex;
+            align-items: baseline;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+        }
+        
+        .legal-fee-label {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--color-gray-800);
+        }
+        
         .legal-fee-amount {
             font-size: 2.5rem;
             font-weight: 800;
-            color: var(--color-gray-900);
+            color: var(--color-primary);
         }
         
         .philosophy-section {
@@ -208,6 +228,7 @@
                     <div class="rate-main">
                         <div class="rate-number">12%</div>
                         <div class="rate-label">Annual Interest Rate</div>
+                        <div class="rate-detail">Interest Only</div>
                     </div>
                     
                     <h2>What You Pay</h2>
@@ -220,11 +241,13 @@
                         <li><span class="check-icon">✓</span> <strong>No prepayment penalties</strong></li>
                     </ul>
                     
-                    <h3>One-Time Legal Fee</h3>
                     <div class="legal-fee-box">
-                        <p style="margin-bottom: var(--spacing-sm);"><strong>Title check & collateral documentation</strong></p>
-                        <div class="legal-fee-amount">$990</div>
-                        <p style="margin-top: var(--spacing-md); margin-bottom: 0; font-size: 1rem;">
+                        <div class="legal-fee-header">
+                            <span class="legal-fee-label">One-Time Legal Fee:</span>
+                            <span class="legal-fee-amount">$990</span>
+                        </div>
+                        <p style="margin-top: var(--spacing-md); margin-bottom: 0; font-size: 1rem; color: var(--color-gray-600);">
+                            <strong>Title check & collateral documentation.</strong><br>
                             Flat fee paid directly to the attorney. Covers title search and writing the collateral agreement against the loan.
                         </p>
                     </div>
