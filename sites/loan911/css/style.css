@@ -953,6 +953,11 @@ ul {
         display: flex;
     }
     
+    .nav-links a {
+        font-size: 1.35rem;
+        padding: var(--spacing-sm) 0;
+    }
+    
     .mobile-menu-btn {
         display: flex;
     }
